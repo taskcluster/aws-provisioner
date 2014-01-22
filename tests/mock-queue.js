@@ -31,7 +31,7 @@ exports.run = function(tasks, port) {
   return new Promise(function(accept, reject) {
     var server = http.createServer(app);
     server.once('listening', function() {
-      console.log('Express server listening on port ' + app.get('port'));
+      console.log('mock-queue listening on port ' + app.get('port'));
       server.removeListener('error', reject);
       accept(server);
     });
