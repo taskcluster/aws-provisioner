@@ -5,10 +5,16 @@ var aws     = require('aws-sdk');
 /** Default configuration values */
 var DEFAULT_CONFIG_VALUES = {
   // Run the provisioner without modifying AWS resources
-  'dry-run':                        true,
+  'dry-run':                        false,
+
+  // Log provisioning actions to stdout
+  'log-actions':                    false,
 
   // Server (HTTP) configuration
   'server': {
+    // Server hostname
+    'hostname':                     'localhost',
+
     // Port to run the HTTP server on
     'port':                         3000,
 
@@ -43,7 +49,7 @@ var DEFAULT_CONFIG_VALUES = {
     // Key name for instances launched, this must be unique as the key-name will
     // be used query for running instances and this provisioner reserves the
     // right to kill any instance with it's key-name...
-    'key-name':                     'spot-provisioner-managed',
+    'key-name':                     'provisioner-managed',
 
     // File to write log of scaling actions to
     'log-path':                     '/tmp/actions.log'

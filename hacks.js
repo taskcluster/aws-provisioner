@@ -1,5 +1,11 @@
-var nconf   = require('nconf')
 
-nconf.argv();
+console.log(test());
 
-console.log(nconf.get('test'))
+var speak_english = true;
+if ( speak_english ) {
+  function test() {return "Hello World!";}
+} else {
+  function test() {return "Hej Verden!";}
+}
+
+console.log(test());

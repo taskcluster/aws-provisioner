@@ -1,36 +1,36 @@
-var spawn = require('child_process').spawn;
-var app        = require('app');
-var mock_queue = null;
+var mock_queue  = require('./mock-queue');
+var server      = require('../server');
+var provisioner = require('../provisioner');
+
+var mock_server = null;
 
 /** Launch mock-queue */
 exports.setUp = function(cb) {
-  // Create mock-queue
-  args = [
-    'mock-queue.js'
-  ];
-  mock_queue = spawn('node', args);
-
-  // Log output
-  mock_queue.stdout.on('data', function (data) {
-    console.log('mock-queue: ' + data);
+  // Create mock queue
+  mock_queue.run([], 4242).done(function() {
+    cb();
+  }, function () {
+    console.log("Failed to start mock-queue!!!");
+    cb();
   });
-  mock_queue.stderr.on('data', function (data) {
-    console.log('mock-queue: ' + data);
-  });
-
-  // Report that setup is done
-  cb()
 }
 
 /** Terminate mock-queue */
 exports.tearDown = function(cb) {
-  // Kill the the mock-queue
-  mock_queue.kill('SIGHUB');
-  cb()
+  cb();
 }
 
-exports.provision = function(test){
-    test.ok(true, "this assertion should fail");
+exports.provision = function(test) {
+  // Provision and expect to get with success or fail
+  test.expect(1);
+
+  provisioner.provision().done(function() {
+    test.ok(true, "Provision successful");
     test.done();
+  }, function() {
+    console.log(arguments);
+    test.ok(false, "Provision failed!");
+    test.done();
+  });
 };
 
