@@ -35,9 +35,9 @@ exports.run = function(tasks, port) {
       server.removeListener('error', reject);
       accept(server);
     });
-    server.once('error', function() {
+    server.once('error', function(err) {
       server.removeListener('listening', accept);
-      reject(server);
+      reject({server: server, error: err});
     });
     server.listen(app.get('port'));
   });

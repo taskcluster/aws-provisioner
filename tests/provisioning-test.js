@@ -1,59 +1,64 @@
-var mock_queue  = require('./mock-queue');
-var server      = require('../server');
-var provisioner = require('../provisioner');
+// Load nconf and override the default configuration
 var nconf       = require('nconf')
-var mock_server = null;
-
 var port = 48394;
 
 // Ensure that we read from the right queue
 nconf.overrides({
-  'dry-run':                        true,
+  'dry-run':                        false,
+
+  'log-actions':                    true,
 
   // Queue configuration
   'queue': {
     // Host name for the taskcluster-queue
     'host':                         'localhost:' + port,
-
-    // API version of the taskcluster-queue
-    'version':                      '0.1.0'
   },
 });
+
+// Load mock queue, server and provision module from provisioner
+var mock_queue  = require('./mock-queue');
+var server      = require('../server');
+var provision   = require('../provisioner/provision');
+
+// Keep to mock-server so we can close it again
+var mock_server = null;
 
 /** Launch mock-queue */
 exports.setUp = function(cb) {
   // Create mock queue
-  mock_queue.run([], port).done(function() {
+  mock_queue.run([], port).done(function(server) {
+    mock_server = server;
     cb();
-  }, function (err) {
+  }, function (args) {
     console.log("Failed to start mock-queue!!!");
-    console.log(err);
+    console.log(args.err);
+    mock_server = args.server;
+    mock_server.close();
     cb();
   });
 };
 
 /** Terminate mock-queue */
 exports.tearDown = function(cb) {
-  cb();
+  if (mock_server) {
+    mock_server.close(function() {
+      cb();
+    });
+    mock_server = null;
+  }
 };
 
-/** Test the test setup */
-exports.testSetup = function(test) {
-  test.ok(nconf.get('dry-run') == true, "nconf is not configured for dry-run");
-  test.done();
-};
-
-/** Test provisioning */
-exports.provision = function(test) {
+/** Test findAMIRequirements */
+exports.findAMIRequirements = function(test) {
   // Provision and expect to get with success or fail
   test.expect(1);
 
-  provisioner.provision().done(function() {
-    test.ok(true, "Provision successful");
+  provision.findAMIRequirements().then(function() {
+    test.ok(true, "Successfully found some requirements");
     test.done();
   }, function() {
     console.log(arguments);
-    test.ok(false, "Provision failed!");
+    test.ok(false, "Collection of requirements failed!");
     test.done();
   });
 };
