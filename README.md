@@ -1,10 +1,11 @@
-TaskCluster Spot Provisioner
+TaskCluster AWS Provisioner
 ============================
-
-This repository contains a EC2 spot instance provisioner for a TaskCluster
-instance. Basically, this server monitors the number of pending tasks, number
-running instances and pending spot requests, based on these number spot requests
-are submitted to AWS.
+This repository contains a EC2 instance provisioner for a TaskCluster instance.
+For the time being it has a focus on submitting and canceling spot instance
+requests, as well as terminating instance should be create too many.
+This server basically monitors the number of pending tasks, running instances
+and pending spot requests, then submits, cancels or terminates AWS resources
+according to the configuration. Initial implementation is quite naive.
 
 Quick Start
 -----------
