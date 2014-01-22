@@ -25,7 +25,7 @@ var DEFAULT_CONFIG_VALUES = {
   // Settings related to provisioning
   'provisioning': {
     // Interval with which to run the provisioning algorithm (in seconds)
-    'interval':                     5 * 60,
+    'interval':                     2 * 60,
 
     // Number of provision retries before exiting non-zero, in deployment this
     // should email some administrator...
@@ -52,7 +52,7 @@ var DEFAULT_CONFIG_VALUES = {
     'key-name':                     'provisioner-managed',
 
     // File to write log of scaling actions to
-    'log-path':                     '/tmp/actions.log'
+    'log-path':                     '/tmp/taskcluster-aws-provisioner-actions.log'
   },
 
   // Queue configuration

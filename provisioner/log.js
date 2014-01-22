@@ -1,4 +1,5 @@
 var nconf   = require('nconf');
+var fs      = require('fs');
 var _       = require('lodash');
 
 // List of log entries
@@ -29,6 +30,9 @@ var log = function(action, message, quantity) {
   };
   _entries.push(entry);
 
+  // Write to log file
+  fs.appendFile(nconf.get('provisioning:log-path'), JSON.stringify(entry));
+
   // Log entry if needed
   if (nconf.get('log-actions')) {
     console.log(pad(action + ':', 15) + message.replace('%i', entry.quantity) +
@@ -47,6 +51,8 @@ var log = function(action, message, quantity) {
     if (quantity !== undefined) {
       entry.quantity = quantity;
     }
+    // Write to log file
+    fs.appendFile(nconf.get('provisioning:log-path'), JSON.stringify(entry));
     if (nconf.get('log-actions')) {
       console.log(
         pad(entry.action + ':', 15) +
