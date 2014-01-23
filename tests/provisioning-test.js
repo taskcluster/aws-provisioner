@@ -4,7 +4,7 @@ var port = 48394;
 
 // Ensure that we read from the right queue
 nconf.overrides({
-  'dry-run':                        false,
+  'dry-run':                        true,
 
   'log-actions':                    true,
 

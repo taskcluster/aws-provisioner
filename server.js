@@ -32,9 +32,14 @@ app.use(express.cookieParser(nconf.get('server:cookie-secret')));
 app.use(express.session());
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(function(req, res, next) {
+  // Expose user to all templates, if logged in
+  res.locals.user = req.user;
+  next();
+});
 app.use(app.router);
-app.use(require('stylus').middleware(path.join(__dirname, 'static')));
-app.use(express.static(path.join(__dirname, 'static')));
+app.use('/static', require('stylus').middleware(path.join(__dirname, 'static')));
+app.use('/static', express.static(path.join(__dirname, 'static')));
 
 // Warn if no secret was used in production
 if ('production' == app.get('env')) {
@@ -50,13 +55,13 @@ if ('development' == app.get('env')) {
   app.use(express.errorHandler());
 }
 
-/*
 // Passport configuration
 passport.use(new PersonaStrategy({
     audience: 'http://' + nconf.get('server:hostname') + ':' +
                nconf.get('server:port')
   },
   function(email, done) {
+    console.log("Signed in with:" + email);
     if (/@mozilla\.com$/.test(email)) {
       done(null, {email: email});
     } else {
@@ -75,12 +80,8 @@ passport.deserializeUser(function(email, done) {
   done(null, {email: email});
 });
 
-app.get('/login', function(req, res){
-  res.render('login', { user: req.user });
-});
-
-app.post('/auth/browserid',
-  passport.authenticate('persona', {failureRedirect: '/login'}),
+app.post('/persona-auth',
+  passport.authenticate('persona', {failureRedirect: '/unauthorized'}),
   function(req, res) {
     res.redirect('/');
   }
@@ -89,14 +90,24 @@ app.post('/auth/browserid',
 app.get('/logout', function(req, res){
   req.logout();
   res.redirect('/');
-});*/
+});
+
+/** Middleware for requiring authenticatoin */
+var ensureAuthenticated = function(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/unauthorized');
+}
+
 
 // Route configuration
 var routes = require('./routes');
-app.get('/',                                routes.index);
-app.get('/log',                             routes.log);
-app.get('/0.1.0/kill-instance/:instance',   routes.api.kill);
-app.get('/0.1.0/list-instances/:instance',  routes.api.list);
+app.get('/',                                                      routes.index);
+app.get('/unauthorized',                                          routes.unauthorized);
+app.get('/log',                             ensureAuthenticated,  routes.log);
+app.get('/0.1.0/kill-instance/:instance',                         routes.api.kill);
+app.get('/0.1.0/list-instances/:instance',                        routes.api.list);
 
 /** Run the server */
 exports.run = function() {
@@ -125,7 +136,7 @@ exports.run = function() {
   };
 
   // Provision instances after first 3 sec
-  setTimeout(provision_and_schedule, 3 * 1000);
+  //setTimeout(provision_and_schedule, 3 * 1000);
 };
 
 // If server.js is executed start the server
