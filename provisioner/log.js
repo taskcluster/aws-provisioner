@@ -29,9 +29,9 @@ var log = function(action, message, quantity) {
     time:                           null
   };
   _entries.push(entry);
-
-  // Write to log file
-  fs.appendFile(nconf.get('provisioning:log-path'), JSON.stringify(entry));
+  if (_entries.lenght > 20) {
+    _entries.shift();
+  }
 
   // Log entry if needed
   if (nconf.get('log-actions')) {
@@ -51,8 +51,6 @@ var log = function(action, message, quantity) {
     if (quantity !== undefined) {
       entry.quantity = quantity;
     }
-    // Write to log file
-    fs.appendFile(nconf.get('provisioning:log-path'), JSON.stringify(entry));
     if (nconf.get('log-actions')) {
       console.log(
         pad(entry.action + ':', 15) +

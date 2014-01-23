@@ -50,9 +50,6 @@ var DEFAULT_CONFIG_VALUES = {
     // be used query for running instances and this provisioner reserves the
     // right to kill any instance with it's key-name...
     'key-name':                     'provisioner-managed',
-
-    // File to write log of scaling actions to
-    'log-path':                     '/tmp/taskcluster-aws-provisioner-actions.log'
   },
 
   // Queue configuration
