@@ -135,7 +135,7 @@ exports.run = function() {
   };
 
   // Provision instances after first 3 sec
-  //setTimeout(provision_and_schedule, 3 * 1000);
+  setTimeout(provision_and_schedule, 3 * 1000);
 };
 
 // If server.js is executed start the server
