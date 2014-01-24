@@ -39,16 +39,16 @@ exports.findAMIRequirements = function() {
     }],
     DryRun:                         nconf.get('dry-run')
   }).promise().then(function(response) {
-    var spot_requests = response.data.SpotInstanceRequests;
+    var spotRequests = response.data.SpotInstanceRequests;
     // Log that we got spot instance requests
-    log_get_spots_requests_end("Got %i instances", spot_requests.length);
+    log_get_spots_requests_end("Got %i instances", spotRequests.length);
     // For each spot request, decrement number of AMIs needed
-    spot_requests.forEach(function(request) {
+    spotRequests.forEach(function(request) {
       var ami = request.LaunchSpecification.ImageId;
       var amis = (AMIsNeeded[ami] || 0) - 1;
       AMIsNeeded[ami] = amis;
     });
-    return spot_requests;
+    return spotRequests;
   });
 
   // Find number of pending tasks
