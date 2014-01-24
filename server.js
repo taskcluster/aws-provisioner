@@ -100,7 +100,6 @@ var ensureAuthenticated = function(req, res, next) {
   res.redirect('/unauthorized');
 }
 
-
 // Route configuration
 var routes = require('./routes');
 app.get('/',                                                      routes.index);

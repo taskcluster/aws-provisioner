@@ -49,7 +49,7 @@ var DEFAULT_CONFIG_VALUES = {
     // Key name for instances launched, this must be unique as the key-name will
     // be used query for running instances and this provisioner reserves the
     // right to kill any instance with it's key-name...
-    'key-name':                     'provisioner-managed',
+    'key-name':                     'provisioner-managed'
   },
 
   // Queue configuration
@@ -75,17 +75,20 @@ var DEFAULT_CONFIG_VALUES = {
 
 /** Load configuration */
 exports.load = function(default_only) {
-  if (!default_only) {
+
+  if (!default_only || true) {
     // Load configuration from command line arguments, if requested
     nconf.argv();
 
+    // Config from current working folder if present
+    nconf.file('local', 'taskcluster-aws-provisioner.conf.json');
+
     // User configuration
-    nconf.file('~/.taskcluster-spot-provisioner.conf.json');
+    nconf.file('user', '~/.taskcluster-aws-provisioner.conf.json');
 
     // Global configuration
-    nconf.file('/etc/taskcluster-spot-provisioner.conf.json');
+    nconf.file('global', '/etc/taskcluster-aws-provisioner.conf.json');
   }
-
 
   // Load default configuration
   nconf.defaults(DEFAULT_CONFIG_VALUES);

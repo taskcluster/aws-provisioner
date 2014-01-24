@@ -16,6 +16,7 @@
     "lodash":                           "2.4.1",
     "nodeunit":                         "0.8.2",
     "passport":                         "0.1.18",
-    "passport-persona":                 "0.1.7"
+    "passport-persona":                 "0.1.7",
+    "uuid":                             "1.4.1"
   }
 }
