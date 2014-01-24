@@ -1,1 +1,3 @@
 node_modules
+taskcluster-aws-provisioner.conf.json
+provisioner-test-*.pem
