@@ -57,7 +57,7 @@ if (!module.parent) {
     'task':                           [],
 
     // Port to run the mock server on
-    'port':                           4242
+    'port':                           8314
   });
 
   // Load tasks

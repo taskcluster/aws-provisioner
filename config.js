@@ -55,7 +55,7 @@ var DEFAULT_CONFIG_VALUES = {
   // Queue configuration
   'queue': {
     // Host name for the taskcluster-queue
-    'host':                         'localhost:4242',
+    'host':                         'localhost:8314',
 
     // API version of the taskcluster-queue
     'version':                      '0.1.0'
