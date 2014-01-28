@@ -55,7 +55,7 @@ exports.findAMIRequirements = function() {
   var log_get_pending_tasks_end = log('QUEUE', "Get pending tasks");
   var get_pending_tasks = PromiseRequest(
       'http://' + nconf.get('queue:host') + ':' + nconf.get('queue:port') +
-      '/' + nconf.get('queue:version') + '/jobs/PENDING'
+      '/' + nconf.get('queue:version') + '/jobs?state=PENDING'
     ).then(function(response) {
     // Check status code
     if (response.statusCode != 200) {
