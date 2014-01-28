@@ -11,7 +11,8 @@ nconf.overrides({
   // Queue configuration
   'queue': {
     // Host name for the taskcluster-queue
-    'host':                         'localhost:' + port,
+    'host':                         'localhost',
+    'port':                         port
   },
 });
 
