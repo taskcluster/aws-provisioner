@@ -33,3 +33,12 @@ key-name and delete the key-name from local config file.
 For testing purposes, run `utils/setup-aws.js` to create a key-name and when
 testing is done clean up with `utils/cleanup-aws.js`. In production, it's
 recommended that a special key-name in constructed and configured manually.
+
+Expected Queue Interface
+------------------------
+The provisioner expects that it is able query the queue for pending jobs. These
+jobs are returned a JSON list of JSON task objects. The URL for this request is 
+`http://<queue:host>:<queue:port>/<queue:version>/jobs?state=PENDING`, where
+all bracket encapsulated variables referes to configuration keys, see
+`config.js` for default configuration.
+

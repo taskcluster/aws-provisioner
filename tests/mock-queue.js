@@ -22,7 +22,7 @@ exports.run = function(tasks, port) {
   var version = '0.1.0';
 
   // Implement listing of pending jobs
-  app.get('/' + version + '/jobs?state=PENDING', function(req, res) {
+  app.get('/' + version + '/jobs', function(req, res) {
     console.log("Serving " + tasks.length + " tasks");
     res.json(tasks);
   });
