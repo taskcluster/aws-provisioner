@@ -67,7 +67,6 @@ exports.findAMIRequirements = function() {
     log_get_pending_tasks_end("got %i tasks", tasks.length);
     // For each task increment the number of AMIs requested
     tasks.forEach(function(task) {
-      task = JSON.parse(task.job_object);
       var ami = ((task.parameters || {}).hardware || {}).ami;
       if (ami) {
         var amis = (AMIsNeeded[ami] || 0) + 1;
