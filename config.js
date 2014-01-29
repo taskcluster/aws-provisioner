@@ -8,7 +8,7 @@ var DEFAULT_CONFIG_VALUES = {
   'dry-run':                        false,
 
   // Log provisioning actions to stdout
-  'log-actions':                    false,
+  'log-actions':                    true,
 
   // Server (HTTP) configuration
   'server': {
