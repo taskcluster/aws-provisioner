@@ -113,7 +113,7 @@ Deployment Setup
         {
           "url": "https://github.com/taskcluster/aws-provisioner",
           "path": "/home/ubuntu/aws-provisioner",
-          "deploy": "sudo taskcluster-aws-provisioner restart"
+          "deploy": "sudo service taskcluster-aws-provisioner restart"
         }
       ]
     }
