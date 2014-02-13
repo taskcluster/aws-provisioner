@@ -50,40 +50,40 @@ Deployment Setup
   3. Clone [github-auto-deploy](https://github.com/logsol/Github-Auto-Deploy/) `git clone https://github.com/logsol/Github-Auto-Deploy.git`.
   4. Clone the provisioner `git clone https://github.com/taskcluster/aws-provisioner.git`
   5. Create upstart script for Github-Auto-Deploy in `/etc/init/github-auto-deploy.conf`:
+```
+#!upstart
+description   "Github Auto Deploy"
+author        "Jonas Finnemann Jensen <jopsen@gmail.com>"
 
-    #!upstart
-    description   "Github Auto Deploy"
-    author        "Jonas Finnemann Jensen <jopsen@gmail.com>"
+setuid ubuntu
 
-    setuid ubuntu
+stop on shutdown
 
-    stop on shutdown
-
-    script
-      cd /home/ubuntu/Github-Auto-Deploy/;
-      exec bash --login -c 'python GitAutoDeploy.py';
-    end script
-
+script
+  cd /home/ubuntu/Github-Auto-Deploy/;
+  exec bash --login -c 'python GitAutoDeploy.py';
+end script
+```
   6. Create upstart script for aws-provisioner in `/etc/init/taskcluster-aws-provisioner.conf`:
+```
+#!upstart
+description   "TaskCluster AWS Provisioner"
+author        "Jonas Finnemann Jensen <jopsen@gmail.com>"
 
-    #!upstart
-    description   "TaskCluster AWS Provisioner"
-    author        "Jonas Finnemann Jensen <jopsen@gmail.com>"
+setuid ubuntu
 
-    setuid ubuntu
+stop on shutdown
 
-    stop on shutdown
-
-    script
-      cd /home/ubuntu/aws-provisioner/;
-      exec bash --login -c 'forever --minUptime 5000 --spinSleepTime 10000 server.js';
-    end script
-
+script
+  cd /home/ubuntu/aws-provisioner/;
+  exec bash --login -c 'forever --minUptime 5000 --spinSleepTime 10000 server.js';
+end script
+```
   7. Setup iptables to forward port 80:
-
-    iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3001
-    iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 3001
-
+```
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3001
+iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 3001
+```
   8. Write config file to `/etc/taskcluster-aws-provisioner.conf.json`
     ```js
     {
