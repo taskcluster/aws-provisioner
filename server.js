@@ -58,7 +58,7 @@ if ('development' == app.get('env')) {
 // Passport configuration
 passport.use(new PersonaStrategy({
     audience: 'http://' + nconf.get('server:hostname') + ':' +
-               nconf.get('server:port')
+               nconf.get('server:public-port')
   },
   function(email, done) {
     console.log("Signed in with:" + email);

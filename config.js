@@ -18,6 +18,9 @@ var DEFAULT_CONFIG_VALUES = {
     // Port to run the HTTP server on
     'port':                         3001,
 
+    // Port through which the public access this server
+    'public-port':                  3001,
+
     // Cookie secret used to sign cookies, must be secret at deployment
     'cookie-secret':                "Warn, if no secret is used on production"
   },
