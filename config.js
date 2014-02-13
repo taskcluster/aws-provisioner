@@ -16,7 +16,7 @@ var DEFAULT_CONFIG_VALUES = {
     'hostname':                     'localhost',
 
     // Port to run the HTTP server on
-    'port':                         3000,
+    'port':                         3001,
 
     // Cookie secret used to sign cookies, must be secret at deployment
     'cookie-secret':                "Warn, if no secret is used on production"
@@ -24,6 +24,9 @@ var DEFAULT_CONFIG_VALUES = {
 
   // Settings related to provisioning
   'provisioning': {
+    // Provisioner identifier
+    'provisioner-id':               'test-aws-provisioner',
+
     // Interval with which to run the provisioning algorithm (in seconds)
     'interval':                     2 * 60,
 
@@ -58,10 +61,10 @@ var DEFAULT_CONFIG_VALUES = {
     'host':                         'localhost',
     
     // Port for the taskcluster-queue
-    'port':                         '8314',
+    'port':                         '3000',
 
     // API version of the taskcluster-queue
-    'version':                      '0.1.0'
+    'version':                      'v1'
   },
 
   // AWS SDK Configuration

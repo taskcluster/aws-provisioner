@@ -7,8 +7,11 @@ end
 Vagrant.configure("2") do |config|
   config.vm.box = "taskcluster-dev-0.0.0"
   config.vm.box_url = "https://s3.amazonaws.com/task-cluster-dev/0.0.0/taskcluster_dev.box"
+  config.vm.network :forwarded_port, host: 3000, guest: 3000
+  config.vm.network :forwarded_port, host: 3001, guest: 3001
   config.vm.provision "shell", inline: <<-SCRIPT
-echo 'export AWS_ACCESS_KEY_ID="#{ENV['AWS_ACCESS_KEY_ID']}";' >> /home/vagrant/.bashrc;
-echo 'export AWS_SECRET_ACCESS_KEY="#{ENV['AWS_SECRET_ACCESS_KEY']}";' >> /home/vagrant/.bashrc;
+sudo echo 'export AWS_ACCESS_KEY_ID="#{ENV['AWS_ACCESS_KEY_ID']}";' >> /etc/profile.d/aws.sh;
+sudo echo 'export AWS_SECRET_ACCESS_KEY="#{ENV['AWS_SECRET_ACCESS_KEY']}";' >> /etc/profile.d/aws.sh;
+sudo chmod a+x /etc/profile.d/aws.sh
 SCRIPT
 end

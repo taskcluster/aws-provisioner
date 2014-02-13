@@ -55,23 +55,24 @@ exports.findAMIRequirements = function() {
   var log_get_pending_tasks_end = log('QUEUE', "Get pending tasks");
   var get_pending_tasks = PromiseRequest(
       'http://' + nconf.get('queue:host') + ':' + nconf.get('queue:port') +
-      '/' + nconf.get('queue:version') + '/jobs?state=PENDING'
+      '/' + nconf.get('queue:version') + '/pending-tasks/' +
+      nconf.get('provisioning:provisioner-id')
     ).then(function(response) {
     // Check status code
     if (response.statusCode != 200) {
       throw new Error("Failed to fetch tasks with status code 200!");
     }
     // Read tasks from queue
-    var tasks = JSON.parse(response.body);
+    var tasks = JSON.parse(response.body).tasks.filter(function(task) {
+      return task.provisionerId == nconf.get('provisioning:provisioner-id');
+    });
     // Log response from queue
     log_get_pending_tasks_end("got %i tasks", tasks.length);
     // For each task increment the number of AMIs requested
     tasks.forEach(function(task) {
-      var ami = ((task.parameters || {}).hardware || {}).ami;
-      if (ami) {
-        var amis = (AMIsNeeded[ami] || 0) + 1;
-        AMIsNeeded[ami] = amis;
-      }
+      var ami = task.workerType;
+      var amis = (AMIsNeeded[ami] || 0) + 1;
+      AMIsNeeded[ami] = amis;
     });
     return tasks;
   });
