@@ -38,7 +38,7 @@ var DEFAULT_CONFIG_VALUES = {
     'max-retries':                  5,
 
     // Instance type to launch
-    'instance-type':                'm1.xlarge',
+    'instance-type':                'm1.small',
 
     // IAM profile assigned to instances launched
     'iam-profile':                  'taskcluster-worker',
