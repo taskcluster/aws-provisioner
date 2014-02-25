@@ -198,7 +198,12 @@ exports.provision = function() {
             SecurityGroups:       nconf.get('provisioning:security-groups')
           },
           DryRun:                 nconf.get('dry-run')
-        }).promise());
+        }).promise().catch(function(err) {
+          log('ERROR', "Failed to provision: " + ami + " with error: " + err);
+          console.log("ERR:");
+          console.log(err);
+          conso.e.log(" -- Ignoring this...");
+        }));
         slots_available -= 1;
         needed -= 1;
       }
