@@ -123,3 +123,34 @@ Deployment Setup
   11. Configure github post hook for `aws-provisioner.taskcluster.net:8001`
   12. Start server `sudo start taskcluster-aws-provisioner`
   13. Start Github-Auto-deploy `sudo start github-auto-deploy`
+
+
+IAM Role Policy
+---------------
+In order to allow the provisioner to launch instances, kill them and assign
+IAM roles, the following profile is useful. As we continue development, we might
+want to restrict it even further. Whether or not `iam::ListInstanceProfiles` is
+still to be determined.
+
+```js
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect":"Allow",
+      "Action":"iam:PassRole",
+      "Resource":"*"
+    },
+    {
+      "Effect":"Allow",
+      "Action":"iam:ListInstanceProfiles",
+      "Resource":"*"
+    },
+    {
+      "Effect":"Allow",
+      "Action":"ec2:*",
+      "Resource":"*"
+    }
+  ]
+}
+```

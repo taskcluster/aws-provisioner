@@ -184,7 +184,7 @@ exports.provision = function() {
       // Request spot instances
       while (slots_available > 0 && needed > 0) {
         log('DECISION', "Request instance with image " + ami);
-        var ec2request = {
+        pending_promises.push(ec2.requestSpotInstances({
           SpotPrice:              '' + nconf.get('provisioning:spot-price'),
           InstanceCount:          1,
           Type:                   'one-time',
@@ -198,9 +198,7 @@ exports.provision = function() {
             SecurityGroups:       nconf.get('provisioning:security-groups')
           },
           DryRun:                 nconf.get('dry-run')
-        };
-        console.log(JSON.stringify(ec2request, null, 2));
-        pending_promises.push(ec2.requestSpotInstances(ec2request).promise().catch(function(err) {
+        }).promise().catch(function(err) {
           log('ERROR', "Failed to provision: " + ami + " with error: " + err);
           console.log("ERR:");
           console.log(err);
