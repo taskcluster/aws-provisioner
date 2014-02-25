@@ -64,7 +64,15 @@ exports.findAMIRequirements = function() {
     }
     // Read tasks from queue
     var tasks = JSON.parse(response.body).tasks.filter(function(task) {
-      return task.provisionerId == nconf.get('provisioning:provisioner-id');
+      // Filter out tasks that doesn't have an ami as workerType
+      if (!(/^ami-[a-zA-Z0-9]+$/.test(task.workerType))) {
+        return false;
+      }
+      // Filter out tasks that isn't for this provisioner
+      if (task.provisionerId != nconf.get('provisioning:provisioner-id')) {
+        return false;
+      }
+      return true;
     });
     // Log response from queue
     log_get_pending_tasks_end("got %i tasks", tasks.length);
