@@ -11,7 +11,7 @@
     "stylus":                           "0.42.0",
     "nconf":                            "0.6.9",
     "aws-sdk":                          "2.0.0-rc8",
-    "promise":                          "3.2.0",
+    "promise":                          "4.0.0",
     "request":                          "2.31.0",
     "lodash":                           "2.4.1",
     "nodeunit":                         "0.8.2",
