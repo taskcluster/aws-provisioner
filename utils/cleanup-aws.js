@@ -6,7 +6,6 @@ var uuid                            = require('uuid');
 
 // Load a little monkey patching
 require('./aws-sdk-promise').patch();
-require('./spread-promise').patch();
 
 // Config filename
 var config_filename = 'taskcluster-aws-provisioner.conf.json';
@@ -138,7 +137,7 @@ cleanup().then(function() {
 }).then(function() {
   delete cfg.provisioning['key-name'];
   delete cfg.aws.region;
-  fs.writeFileSync(config_filename, JSON.stringify(cfg));
+  fs.writeFileSync(config_filename, JSON.stringify(cfg, null, 2));
   try {
     fs.unlinkSync(key_name + ".pem");
   }

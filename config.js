@@ -55,19 +55,22 @@ var DEFAULT_CONFIG_VALUES = {
     // Key name for instances launched, this must be unique as the key-name will
     // be used query for running instances and this provisioner reserves the
     // right to kill any instance with it's key-name...
-    'key-name':                     'provisioner-managed'
+    'key-name':                     'provisioner-managed',
+
+    // Azure table with workerType definitions
+    azureWorkerTypeTable:           'AWSWorkerTypes'
+  },
+
+  // Azure table credentials
+  azureTableCredentials: {
+    accountUrl:                     null,
+    accountName:                    null,
+    accountKey:                     null
   },
 
   // Queue configuration
-  'queue': {
-    // Host name for the taskcluster-queue
-    'host':                         'localhost',
-    
-    // Port for the taskcluster-queue
-    'port':                         '3000',
-
-    // API version of the taskcluster-queue
-    'version':                      'v1'
+  queue: {
+    baseUrl:                        'http://queue.taskcluster.net'
   },
 
   // AWS SDK Configuration

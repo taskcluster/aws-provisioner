@@ -5,6 +5,7 @@ var path                            = require('path');
 var nconf                           = require('nconf');
 var passport                        = require('passport');
 var PersonaStrategy                 = require('passport-persona').Strategy;
+var data                            = require('./provisioner/data');
 
 // Load configuration
 var config  = require('./config');
@@ -14,7 +15,6 @@ config.load(module.parent);
 
 // Load a little monkey patching
 require('./utils/aws-sdk-promise').patch();
-require('./utils/spread-promise').patch();
 
 // Create expressjs application
 var app = exports.app = express();
@@ -104,41 +104,72 @@ var ensureAuthenticated = function(req, res, next) {
 var routes = require('./routes');
 app.get('/',                                                      routes.index);
 app.get('/unauthorized',                                          routes.unauthorized);
-app.get('/log',                             ensureAuthenticated,  routes.log);
 app.get('/0.1.0/kill-instance/:instance',                         routes.api.kill);
 app.get('/0.1.0/list-instances/:instance',                        routes.api.list);
 
-/** Run the server */
-exports.run = function() {
-  // Launch HTTP server
-  http.createServer(app).listen(app.get('port'), function(){
-    console.log('Express server listening on port ' + app.get('port'));
-  });
 
-  // Setup provisioning
-  var provisioner = require('./provisioner');
-  var log         = require('./provisioner/log')
+/** Launch the server */
+exports.launch = function() {
+  debug("Launching server");
 
-  // provision instances then schedule next provision at configured interval
-  var provision_and_schedule = function() {
-    provisioner.provision().then(function() {
-      log('PROVISION', "Provisioning successful!");
-      setTimeout(provision_and_schedule,
-                 nconf.get('provisioning:interval') * 1000);
-    }, function(err) {
-      log('PROVISION', "Provisioning failed!");
-      console.log("Err: ");
-      console.log(err);
-      setTimeout(provision_and_schedule,
-                 nconf.get('provisioning:interval') * 1000);
+  if ('development' == app.get('env')) {
+    debug("Launching in development-mode");
+  }
+
+  // Setup
+  return data.ensureTable(data.WorkerType).then(function() {
+    return new Promise(function(accept, reject) {
+      // Launch HTTP server
+      var server = http.createServer(app);
+
+      // Add a little method to help kill the server
+      server.terminate = function() {
+        return new Promise(function(accept, reject) {
+          server.close(function() {
+            accept(Promise.all(events.disconnect(), data.disconnect()));
+          });
+        });
+      };
+
+      // Listen
+      server.listen(app.get('port'), function(){
+        debug('Express server listening on port ' + app.get('port'));
+        accept(server);
+      });
+
+      // Setup provisioning
+      var provisioner = require('./provisioner');
+
+      // provision instances then schedule next provision at configured interval
+      var provision_and_schedule = function() {
+        provisioner.provision().then(function() {
+          setTimeout(provision_and_schedule,
+                     nconf.get('provisioning:interval') * 1000);
+        }, function(err) {
+          debug("Provisioning Error: %s, as JSON: %j", err, err, err.stack);
+          setTimeout(provision_and_schedule,
+                     nconf.get('provisioning:interval') * 1000);
+        });
+      };
+
+      // Provision instances after first 3 sec
+      setTimeout(provision_and_schedule, 3 * 1000);
     });
-  };
-
-  // Provision instances after first 3 sec
-  setTimeout(provision_and_schedule, 3 * 1000);
+  });
 };
 
 // If server.js is executed start the server
 if (!module.parent) {
-  exports.run();
+  exports.launch().then(function() {
+    // If launched in development mode as a subprocess of node, then we'll
+    // sending a message informing the parent process that we're now ready!
+    if (app.get('env') == 'development' && process.send) {
+      process.send({ready: true});
+    }
+    debug("Launch queue successfully");
+  }).catch(function(err) {
+    debug("Failed to start server, err: %s, as JSON: %j", err, err, err.stack);
+    // If we didn't launch the server we should crash
+    process.exit(1);
+  });
 }

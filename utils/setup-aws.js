@@ -6,7 +6,6 @@ var uuid                            = require('uuid');
 
 // Load a little monkey patching
 require('./aws-sdk-promise').patch();
-require('./spread-promise').patch();
 
 // Load configuration from command line arguments
 nconf.argv({
@@ -149,7 +148,7 @@ key_created.then(function() {
   cfg.aws = awscfg;
 
   // Write config file to disk
-  fs.writeFileSync(config_filename, JSON.stringify(cfg));
+  fs.writeFileSync(config_filename, JSON.stringify(cfg, null, 2));
 
   console.log("setup-aws successfully created " + keyName);
 }, function(error) {
