@@ -1,3 +1,9 @@
+// Load configuration
+var config  = require('./config');
+
+// Load default_only if server.js has a parent, hence, is being imported
+config.load(module.parent);
+
 // Dependencies
 var express                         = require('express');
 var http                            = require('http');
@@ -6,12 +12,8 @@ var nconf                           = require('nconf');
 var passport                        = require('passport');
 var PersonaStrategy                 = require('passport-persona').Strategy;
 var data                            = require('./provisioner/data');
-
-// Load configuration
-var config  = require('./config');
-
-// Load default_only if server.js has a parent, hence, is being imported
-config.load(module.parent);
+var debug                           = require('debug')('server');
+var Promise                         = require('promise');
 
 // Load a little monkey patching
 require('./utils/aws-sdk-promise').patch();

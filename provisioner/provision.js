@@ -2,7 +2,7 @@ var Promise     = require('promise');
 var nconf       = require('nconf');
 var aws         = require('aws-sdk');
 var _           = require('lodash');
-var state       = require('state');
+var state       = require('./state');
 var debug       = require('debug')('provisioner:provision');
 
 // Create ec2 service object
@@ -57,7 +57,7 @@ exports.provision = function() {
     // Cancel requests if there is anything to cancel
     if (requestsToCancel.length > 0) {
       // Cancel requests as decided above
-      debug("Cancelling %i requets", requestsToCancel.length);
+      debug("Cancelling %s   requets", requestsToCancel.length);
       pending_promises.push(ec2.cancelSpotInstanceRequests({
         SpotInstanceRequestIds:       requestsToCancel,
         DryRun:                       nconf.get('dry-run')
@@ -85,7 +85,7 @@ exports.provision = function() {
       // Determine number of requests needed
       var nRequestsNeeded = Math.max(0, pendingTasks.length -
                                         spotRequests.length);
-      debug("Need %i requests for %s", nRequestsNeeded, imageId);
+      debug("Need %s requests for %s", nRequestsNeeded, imageId);
       while(slots_available > 0 && nRequestsNeeded > 0) {
         pending_promises.push(ec2.requestSpotInstances({
           SpotPrice:              '' + nconf.get('provisioning:spot-price'),
@@ -113,7 +113,7 @@ exports.provision = function() {
 
     // Kill instances if needed
     if (slots_available < 0) {
-      debug("Need to kill %i instances", - slots_available);
+      debug("Need to kill %s instances", - slots_available);
       var instances_to_kill = [];
       // Find some instance ids
       while (slots_available < 0) {
@@ -128,7 +128,7 @@ exports.provision = function() {
       }
       // Check if we have instances to kill
       if (instances_to_kill.length > 0) {
-        debug("Terminating %i instances", instances_to_kill.length);
+        debug("Terminating %s instances", instances_to_kill.length);
         // Terminate instances
         pending_promises.push(ec2.terminateInstances({
           InstanceIds:                instances_to_kill,

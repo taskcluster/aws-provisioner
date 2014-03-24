@@ -22,7 +22,7 @@ exports.addWorkerType = function(newWType) {
   });
   if (exists) {
     throw new Error(
-      "Can't adding " + newWType.workerType " as one with the " +
+      "Can't adding " + newWType.workerType + " as one with the " +
       "name already is tracked"
     );
   }
@@ -74,7 +74,7 @@ exports.update = function() {
     DryRun:                         nconf.get('dry-run')
   }).promise().then(function(response) {
     var spotRequests = response.data.SpotInstanceRequests;
-    debug("Got %i instances", spotRequests.length);
+    debug("Got %s instances", spotRequests.length);
     // Clear pending spot requests for all WorkerTypes
     _wTypes.forEach(function(wType) {
       wType.pendingSpotRequests = [];
@@ -95,14 +95,14 @@ exports.update = function() {
   debug("Get pending tasks");
   var provisionerId = nconf.get('provisioning:provisioner-id');
   var got_pending_tasks = request.get(
-      nconf.get('queue:baseUrl') + '/pending-tasks/' + provisionerId
-    ).promise().then(function(response) {
+      nconf.get('queue:baseUrl') + '/v1/pending-tasks/' + provisionerId
+    ).end().then(function(res) {
     // Check status code
-    if (response.statusCode != 200) {
-      throw new Error("Failed to fetch tasks with status code 200!");
+    if (!res.ok) {
+      throw new Error("Failed to fetch tasks!");
     }
     // Read tasks from queue
-    var tasks = JSON.parse(response.body).tasks.filter(function(task) {
+    var tasks = res.body.tasks.filter(function(task) {
       // Filter out tasks that isn't for this provisioner
       if (task.provisionerId != provisionerId) {
         debug("Got task for provisionerId: %s", task.provisionerId);
@@ -111,7 +111,7 @@ exports.update = function() {
       return true;
     });
     // Log response from queue
-    debug("got %i tasks", tasks.length);
+    debug("got %s tasks", tasks.length);
     // Clear pending tasks for all WorkerTypes
     _wTypes.forEach(function(wType) {
       wType.pendingTasks = [];
@@ -154,7 +154,7 @@ exports.update = function() {
         });
       });
     });
-    debug("found %i instances", instances.length);
+    debug("found %s instances", instances.length);
     return instances;
   });
 
