@@ -31,7 +31,7 @@ app.use(express.logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded());
 app.use(express.methodOverride());
-app.use(express.cookieParser(nconf.get('server:cookie-secret')));
+app.use(express.cookieParser(nconf.get('server:cookieSecret')));
 app.use(express.session());
 app.use(passport.initialize());
 app.use(passport.session());
@@ -46,7 +46,7 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Warn if no secret was used in production
 if ('production' == app.get('env')) {
-  var secret = nconf.get('server:cookie-secret');
+  var secret = nconf.get('server:cookieSecret');
   if (secret == "Warn, if no secret is used on production") {
     console.log("Warning: Customized cookie secret should be used in production");
   }
@@ -61,7 +61,7 @@ if ('development' == app.get('env')) {
 // Passport configuration
 passport.use(new PersonaStrategy({
     audience: 'http://' + nconf.get('server:hostname') + ':' +
-               nconf.get('server:public-port')
+               nconf.get('server:port')
   },
   function(email, done) {
     console.log("Signed in with:" + email);

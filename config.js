@@ -4,58 +4,38 @@ var aws     = require('aws-sdk');
 
 /** Default configuration values */
 var DEFAULT_CONFIG_VALUES = {
-  // Run the provisioner without modifying AWS resources
-  'dry-run':                        false,
-
-  // Log provisioning actions to stdout
-  'log-actions':                    true,
-
   // Server (HTTP) configuration
-  'server': {
+  server: {
     // Server hostname
-    'hostname':                     'localhost',
+    hostname:                       'localhost',
 
     // Port to run the HTTP server on
-    'port':                         3001,
-
-    // Port through which the public access this server
-    'public-port':                  3001,
+    port:                           3001,
 
     // Cookie secret used to sign cookies, must be secret at deployment
-    'cookie-secret':                "Warn, if no secret is used on production"
+    cookieSecret:                   "Warn, if no secret is used on production"
   },
 
-  // Settings related to provisioning
-  'provisioning': {
+  // Provisioner settings
+  provisioner: {
     // Provisioner identifier
-    'provisioner-id':               'test-aws-provisioner',
+    provisionerId:                  'test-aws-provisioner',
 
     // Interval with which to run the provisioning algorithm (in seconds)
-    'interval':                     2 * 60,
-
-    // Number of provision retries before exiting non-zero, in deployment this
-    // should email some administrator...
-    'max-retries':                  5,
-
-    // Instance type to launch
-    'instance-type':                'c3.large',
-
-    // IAM profile assigned to instances launched
-    'iam-profile':                  'taskcluster-worker',
+    interval:                       2 * 60,
 
     // Spot bid in USD
-    'spot-price':                   0.1,
+    maxSpotPrice:                   0.1,
 
     // Max number of instances to have running
-    'max-instances':                20,
+    maxInstances:                   20,
 
-    // Security groups to assign workers
-    'security-groups':              ['ssh-only'],
+    // Key name prefix for instances launched, all instances with a key-name
+    // prefixed with the `keyNamePrefix` will be managed by this provisioner
+    keyNamePrefix:                  'provisioner-managed:',
 
-    // Key name for instances launched, this must be unique as the key-name will
-    // be used query for running instances and this provisioner reserves the
-    // right to kill any instance with it's key-name...
-    'key-name':                     'provisioner-managed',
+    // Base64 encoded public key
+    publicKeyData:                  '',
 
     // Azure table with workerType definitions
     azureWorkerTypeTable:           'AWSWorkerTypes'
@@ -74,7 +54,7 @@ var DEFAULT_CONFIG_VALUES = {
   },
 
   // AWS SDK Configuration
-  'aws': {
+  aws: {
     // Default AWS region, this is where S3 buckets etc. will be placed.
     // In the first iteration this is also where spot instances will be launched
     region:                         'us-west-2',
