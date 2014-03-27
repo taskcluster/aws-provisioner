@@ -1,0 +1,100 @@
+extends layout
+
+block append head
+  // Ace Editor
+  script(src='/assets/ace/ace.js')
+  script(src='/assets/ace/mode-json.js')
+  script(src='/assets/ace/theme-twilight.js')
+  script(src='/assets/ace/worker-javascript.js')
+  script(src='/assets/ace/worker-json.js')
+
+block content
+  form.form-horizontal(role="form", action="/worker-type/update", method="post")
+    if workerType
+      - var action = "update"
+      - var configuration = workerType.configuration
+    else
+      - var action = "create"
+      - var configuration = {}
+      - configuration.launchSpecification = {ImageId: ""}
+      - configuration.spotBid             = 0.2
+      - configuration.maxInstances        = 20
+    input(type="hidden", name="updateOrCreate", value="#{action}")
+    div.form-group
+      label.col-sm-2.control-label(for="workerType")
+        | WorkerType
+      div.col-sm-10
+        if workerType
+          code #{workerType.workerType}
+          input(type="hidden",
+                name="workerType",
+                value="#{workerType.workerType}")#workerType
+        else
+          input(type="text",
+                style="width: 80ex",
+                maxlength="22",
+                name="workerType")#workerType.form-control
+    div.form-group
+      label.col-sm-2.control-label(for="spotBid")
+        | Spot bid
+      div.col-sm-10
+        input(type="number",
+              style="width: 80ex",
+              name="spotBid",
+              value="#{configuration.spotBid}")#spotBid.form-control
+    div.form-group
+      label.col-sm-2.control-label(for="maxInstances")
+        | Max Instances
+      div.col-sm-10
+        input(type="number",
+              style="width: 80ex",
+              name="maxInstances",
+              value="#{configuration.maxInstances}")#maxInstances.form-control
+    div.form-group
+      label.col-sm-2.control-label(for="imageId")
+        | Launch specification
+      div.col-sm-10
+        div(style="width: 80ex").alert.alert-info
+          strong Notice,
+          |  This is the
+          = ' '
+          code LaunchSpecification
+          |  as referenced in
+          a(href='http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#requestSpotInstances-property')
+            |  aws-sdk
+          | . Please note that the
+          = ' '
+          code KeyName
+          |  will be overwritten!
+        textarea(style='width: 80ex; height: 60ex',
+                 name='launchSpecification')#imageId.form-control
+          | #{JSON.stringify(configuration.launchSpecification, null, "\t")}
+    div.form-group
+      div.col-sm-offset-2.col-sm-1
+        button(type="submit").btn.btn-primary
+          if workerType
+            i.glyphicon.glyphicon-ok
+            |  Update
+          else
+            i.glyphicon.glyphicon-ok
+            |  Create
+  script
+    | $(function () {
+    |   $('textarea').each(function () {
+    |     var textarea = $(this);
+    |     var editDiv = $('<div>', {
+    |       position:   'absolute',
+    |       width:      textarea.width(),
+    |       height:     textarea.height()
+    |     }).insertBefore(textarea);
+    |     textarea.css('display', 'none');
+    |     var editor = ace.edit(editDiv[0]);
+    |     editor.renderer.setShowGutter(true);
+    |     editor.getSession().setValue(textarea.val());
+    |     editor.getSession().setMode("ace/mode/json");
+    |     editor.setTheme("ace/theme/twilight");
+    |     textarea.closest('form').submit(function () {
+    |       textarea.val(editor.getSession().getValue());
+    |     });
+    |   });
+    | });
