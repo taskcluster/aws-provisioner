@@ -5,6 +5,8 @@ var nconf       = require('nconf');
 var aws         = require('aws-sdk');
 var _           = require('lodash');
 var request     = require('superagent-promise');
+var WorkerType  = require('./data').WorkerType;
+
 
 // Create ec2 service object
 var ec2 = exports.ec2 = new aws.EC2();
@@ -27,6 +29,11 @@ exports.addWorkerType = function(newWType) {
     );
   }
   _wTypes.push(newWType);
+};
+
+/** Remove worker type from state currently tracked */
+exports.removeWorkerType = function(wType) {
+  _wTypes = _.without(_wTypes, wType);
 };
 
 /** Load WorkerTypes from azure */

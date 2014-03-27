@@ -383,6 +383,37 @@ Entity.prototype.modify = function(modifier) {
   });
 };
 
+/** Remove entity if not modified, unless ignoreChanges == true */
+Entity.prototype.remove = function(ignoreChanges) {
+  var that = this;
+  return new Promise(function(accept, reject) {
+    // Find PartitionKey and RowKey from shadow property
+    var partitionKey, rowKey;
+    that.__mapping.forEach(function(entry) {
+      if (entry.key == 'PartitionKey') {
+        partitionKey = serialize(that.__shadow[entry.property], entry);
+      }
+      if (entry.key == 'RowKey') {
+        rowKey = serialize(that.__shadow[entry.property], entry);
+      }
+    });
+    client.deleteEntity(that.__tableName, {
+      PartitionKey:   partitionKey,
+      RowKey:         rowKey,
+      __etag:         ignoreChanges === true ? undefined : that.__etag
+    }, {
+      force:          ignoreChanges === true
+    }, function(err, data) {
+      if (err) {
+        debug("Failed to delete entity with error: %s, as JSON: %j",
+              err, err, err.stack);
+        return reject(err);
+      }
+      accept();
+    });
+  });
+};
+
 /**
  * Ensures the existence of a table, given a tableName or Entity subclass
  * Returns a promise of success.
@@ -400,7 +431,7 @@ exports.ensureTable = function(table) {
     }, function(err, data) {
       if (err) {
         debug("Failed to create table '%s' with error: %s, as JSON: %j",
-              table, err, err);
+              table, err, err, err.stack);
         return reject(err);
       }
       accept();
@@ -461,6 +492,7 @@ WorkerType.loadAll = function() {
     var fetchNext = function(continuationTokens) {
       client.queryEntities(WorkerType.prototype.__tableName, {
         query:        azureTable.Query.create('RowKey', '==', 'definition'),
+        forceEtags:   true,
         continuation: continuationTokens
       }, function(err, data, continuationTokens) {
         // Reject if we hit an error

@@ -12,6 +12,7 @@ var nconf                           = require('nconf');
 var passport                        = require('passport');
 var PersonaStrategy                 = require('passport-persona').Strategy;
 var data                            = require('./provisioner/data');
+var state                           = require('./provisioner/state');
 var debug                           = require('debug')('server');
 var Promise                         = require('promise');
 
@@ -40,8 +41,8 @@ app.use(function(req, res, next) {
   next();
 });
 app.use(app.router);
-app.use('/static', require('stylus').middleware(path.join(__dirname, 'static')));
-app.use('/static', express.static(path.join(__dirname, 'static')));
+app.use('/assets', require('stylus').middleware(path.join(__dirname, 'assets')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Warn if no secret was used in production
 if ('production' == app.get('env')) {
@@ -104,10 +105,14 @@ var ensureAuthenticated = function(req, res, next) {
 
 // Route configuration
 var routes = require('./routes');
-app.get('/',                                                      routes.index);
-app.get('/unauthorized',                                          routes.unauthorized);
-app.get('/0.1.0/kill-instance/:instance',                         routes.api.kill);
-app.get('/0.1.0/list-instances/:instance',                        routes.api.list);
+app.get('/',                                                    routes.index);
+app.get('/unauthorized',                                        routes.unauthorized);
+app.get('/worker-type',                   ensureAuthenticated,  routes.workertype.list);
+app.get('/worker-type/create',            ensureAuthenticated,  routes.workertype.create);
+app.get('/worker-type/:workerType/view',  ensureAuthenticated,  routes.workertype.view);
+app.get('/worker-type/:workerType/edit',  ensureAuthenticated,  routes.workertype.edit);
+app.get('/worker-type/:workerType/delete',ensureAuthenticated,  routes.workertype.delete);
+app.post('/worker-type/update',           ensureAuthenticated,  routes.workertype.update)
 
 
 /** Launch the server */
@@ -120,6 +125,8 @@ exports.launch = function() {
 
   // Setup
   return data.ensureTable(data.WorkerType).then(function() {
+    return state.load();
+  }).then(function() {
     return new Promise(function(accept, reject) {
       // Launch HTTP server
       var server = http.createServer(app);

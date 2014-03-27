@@ -154,3 +154,18 @@ still to be determined.
   ]
 }
 ```
+
+Third-Party Libraries and Tools
+-------------------------------
+The TaskCluster AWS Provisioner wouldn't have been so awesome without the
+without these amazing libraries and tools, upon which it is built.
+
+**Libraries**,
+
+ * Files in `ace/` are from [Ace](http://ace.c9.io/) is licensed under the
+   BSD license.
+ * Files in `bootstrap/` from [Bootstrap](http://getbootstrap.com/) is licensed
+   under the MIT license.
+ * `prism.js` and `prism.css` from [PRISM](http://prismjs.com/) is licensed
+   under the MIT license.
+
