@@ -8,6 +8,99 @@ var debug       = require('debug')('provisioner:provision');
 // Create ec2 service object
 var ec2 = exports.ec2 = new aws.EC2();
 
+/** Run provisioning algorithm for given WorkerType */
+var provisionWorkerType = function(wType) {
+  // Promises to return
+  var promises = [];
+
+  // Number of instances potentially running (either running or requested)
+  var potentialRunning = wType.pendingSpotRequests.length +
+                         wType.runningInstances.length;
+  // Maximum number of instances allowed
+  var maxInstances = wType.configuration.maxInstances;
+
+  // Determine number of excessive spot requests, this strategy is pretty
+  // naive, we just assume we want a spot request for each pending task
+  var nExcessRequests = Math.max(
+    0,
+    wType.pendingSpotRequests.length - wType.pendingTasks.length,
+    potentialRunning - maxInstances
+  );
+
+  if (nExcessRequests > 0) {
+    // Find excess request
+    var excessRequests = wType.pendingSpotRequests.slice(0, nExcessRequests);
+
+    // Find excess request ids
+    var excessRequestIds = excessRequests.map(function(spotRequest) {
+      return spotRequest.SpotInstanceRequestId;
+    });
+
+    // Cancel excess requests
+    var excess_requests_cancelled = ec2.cancelSpotInstanceRequests({
+      SpotInstanceRequestIds:       requestsToCancel
+    }).promise().catch(function(err) {
+      debug("Failed to cancel spot-requests, error: %s, as JSON: %j",
+            err, err, err.stack);
+      // Ignore the error this is not significant we'll retry again next iteration
+      // it's probably just eventual consistency
+    });
+
+    promises.push(excess_requests_cancelled);
+  }
+
+  // Determine number of spot-requests needed, again this is pretty naive, we
+  // just assume we want one for each pending task
+  var nRequestsNeeded = Math.min(Math.max(
+      0,
+      wType.pendingTasks.length - wType.pendingSpotRequests.length
+    ),
+    maxInstances - potentialRunning
+  );
+
+  // Construct launch specification
+  var launchSpecification = _.defaults({
+    KeyName:      nconf.get('provisioner:keyNamePrefix') + wType.workerType
+  }, wType.configuration.launchSpecification);
+
+  // Create spot instances as needed
+  while(nRequestsNeeded > 0) {
+    nRequestsNeeded -= 1;
+    promises.push(ec2.requestSpotInstances({
+      SpotPrice:              '' + wType.configuration.spotBid,
+      InstanceCount:          1,
+      Type:                   'one-time',
+      LaunchSpecification:    launchSpecification
+    }).promise().catch(function(err) {
+      debug("ERROR: Failed to provision: %s with error %s, as JSON: %j",
+            imageId, err, err, err.stack);
+      // Ignore this error, somebody probably deleted the AMI or bad
+      // configuration, who knows... Maybe we should email the person
+      // who created the workerType
+    }));
+  }
+
+  // Terminate running instances if we have too many
+  var nInstancesToKill = Math.max(
+    0,
+    wType.runningInstances.length - maxInstances
+  );
+  if (nInstancesToKill > 0) {
+    // Find instanceIds to kill
+    var instancesToKill = wType.runningInstances.slice(nInstancesToKill);
+    var instanceIdsToKill = instancesToKill.map(function(instance) {
+      return instance.InstanceId;
+    });
+
+    // Terminate instances
+    promises.push(ec2.terminateInstances({
+      InstanceIds:            instanceIdsToKill
+    }).promise());
+  }
+
+  return Promise.all(promises);
+};
+
 /**
  * Run the provisioning algorithm, return a promise that either succeed or fail
  * in case of failures and error might be returned, log it as best you can...
@@ -16,129 +109,10 @@ exports.provision = function() {
   debug("Provisioning instances");
   // Update state of WorkerTypes, then continue the scaling operation
   // when all done, that returns a promise of success
-  return state.update().then(function(args) {
-    var spotRequests  = args.shift();
-    var pendingTasks  = args.shift();
-    var instances     = args.shift();
-    // Find number of instances we're allowed to request
-    var slots_available = nconf.get('provisioning:max-instances') -
-                          (spotRequests.length + instances.length);
-
-    // List of pending promises built here
-    var pending_promises = [];
-
-    // Find imageIds
-    var imageIds = _.uniq(state.get().map(function(wType) {
-      return wType.configuration.imageId;
+  return state.updateAndMurder().then(function() {
+    return Promise.all(state.get().map(function(wType) {
+      return provisionWorkerType(wType);
     }));
-
-    var requestsToCancel = _.union(imageIds.map(function(imageId) {
-      // Find workerTypes
-      var workerTypes = state.get().filter(function(wType) {
-        return wType.configuration.imageId == imageId;
-      });
-      // Find pending tasks
-      var pendingTasks = _.union(workerTypes.map(function(wType) {
-        return wType.pendingTasks;
-      }));
-      // Find pending spot requests
-      var spotRequests = _.union(workerTypes.map(function(wType) {
-        return wType.spotRequests;
-      }));
-      // Determine number of excessive spot requests
-      var nExcessRequests = Math.max(0, spotRequests.length -
-                                        pendingTasks.length);
-      // Decide on requests to cancel
-      return spotRequests.slice(0, nExcessRequests);
-    })).map(function(spotRequest) {
-      return spotRequest.SpotInstanceRequestId;
-    });
-
-    // Cancel requests if there is anything to cancel
-    if (requestsToCancel.length > 0) {
-      // Cancel requests as decided above
-      debug("Cancelling %s   requets", requestsToCancel.length);
-      pending_promises.push(ec2.cancelSpotInstanceRequests({
-        SpotInstanceRequestIds:       requestsToCancel,
-        DryRun:                       nconf.get('dry-run')
-      }).promise());
-      // We don't care about success or failure of the operation above, we'll
-      // try it again at next scaling event anyway
-      slots_available += requestsToCancel.length;
-    }
-
-
-    // Request spot instances to the extend we have slots available
-    imageIds.forEach(function(imageId) {
-      // Find workerTypes
-      var workerTypes = state.get().filter(function(wType) {
-        return wType.configuration.imageId == imageId;
-      });
-      // Find pending tasks
-      var pendingTasks = _.union(workerTypes.map(function(wType) {
-        return wType.pendingTasks;
-      }));
-      // Find pending spot requests
-      var spotRequests = _.union(workerTypes.map(function(wType) {
-        return wType.spotRequests;
-      }));
-      // Determine number of requests needed
-      var nRequestsNeeded = Math.max(0, pendingTasks.length -
-                                        spotRequests.length);
-      debug("Need %s requests for %s", nRequestsNeeded, imageId);
-      while(slots_available > 0 && nRequestsNeeded > 0) {
-        pending_promises.push(ec2.requestSpotInstances({
-          SpotPrice:              '' + nconf.get('provisioning:spot-price'),
-          InstanceCount:          1,
-          Type:                   'one-time',
-          LaunchSpecification: {
-            ImageId:              imageId,
-            KeyName:              nconf.get('provisioning:key-name'),
-            InstanceType:         nconf.get('provisioning:instance-type'),
-            IamInstanceProfile: {
-              Name:               nconf.get('provisioning:iam-profile')
-            },
-            SecurityGroups:       nconf.get('provisioning:security-groups')
-          },
-          DryRun:                 nconf.get('dry-run')
-        }).promise().catch(function(err) {
-          debug("ERROR: Failed to provision: %s with error %s, as JSON: %j",
-                imageId, err, err, err.stack);
-          // Ignore this error, somebody probably deleted the AMI
-        }));
-        slots_available -= 1;
-        nRequestsNeeded -= 1;
-      }
-    });
-
-    // Kill instances if needed
-    if (slots_available < 0) {
-      debug("Need to kill %s instances", - slots_available);
-      var instances_to_kill = [];
-      // Find some instance ids
-      while (slots_available < 0) {
-        var instance = instances.pop();
-        if (instance) {
-          debug("Terminating instance: " + instance.InstanceId);
-          instances_to_kill.push(instance.InstanceId);
-          slots_available += 1;
-        } else {
-          break;
-        }
-      }
-      // Check if we have instances to kill
-      if (instances_to_kill.length > 0) {
-        debug("Terminating %s instances", instances_to_kill.length);
-        // Terminate instances
-        pending_promises.push(ec2.terminateInstances({
-          InstanceIds:                instances_to_kill,
-          DryRun:                     nconf.get('dry-run')
-        }).promise());
-      }
-    }
-
-    // Wait for all pending promises to succeed before we determine success or
-    // failure...
-    return Promise.all(pending_promises);
   });
 };
+

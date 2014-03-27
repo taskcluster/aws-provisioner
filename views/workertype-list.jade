@@ -5,6 +5,9 @@ block content
     thead
       tr
         th WorkerType
+        th Pending Spot Requests
+        th Pending Tasks
+        th Running Instances
         th View
         th Edit
         th Delete
@@ -13,6 +16,9 @@ block content
         tr
           td
             code #{wType.workerType}
+          td #{wType.pendingSpotRequests.length}
+          td #{wType.pendingTasks.length}
+          td #{wType.runningInstances.length}
           td
             a(href="/worker-type/#{wType.workerType}/view").btn.btn-success.btn-xs
               i.glyphicon.glyphicon-eye-open

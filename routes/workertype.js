@@ -2,6 +2,11 @@ var Promise     = require('promise');
 var debug       = require('debug')('routes:workertype');
 var state       = require('../provisioner/state');
 var WorkerType  = require('../provisioner/data').WorkerType;
+var aws         = require('aws-sdk');
+var nconf       = require('nconf');
+
+// Create ec2 service object
+var ec2 = exports.ec2 = new aws.EC2();
 
 
 /** List all registered workerTypes */
@@ -56,14 +61,20 @@ exports.delete = function(req, res){
   if (!wType) {
     return next();
   }
-  wType.remove(true).then(function() {
-    state.removeWorkerType(wType);
-    res.redirect(302, '/worker-type/');
-  }).catch(function(err) {
-    debug("Error in %s, err: %s, as JSON: %j", req.url, err, err, err.stack);
-    res.render('error', {
-      title:        "500 Internal Error",
-      message:      "Hmm, something went wrong..."
+  var workerType = wType.workerType;
+  var keyName = nconf.get('provisioner:keyNamePrefix') + workerType;
+  ec2.deleteKeyPair({
+    KeyName:          keyName
+  }).promise().then(function() {
+    wType.remove(true).then(function() {
+      state.removeWorkerType(wType);
+      res.redirect(302, '/worker-type/');
+    }).catch(function(err) {
+      debug("Error in %s, err: %s, as JSON: %j", req.url, err, err, err.stack);
+      res.render('error', {
+        title:        "500 Internal Error",
+        message:      "Hmm, something went wrong..."
+      });
     });
   });
 };
@@ -82,16 +93,23 @@ exports.update = function(req, res){
       if (wType) {
         throw new Error("WorkerType " + wType.workerType + " already exists");
       }
-      return WorkerType.create({
-        version:        '0.2.0',
-        workerType:     req.body.workerType,
-        configuration: {
-          launchSpecification:  JSON.parse(req.body.launchSpecification),
-          maxInstances:         parseInt(req.body.maxInstances),
-          spotBid:              req.body.spotBid
-        }
-      }).then(function(wType) {
-        state.addWorkerType(wType);
+      var workerType = req.body.workerType;
+      var keyName = nconf.get('provisioner:keyNamePrefix') + workerType;
+      return ec2.importKeyPair({
+        KeyName:                keyName,
+        PublicKeyMaterial:      nconf.get('provisioner:publicKeyData')
+      }).promise().then(function() {
+        return WorkerType.create({
+          version:        '0.2.0',
+          workerType:     workerType,
+          configuration: {
+            launchSpecification:  JSON.parse(req.body.launchSpecification),
+            maxInstances:         parseInt(req.body.maxInstances),
+            spotBid:              req.body.spotBid
+          }
+        }).then(function(wType) {
+          state.addWorkerType(wType);
+        });
       });
     }
 

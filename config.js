@@ -24,12 +24,6 @@ var DEFAULT_CONFIG_VALUES = {
     // Interval with which to run the provisioning algorithm (in seconds)
     interval:                       2 * 60,
 
-    // Spot bid in USD
-    maxSpotPrice:                   0.1,
-
-    // Max number of instances to have running
-    maxInstances:                   20,
-
     // Key name prefix for instances launched, all instances with a key-name
     // prefixed with the `keyNamePrefix` will be managed by this provisioner
     keyNamePrefix:                  'provisioner-managed:',

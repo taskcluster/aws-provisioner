@@ -452,7 +452,7 @@ var WorkerType = function(entity) {
 };
 
 // Subclass entity, this declares read-only properties
-Entity.subClass(WorkerType, nconf.get('provisioning:azureWorkerTypeTable'), [
+Entity.subClass(WorkerType, nconf.get('provisioner:azureWorkerTypeTable'), [
   {
     // This is always hardcoded to 'WorkerTypes', we'll store different kinds
     // of settings in

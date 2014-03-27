@@ -153,11 +153,11 @@ exports.launch = function() {
       var provision_and_schedule = function() {
         provisioner.provision().then(function() {
           setTimeout(provision_and_schedule,
-                     nconf.get('provisioning:interval') * 1000);
+                     nconf.get('provisioner:interval') * 1000);
         }, function(err) {
           debug("Provisioning Error: %s, as JSON: %j", err, err, err.stack);
           setTimeout(provision_and_schedule,
-                     nconf.get('provisioning:interval') * 1000);
+                     nconf.get('provisioner:interval') * 1000);
         });
       };
 
