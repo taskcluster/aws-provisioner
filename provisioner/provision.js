@@ -73,7 +73,7 @@ var provisionWorkerType = function(wType) {
       LaunchSpecification:    launchSpecification
     }).promise().catch(function(err) {
       debug("ERROR: Failed to provision: %s with error %s, as JSON: %j",
-            imageId, err, err, err.stack);
+            wType.workerType, err, err, err.stack);
       // Ignore this error, somebody probably deleted the AMI or bad
       // configuration, who knows... Maybe we should email the person
       // who created the workerType
