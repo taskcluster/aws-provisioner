@@ -13,6 +13,9 @@ var provisionWorkerType = function(wType) {
   // Promises to return
   var promises = [];
 
+  // workerType we're provisioning
+  var workerType = wType.workerType;
+
   // Number of instances potentially running (either running or requested)
   var potentialRunning = wType.pendingSpotRequests.length +
                          wType.runningInstances.length;
@@ -28,6 +31,8 @@ var provisionWorkerType = function(wType) {
   );
 
   if (nExcessRequests > 0) {
+    debug("Decided to cancel %s spot request for %s",
+          nExcessRequests, workerType);
     // Find excess request
     var excessRequests = wType.pendingSpotRequests.slice(0, nExcessRequests);
 
@@ -38,7 +43,7 @@ var provisionWorkerType = function(wType) {
 
     // Cancel excess requests
     var excess_requests_cancelled = ec2.cancelSpotInstanceRequests({
-      SpotInstanceRequestIds:       requestsToCancel
+      SpotInstanceRequestIds:       excessRequestIds
     }).promise().catch(function(err) {
       debug("Failed to cancel spot-requests, error: %s, as JSON: %j",
             err, err, err.stack);
@@ -60,11 +65,12 @@ var provisionWorkerType = function(wType) {
 
   // Construct launch specification
   var launchSpecification = _.defaults({
-    KeyName:      nconf.get('provisioner:keyNamePrefix') + wType.workerType
+    KeyName:      nconf.get('provisioner:keyNamePrefix') + workerType
   }, wType.configuration.launchSpecification);
 
   // Create spot instances as needed
   while(nRequestsNeeded > 0) {
+    debug("Decided to request %s instances of %s", nRequestsNeeded, workerType);
     nRequestsNeeded -= 1;
     promises.push(ec2.requestSpotInstances({
       SpotPrice:              '' + wType.configuration.spotBid,
@@ -72,8 +78,8 @@ var provisionWorkerType = function(wType) {
       Type:                   'one-time',
       LaunchSpecification:    launchSpecification
     }).promise().catch(function(err) {
-      debug("ERROR: Failed to provision: %s with error %s, as JSON: %j",
-            wType.workerType, err, err, err.stack);
+      debug("ERROR: Failed to provision: %s with err: %s, as JSON: %j, spec %j",
+            workerType, err, err, launchSpecification, err.stack);
       // Ignore this error, somebody probably deleted the AMI or bad
       // configuration, who knows... Maybe we should email the person
       // who created the workerType
@@ -86,6 +92,8 @@ var provisionWorkerType = function(wType) {
     wType.runningInstances.length - maxInstances
   );
   if (nInstancesToKill > 0) {
+    debug("Decided to kill %s instances of %s", nInstancesToKill, workerType);
+
     // Find instanceIds to kill
     var instancesToKill = wType.runningInstances.slice(nInstancesToKill);
     var instanceIdsToKill = instancesToKill.map(function(instance) {
@@ -95,7 +103,11 @@ var provisionWorkerType = function(wType) {
     // Terminate instances
     promises.push(ec2.terminateInstances({
       InstanceIds:            instanceIdsToKill
-    }).promise());
+    }).promise().catch(function(err) {
+      debug("Failed to terminate instances %j of %s",
+            instancesToKill, workerType);
+      // Ignore this error, we'll try again, later...
+    }));
   }
 
   return Promise.all(promises);
