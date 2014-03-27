@@ -26,13 +26,13 @@ var DEFAULT_CONFIG_VALUES = {
 
     // Key name prefix for instances launched, all instances with a key-name
     // prefixed with the `keyNamePrefix` will be managed by this provisioner
-    keyNamePrefix:                  'provisioner-managed:',
+    keyNamePrefix:                  'test-provisioner-managed:',
 
     // Base64 encoded public key
     publicKeyData:                  '',
 
     // Azure table with workerType definitions
-    azureWorkerTypeTable:           'AWSWorkerTypes'
+    azureWorkerTypeTable:           'TestAWSWorkerTypes'
   },
 
   // Azure table credentials
@@ -61,6 +61,27 @@ var DEFAULT_CONFIG_VALUES = {
 
 /** Load configuration */
 exports.load = function(default_only) {
+
+  // Configurations elements loaded from commandline, these are the only
+  // values we should ever really need to change.
+  nconf.env({
+    separator:  '__',
+    whitelist:  [
+      'provisioner__provisionerId',
+      'provisioner__keyNamePrefix',
+      'provisioner__publicKeyData',
+      'provisioner__azureWorkerTypeTable',
+      'azureTableCredentials__accountUrl',
+      'azureTableCredentials__accountName',
+      'azureTableCredentials__accountKey',
+      'queue__baseUrl',
+      'server__hostname',
+      'server__port',
+      'server__cookieSecret',
+      'aws__accessKeyId',
+      'aws__secretAccessKey'
+    ]
+  });
 
   if (!default_only || true) {
     // Load configuration from command line arguments, if requested
