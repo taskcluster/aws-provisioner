@@ -60,7 +60,7 @@ var DEFAULT_CONFIG_VALUES = {
 };
 
 /** Load configuration */
-exports.load = function(default_only) {
+exports.load = function() {
 
   // Configurations elements loaded from commandline, these are the only
   // values we should ever really need to change.
@@ -83,19 +83,17 @@ exports.load = function(default_only) {
     ]
   });
 
-  if (!default_only || true) {
-    // Load configuration from command line arguments, if requested
-    nconf.argv();
+  // Load configuration from command line arguments, if requested
+  nconf.argv();
 
-    // Config from current working folder if present
-    nconf.file('local', 'taskcluster-aws-provisioner.conf.json');
+  // Config from current working folder if present
+  nconf.file('local', 'taskcluster-aws-provisioner.conf.json');
 
-    // User configuration
-    nconf.file('user', '~/.taskcluster-aws-provisioner.conf.json');
+  // User configuration
+  nconf.file('user', '~/.taskcluster-aws-provisioner.conf.json');
 
-    // Global configuration
-    nconf.file('global', '/etc/taskcluster-aws-provisioner.conf.json');
-  }
+  // Global configuration
+  nconf.file('global', '/etc/taskcluster-aws-provisioner.conf.json');
 
   // Load default configuration
   nconf.defaults(DEFAULT_CONFIG_VALUES);

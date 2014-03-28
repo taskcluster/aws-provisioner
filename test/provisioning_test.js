@@ -1,5 +1,4 @@
 suite('Provisioning Tests', function() {
-  // Load mock queue, server and provision module from provisioner
   var debug             = require('debug')('provisioning-test');
   var request           = require('superagent-promise');
   var assert            = require('assert');
@@ -18,21 +17,23 @@ suite('Provisioning Tests', function() {
 
   var baseUrl = 'http://localhost:3001';
 
-  suite('createWorkerType', function() {
+  test('createWorkerType', function() {
     var workerType = slugid.v4();
+    debug("Trying to create: %s", workerType);
     return request
-      .post(baseUrl + '/worker-type/update')
-      .send({
-        updateOrCreate:       'create',
-        workerType:           workerType,
-        launchSpecification: {
-          ImageId:            'ami-7eaecc4e',
-          InstanceType:       't1.micro'
-        },
-        maxInstances:         1,
-        spotBid:              0.2
-      }).end().then(function(res) {
-        assert(res.ok);
-      });
+            .post(baseUrl + '/worker-type/update')
+            .send({
+              updateOrCreate:       'create',
+              workerType:           workerType,
+              launchSpecification: {
+                ImageId:            'ami-7eaecc4e',
+                InstanceType:       't1.micro'
+              },
+              maxInstances:         1,
+              spotBid:              0.2
+            }).end().then(function(res) {
+              debug("Created workerType: %s", workerType);
+              assert(res.ok);
+            });
   });
 });
