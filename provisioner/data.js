@@ -5,7 +5,7 @@ var assert          = require('assert');
 var util            = require('util');
 var Promise         = require('promise');
 var debug           = require('debug')('scheduler:data');
-var slugid          = require('../utils/slugid');
+var slugid          = require('slugid');
 
 var MAX_MODIFY_RETRIES      = 5;
 
