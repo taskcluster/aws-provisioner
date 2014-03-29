@@ -30,16 +30,17 @@ var provisionWorkerType = function(wType) {
     potentialRunning - maxInstances
   );
 
-  if (nExcessRequests > 0) {
-    debug("Decided to cancel %s spot request for %s",
-          nExcessRequests, workerType);
-    // Find excess request
-    var excessRequests = wType.pendingSpotRequests.slice(0, nExcessRequests);
+  // Find excess request
+  var excessRequests = wType.pendingSpotRequests.slice(0, nExcessRequests);
 
-    // Find excess request ids
-    var excessRequestIds = excessRequests.map(function(spotRequest) {
-      return spotRequest.SpotInstanceRequestId;
-    });
+  // Find excess request ids
+  var excessRequestIds = excessRequests.map(function(spotRequest) {
+    return spotRequest.SpotInstanceRequestId;
+  });
+
+  if (excessRequestIds.length > 0) {
+    debug("Decided to cancel %s spot request for %s",
+          excessRequestIds.length, workerType);
 
     // Cancel excess requests
     var excess_requests_cancelled = ec2.cancelSpotInstanceRequests({
@@ -91,23 +92,26 @@ var provisionWorkerType = function(wType) {
     0,
     wType.runningInstances.length - maxInstances
   );
-  if (nInstancesToKill > 0) {
-    debug("Decided to kill %s instances of %s", nInstancesToKill, workerType);
+  // Find instanceIds to kill
+  var instancesToKill = wType.runningInstances.slice(nInstancesToKill);
+  var instanceIdsToKill = instancesToKill.map(function(instance) {
+    return instance.InstanceId;
+  });
 
-    // Find instanceIds to kill
-    var instancesToKill = wType.runningInstances.slice(nInstancesToKill);
-    var instanceIdsToKill = instancesToKill.map(function(instance) {
-      return instance.InstanceId;
-    });
+  if (instanceIdsToKill.length > 0) {
+    debug("Decided to kill %s instances of %s",
+          instanceIdsToKill.length, workerType);
 
     // Terminate instances
-    promises.push(ec2.terminateInstances({
+    var instanced_terminated = ec2.terminateInstances({
       InstanceIds:            instanceIdsToKill
     }).promise().catch(function(err) {
       debug("Failed to terminate instances %j of %s",
             instancesToKill, workerType);
       // Ignore this error, we'll try again, later...
-    }));
+    });
+
+    promises.push(instanced_terminated);
   }
 
   return Promise.all(promises);
