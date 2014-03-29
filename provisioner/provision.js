@@ -93,7 +93,7 @@ var provisionWorkerType = function(wType) {
     wType.runningInstances.length - maxInstances
   );
   // Find instanceIds to kill
-  var instancesToKill = wType.runningInstances.slice(nInstancesToKill);
+  var instancesToKill = wType.runningInstances.slice(0, nInstancesToKill);
   var instanceIdsToKill = instancesToKill.map(function(instance) {
     return instance.InstanceId;
   });
