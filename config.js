@@ -22,7 +22,7 @@ var DEFAULT_CONFIG_VALUES = {
     provisionerId:                  'test-aws-provisioner',
 
     // Interval with which to run the provisioning algorithm (in seconds)
-    interval:                       2 * 60,
+    interval:                       45,
 
     // Key name prefix for instances launched, all instances with a key-name
     // prefixed with the `keyNamePrefix` will be managed by this provisioner
