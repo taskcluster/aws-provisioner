@@ -6,7 +6,6 @@ var uuid                            = require('uuid');
 
 // Load a little monkey patching
 require('./aws-sdk-promise').patch();
-require('./spread-promise').patch();
 
 // Config filename
 var config_filename = 'taskcluster-aws-provisioner.conf.json';
@@ -26,13 +25,13 @@ catch (error) {
 var cfg  = JSON.parse(data);
 
 // Find key-name and region
-var key_name  = (cfg.provisioning  || {})['key-name'];
-var region    = (cfg.aws  || {}).region;
+var keyNamePrefix   = (cfg.provisioner  || {}).keyNamePrefix;
+var region          = (cfg.aws  || {}).region;
 
 // Check that we have key-name and region
-if (!key_name || !region) {
+if (!keyNamePrefix || !region) {
   console.log("Local config file '" + config_filename+ "'");
-  console.log("doesn't contain key-name and region, can't clean-up!");
+  console.log("doesn't contain keyNamePrefix and region, can't clean-up!");
   process.exit(1);
 }
 
@@ -51,7 +50,7 @@ var cleanup = function() {
       Values:                       ['open']
     }, {
       Name:                         'launch.key-name',
-      Values:                       [key_name]
+      Values:                       [keyNamePrefix + '*']
     }]
   }).promise().then(function(response) {
     // Find all spot request ids
@@ -77,8 +76,8 @@ var cleanup = function() {
       Values:                     ['pending', 'running']
     }, {
       Name:                       'key-name',
-      Values:                     [key_name]
-    }],
+      Values:                     [keyNamePrefix + '*']
+    }]
   }).promise().then(function(response) {
     // Then we find instance ids
     var instancesIds = [];
@@ -98,16 +97,25 @@ var cleanup = function() {
     }
   });
 
-  // delete key-pair
-  var delete_key_pair = ec2.deleteKeyPair({
-    KeyName:                        key_name
-  }).promise();
+  // Delete all prefixed keyPairs
+  var deleted_key_pairs = ec2.describeKeyPairs({
+    Filters: [{
+      Name:                       'key-name',
+      Values:                     [keyNamePrefix + '*']
+    }]
+  }).promise().then(function(response) {
+    return Promise.all(response.data.KeyPairs.map(function(keyPair) {
+      return ec2.deleteKeyPair({
+        KeyName:                  keyPair.KeyName
+      }).promise();
+    }));
+  });
 
   // Promise that all of these succeed
   return Promise.all(
     cancel_spot_requests,
     kill_running_instances,
-    delete_key_pair
+    deleted_key_pairs
   );
 };
 
@@ -136,17 +144,10 @@ cleanup().then(function() {
 }).then(function() {
   return cleanup();
 }).then(function() {
-  delete cfg.provisioning['key-name'];
+  delete cfg.provisioner.keyNamePrefix;
+  delete cfg.provisioner.publicKeyData
   delete cfg.aws.region;
-  fs.writeFileSync(config_filename, JSON.stringify(cfg));
-  try {
-    fs.unlinkSync(key_name + ".pem");
-  }
-  catch (error) {
-    if (error.code != 'ENOENT') {
-      throw error;
-    }
-  }
+  fs.writeFileSync(config_filename, JSON.stringify(cfg, null, 2));
 }).then(function() {
   console.log("cleanup-aws successful!");
 }, function(error) {

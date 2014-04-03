@@ -1,0 +1,42 @@
+extends layout
+
+block content
+  table.table
+    thead
+      tr
+        th WorkerType
+        th Pending Spot Requests
+        th Pending Tasks
+        th Running Instances
+        th View
+        th Edit
+        th Delete
+    tbody
+      for wType in workerTypes
+        tr
+          td
+            code #{wType.workerType}
+          td #{wType.pendingSpotRequests.length}
+          td #{wType.pendingTasks.length}
+          td #{wType.runningInstances.length}
+          td
+            a(href="/worker-type/#{wType.workerType}/view").btn.btn-success.btn-xs
+              i.glyphicon.glyphicon-eye-open
+              |  View
+          td
+            a(href="/worker-type/#{wType.workerType}/edit").btn.btn-primary.btn-xs
+              i.glyphicon.glyphicon-pencil
+              |  Edit
+          td
+            a(
+              href="/worker-type/#{wType.workerType}/delete"
+            ).btn.btn-danger.btn-xs.prompt-first
+              i.glyphicon.glyphicon-trash
+              |  Delete
+  a(href="/worker-type/create").btn.btn-primary
+    i.glyphicon.glyphicon-plus
+    |  New Worker-Type
+  script
+    | $('.prompt-first').click(function() {
+    |   return confirm("Do you really want to delete this worker type?");
+    | });
