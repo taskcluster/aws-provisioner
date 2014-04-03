@@ -446,9 +446,9 @@ var WorkerType = function(entity) {
 
   // Create state of workerType, this is just locally cached we don't want to
   // store these properties
-  this.pendingSpotRequests = 0;
-  this.runningInstances = 0;
-  this.pendingTasks = 0;
+  this.pendingSpotRequests = [];
+  this.runningInstances = [];
+  this.pendingTasks = [];
 };
 
 // Subclass entity, this declares read-only properties
