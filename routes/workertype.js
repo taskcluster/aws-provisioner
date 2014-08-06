@@ -1,6 +1,7 @@
 var Promise     = require('promise');
 var debug       = require('debug')('routes:workertype');
 var state       = require('../provisioner/state');
+var bind        = require('../provisioner/bind');
 var WorkerType  = require('../provisioner/data').WorkerType;
 var aws         = require('aws-sdk');
 var nconf       = require('nconf');
@@ -93,6 +94,7 @@ exports.update = function(req, res){
       if (wType) {
         throw new Error("WorkerType " + wType.workerType + " already exists");
       }
+      console.log('create the thing!?', req.body, '<<<!');
       var workerType = req.body.workerType;
       var keyName = nconf.get('provisioner:keyNamePrefix') + workerType;
       return ec2.importKeyPair({
@@ -120,6 +122,11 @@ exports.update = function(req, res){
         this.configuration.maxInstances         = parseInt(req.body.maxInstances);
         this.configuration.spotBid              = req.body.spotBid;
       });
+    }
+  }).then(function() {
+    if (req.body.bindQueue) {
+      console.log('create the queue xofoos');
+      return bind(req.body.workerType);
     }
   }).then(function() {
     res.redirect(302, '/worker-type/' + req.body.workerType + '/view');

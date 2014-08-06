@@ -35,6 +35,20 @@ block content
                 maxlength="22",
                 name="workerType")#workerType.form-control
     div.form-group
+      label.col-sm-2.control-label(for="bindQueue")
+        | Create & Bind Queue
+      div.col-sm-10
+        input(type="checkbox",
+              checked="true",
+              style="height: 20px"
+              name="bindQueue")#bindQueue.form-control
+        div.col-sm-10
+          div(style="width: 80ex").alert.alert-info
+            p Create amqp queue
+              code worker/v1/aws-provisioner/$WORKER_TYPE
+              |  only check this if the worker type uses amqp to consume events
+              | with the above queue name.
+    div.form-group
       label.col-sm-2.control-label(for="spotBid")
         | Spot bid
       div.col-sm-10
