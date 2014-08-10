@@ -49,7 +49,7 @@ var DEFAULT_CONFIG_VALUES = {
 
   // Queue configuration
   queue: {
-    baseUrl:                        'http://queue.taskcluster.net'
+    baseUrl:                        'https://queue.taskcluster.net'
   },
 
   // AWS SDK Configuration
