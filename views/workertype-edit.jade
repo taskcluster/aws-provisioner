@@ -45,7 +45,7 @@ block content
         div.checkbox
           label
             input(type="checkbox",
-                  checked=(bindQueue ? 'checked' : undefined)
+                  checked=(configuration.bindQueue ? 'checked' : undefined)
                   name="bindQueue")#bindQueue
             | Create and bind the queue
             = ' '
