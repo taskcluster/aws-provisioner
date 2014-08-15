@@ -14,6 +14,7 @@ block content
       - var action = "update"
       - var configuration = workerType.configuration
       - var userData = JSON.parse(new Buffer(configuration.launchSpecification.UserData, 'base64').toString())
+      - delete configuration.launchSpecification.userData
     else
       - var action = "create"
       - var configuration = {}
