@@ -99,7 +99,8 @@ exports.update = function(req, res){
   launchSpecification.UserData = new Buffer(
     JSON.stringify(userData)
   ).toString('base64');
-
+  console.log("Userdata:");
+  console.log(userData);
 
   Promise.from(null).then(function() {
     // Create WorkerType if requested
@@ -118,7 +119,7 @@ exports.update = function(req, res){
           version:        '0.2.0',
           workerType:     workerType,
           configuration: {
-            bindQueue:            req.body.bindQueue,
+            bindQueue:            (req.body.bindQueue ? true : false),
             launchSpecification:  launchSpecification,
             maxInstances:         parseInt(req.body.maxInstances),
             spotBid:              req.body.spotBid
@@ -132,7 +133,7 @@ exports.update = function(req, res){
     // Update WorkerType if requested
     if (req.body.updateOrCreate == 'update') {
       return wType.modify(function() {
-        this.configuration.bindQueue            = req.body.bindQueue;
+        this.configuration.bindQueue            = (req.body.bindQueue ? true : false);
         this.configuration.launchSpecification  = launchSpecification;
         this.configuration.maxInstances         = parseInt(req.body.maxInstances);
         this.configuration.spotBid              = req.body.spotBid;
