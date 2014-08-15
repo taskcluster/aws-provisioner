@@ -67,6 +67,12 @@ exports.delete = function(req, res){
   ec2.deleteKeyPair({
     KeyName:          keyName
   }).promise().then(function() {
+    // Delete AMQP queue if one was created
+    if (wType.bindQueue) {
+      debug('delete the queue');
+      return amqp.unbind(wType.workerType);
+    }
+  }).then(function() {
     wType.remove(true).then(function() {
       state.removeWorkerType(wType);
       res.redirect(302, '/worker-type/');
@@ -88,6 +94,13 @@ exports.update = function(req, res){
     return wType.workerType == req.body.workerType;
   })[0] || null;
 
+  var userData            = JSON.parse(req.body.userData);
+  var launchSpecification = JSON.parse(req.body.launchSpecification);
+  launchSpecification.UserData = new Buffer(
+    JSON.stringify(userData)
+  ).toString('base64');
+
+
   Promise.from(null).then(function() {
     // Create WorkerType if requested
     if (req.body.updateOrCreate == 'create') {
@@ -105,7 +118,8 @@ exports.update = function(req, res){
           version:        '0.2.0',
           workerType:     workerType,
           configuration: {
-            launchSpecification:  JSON.parse(req.body.launchSpecification),
+            bindQueue:            req.body.bindQueue,
+            launchSpecification:  launchSpecification,
             maxInstances:         parseInt(req.body.maxInstances),
             spotBid:              req.body.spotBid
           }
@@ -118,15 +132,16 @@ exports.update = function(req, res){
     // Update WorkerType if requested
     if (req.body.updateOrCreate == 'update') {
       return wType.modify(function() {
-        this.configuration.launchSpecification  = JSON.parse(req.body.launchSpecification);
+        this.configuration.bindQueue            = req.body.bindQueue;
+        this.configuration.launchSpecification  = launchSpecification;
         this.configuration.maxInstances         = parseInt(req.body.maxInstances);
         this.configuration.spotBid              = req.body.spotBid;
       });
     }
   }).then(function() {
     if (req.body.bindQueue) {
-      console.log('create the queue xofoos');
-      return bind(req.body.workerType);
+      debug('create the queue xofoos');
+      return amqp.bind(req.body.workerType);
     }
   }).then(function() {
     res.redirect(302, '/worker-type/' + req.body.workerType + '/view');

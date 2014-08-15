@@ -10,9 +10,9 @@ var Promise     = require('promise');
 var PREFIX = 'worker/v1/aws-provisioner/';
 
 /**
-Bind to a predefined set of exchanges for worker creations.
-*/
-var bind = function(workerType) {
+ * Bind to a predefined set of exchanges for worker creations.
+ */
+exports.bind = function(workerType) {
   var queueEvents      = new taskcluster.QueueEvents();
   var connectionString = nconf.get('amqp:url');
   var queueName        = PREFIX + workerType;
@@ -34,4 +34,17 @@ var bind = function(workerType) {
   });
 };
 
-module.exports = bind;
+/** delete named queue */
+exports.unbind = function(workerType) {
+  var queueEvents      = new taskcluster.QueueEvents();
+  var connectionString = nconf.get('amqp:url');
+  var queueName        = PREFIX + workerType;
+  // Initialize the listener which will bind the queue.
+  var listener         = new taskcluster.Listener({
+    connectionString: connectionString,
+    queueName:        queueName
+  });
+
+  return listener.deleteQueue();
+};
+

@@ -13,9 +13,12 @@ block content
     if workerType
       - var action = "update"
       - var configuration = workerType.configuration
+      - var userData = new Buffer(configuration.launchSpecification.UserData, 'base64').toString()
     else
       - var action = "create"
       - var configuration = {}
+      - var userData = {}
+      - configuration.bindQueue           = false
       - configuration.launchSpecification = {ImageId: ""}
       - configuration.spotBid             = 0.2
       - configuration.maxInstances        = 20
@@ -36,18 +39,25 @@ block content
                 name="workerType")#workerType.form-control
     div.form-group
       label.col-sm-2.control-label(for="bindQueue")
-        | Create & Bind Queue
+        | Create AMQP Queue
       div.col-sm-10
-        input(type="checkbox",
-              checked="true",
-              style="height: 20px"
-              name="bindQueue")#bindQueue.form-control
-        div.col-sm-10
-          div(style="width: 80ex").alert.alert-info
-            p Create amqp queue
-              code worker/v1/aws-provisioner/$WORKER_TYPE
-              |  only check this if the worker type uses amqp to consume events
-              | with the above queue name.
+        div.checkbox
+          label
+            input(type="checkbox",
+                  checked=(bindQueue ? 'checked' : undefined)
+                  name="bindQueue")#bindQueue
+            | Create and bind the queue
+            = ' '
+            code worker/v1/aws-provisioner/&lt;workerType&gt;
+    div.form-group
+      div.col-sm-offset-2.col-sm-10
+        div(style="width: 80ex").alert.alert-info.bindQueuInfo
+          p Check this to create a queue
+            = ' '
+            code worker/v1/aws-provisioner/&lt;workerType&gt;
+            |  and bind it to pending message.
+            strong
+              |  Only check this if you consume the messages!
     div.form-group
       label.col-sm-2.control-label(for="spotBid")
         | Spot bid
@@ -66,6 +76,13 @@ block content
               value="#{configuration.maxInstances}")#maxInstances.form-control
     div.form-group
       label.col-sm-2.control-label(for="imageId")
+        | User-data
+      div.col-sm-10
+        textarea(style='width: 80ex; height: 20ex',
+                 name='userData')#userData.form-control
+          | #{JSON.stringify(userData, null, "\t")}
+    div.form-group
+      label.col-sm-2.control-label(for="imageId")
         | Launch specification
       div.col-sm-10
         div(style="width: 80ex").alert.alert-info
@@ -79,8 +96,11 @@ block content
           | . Please note that the
           = ' '
           code KeyName
+          |  and
+          = ' '
+          code UserData
           |  will be overwritten!
-        textarea(style='width: 80ex; height: 60ex',
+        textarea(style='width: 80ex; height: 50ex',
                  name='launchSpecification')#imageId.form-control
           | #{JSON.stringify(configuration.launchSpecification, null, "\t")}
     div.form-group
@@ -111,4 +131,12 @@ block content
     |       textarea.val(editor.getSession().getValue());
     |     });
     |   });
+    |   $('#bindQueue').change(function() {
+    |     if ($('#bindQueue').is(':checked')) {
+    |       $('.bindQueuInfo').addClass('alert-danger').removeClass('alert-info');
+    |     } else {
+    |       $('.bindQueuInfo').addClass('alert-info').removeClass('alert-danger');
+    |     }
+    |   });
+    |   $('#bindQueue').change();
     | });
