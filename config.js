@@ -16,6 +16,11 @@ var DEFAULT_CONFIG_VALUES = {
     cookieSecret:                   "Warn, if no secret is used on production"
   },
 
+  amqp: {
+    // AMQP connection string used when binding queues.
+    url:                            null,
+  },
+
   // Provisioner settings
   provisioner: {
     // Provisioner identifier
@@ -79,7 +84,8 @@ exports.load = function() {
       'server__port',
       'server__cookieSecret',
       'aws__accessKeyId',
-      'aws__secretAccessKey'
+      'aws__secretAccessKey',
+      'amqp__url'
     ]
   });
 
