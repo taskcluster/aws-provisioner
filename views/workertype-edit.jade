@@ -12,7 +12,7 @@ block content
   form.form-horizontal(role="form", action="/worker-type/update", method="post")
     if workerType
       - var action = "update"
-      - var configuration = workerType.configuration
+      - var configuration = JSON.parse(JSON.stringify(workerType.configuration))
       - var userData = configuration.launchSpecification.UserData || "e30="
       - var userData = JSON.parse(new Buffer(userData, 'base64').toString())
       - delete configuration.launchSpecification.UserData
