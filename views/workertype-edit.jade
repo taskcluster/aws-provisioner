@@ -13,7 +13,8 @@ block content
     if workerType
       - var action = "update"
       - var configuration = workerType.configuration
-      - var userData = JSON.parse(new Buffer(configuration.launchSpecification.UserData, 'base64').toString())
+      - var userData = configuration.launchSpecification.UserData || "e30="
+      - var userData = JSON.parse(new Buffer(userData, 'base64').toString())
       - delete configuration.launchSpecification.UserData
     else
       - var action = "create"
