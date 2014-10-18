@@ -22,7 +22,7 @@
     "stylus": "0.42.0",
     "superagent": "~0.16.0",
     "superagent-promise": "0.1.0",
-    "taskcluster-client": "^0.14.4",
+    "taskcluster-client": "^0.17.5",
     "uuid": "1.4.1"
   },
   "devDependencies": {
