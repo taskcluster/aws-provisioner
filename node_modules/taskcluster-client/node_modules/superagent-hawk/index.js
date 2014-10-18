@@ -3,7 +3,11 @@ var extend = require('./lib/extend');
 
 exports =
 module.exports = function addHawk (superagent) {
-  superagent.Request.prototype.hawk = function(credential, moreOptions) {
+  var RequestProto = superagent.Test
+                      ? superagent.Test.prototype
+                      : superagent.Request.prototype;
+
+  RequestProto.hawk = function(credential, moreOptions) {
     var url = this.url;
     var method = this.method;
 
@@ -34,7 +38,7 @@ module.exports = function addHawk (superagent) {
     return this;
   };
 
-  superagent.Request.prototype.bewit = function(bewit) {
+  RequestProto.bewit = function(bewit) {
     this.query({ bewit: bewit });
     return this;
   };

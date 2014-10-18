@@ -14,12 +14,14 @@ var PREFIX = 'worker/v1/aws-provisioner/';
  */
 exports.bind = function(workerType) {
   var queueEvents      = new taskcluster.QueueEvents();
-  var connectionString = nconf.get('amqp:url');
   var queueName        = PREFIX + workerType;
   // Initialize the listener which will bind the queue.
-  var listener         = new taskcluster.Listener({
-    connectionString: connectionString,
-    queueName:        queueName
+  var listener         = new taskcluster.PulseListener({
+    queueName: queueName,
+    credentials: {
+      username: nconf.get('pulse:username'),
+      password: nconf.get('pulse:password')
+    }
   });
 
   listener.bind(queueEvents.taskPending({
@@ -37,13 +39,20 @@ exports.bind = function(workerType) {
 /** delete named queue */
 exports.unbind = function(workerType) {
   var queueEvents      = new taskcluster.QueueEvents();
-  var connectionString = nconf.get('amqp:url');
   var queueName        = PREFIX + workerType;
   // Initialize the listener which will bind the queue.
-  var listener         = new taskcluster.Listener({
-    connectionString: connectionString,
-    queueName:        queueName
+  var listener         = new taskcluster.PulseListener({
+    queueName: queueName,
+    credentials: {
+      username: nconf.get('pulse:username'),
+      password: nconf.get('pulse:password')
+    }
   });
+
+  listener.bind(queueEvents.taskPending({
+    workerType:    workerType,
+    provisionerId: 'aws-provisioner'
+  }));
 
   return listener.deleteQueue();
 };

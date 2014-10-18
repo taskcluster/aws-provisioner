@@ -2,6 +2,8 @@
 
 Extends
 [superagent](http://visionmedia.github.io/superagent)
+or
+[supertest](https://github.com/visionmedia/supertest)
 with
 [hawk](https://github.com/hueniverse/hawk):
 
