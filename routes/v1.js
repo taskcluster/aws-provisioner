@@ -13,7 +13,7 @@ var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
  * In this API implementation we shall assume the following context:
  * {
  *   publisher:         // Publisher created with exchanges.js
- *   workerType:        // Instance of data.workerTypes
+ *   workerType:        // Instance of data.WorkerType
  * }
  */
 var api = new base.API({
@@ -70,7 +70,7 @@ api.declare({
   //       that the caller has this scopes to avoid scope elevation.
 
   // Create workerType
-  return ctx.workerTypes.create({
+  return ctx.WorkerType.create({
     // Define properties, see data.js
   }).then((function() {
     // TODO: Post AMQP message that workerType was created
@@ -82,7 +82,7 @@ api.declare({
         // Fulfill schema: 'create-worker-type-response.json#'
       });
   }, function(err) {
-    // Handle errors from `ctx.workerTypes.create`, not message publishing
+    // Handle errors from `ctx.WorkerType.create`, not message publishing
     // or res.reply.
 
     // Check that the code matches something you expected
