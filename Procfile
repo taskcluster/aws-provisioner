@@ -1,1 +1,2 @@
-web: node server.js
+web:            node bin/server.js
+provisioner:    node bin/provisioner.js
