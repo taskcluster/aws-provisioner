@@ -20,7 +20,7 @@ var api = new base.API({
   title:          "AWS Provisioner API Documentation",
   description: [
     "The AWS  provisioner, typically available at",
-    "`aws-provisioner.taskcluster.net`, is responsible for provisioning EC2",
+    "`aws-provisioner2.taskcluster.net`, is responsible for provisioning EC2",
     "instances as tasks become become pending. To do this it monitors the",
     "state of queues, EC2 instances, spot prices and other interesting",
     "parameters."
