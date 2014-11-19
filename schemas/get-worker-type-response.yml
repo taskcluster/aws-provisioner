@@ -1,0 +1,58 @@
+id:       http://schemas.taskcluster.net/aws-provisioner/v1/get-worker-type-response.json#
+$schema:  http://json-schema.org/draft-04/schema#
+title:                      "Get Worker Type Request"
+description: |
+  A worker launchSpecification and required metadata
+type:                       object
+properties:
+  workerType:
+    type: string
+    description: |
+      The name of the worker type
+  launchSpecification:
+    type: object
+    description: |
+      An object which describes all worker specific meta-data
+  minInstances:
+    type: number
+    description: "Minimum number of instances to run"
+  maxInstances:
+    type: number
+    description: "Maximum number of instances to run"
+  scalingRatio:
+    type: number
+    description: |
+      A scaling ratio of 1.1 means that we don't start spawning new machines
+      until 10% of our capacity is pending.  A scaling ratio of 0.9 means that
+      we spawn enough machines that we always have 10% empty capacity.
+  minSpotBid:
+    type: number
+    description: minimum spot instance bid
+  maxSpotBid:
+    type: number
+    description: maximum spot instance bid
+  canUseOndemand:
+    type: boolean
+    description: |
+      True if this worker type is allowed on demand instances
+  canUseSpot:
+    type: boolean
+    description: |
+      True if this worker type is allowed spot instances
+  allowedInstanceTypes:
+    type: object
+  allowedRegions:
+    type: array
+    items:
+      type: string
+    description: |
+      An optional list of AWS Regions where this worker type is allowed to
+      run in.  This list is sorted such that index 0 is the first choice
+additionalProperties: false
+required:
+  - workerType
+  - launchSpecification
+  - maxInstances
+  - scalingRatio
+  - minSpotBid
+  - maxSpotBid
