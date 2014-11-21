@@ -1,0 +1,13 @@
+---
+  id: http://schemas.taskcluster.net/aws-provisioner/v1/worker-type-created-message.json#
+  $schema: http://json-schema.org/draft-04/schema#
+  title: Worker Type Message
+  description: Message reporting that a worker type was created
+  type: object
+  properties:
+    workerType:
+      description: |
+        Name of the worker type which was created
+      type: string
+  required:
+    - workerType

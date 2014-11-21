@@ -6,16 +6,21 @@ module.exports = {
       accessToken:  undefined,
     }
   },
+  pulse: {
+    username: undefined,
+    password: undefined,
+  },
   provisioner: {
-    workerTypeTableName:  'AWS-Worker-Types',
+    workerTypeTableName:  'AwsWorkerTypes',
     publishMetaData:  'false',
     statsComponent:   'aws-provisioner2',
   },
   server: {
-    publicUrl:  'https://aws-provisioner2.taskcluster.net',
-    port:       undefined,
+    publicUrl:  'https://aws-provisioner.taskcluster.net',
+    port:       5556,
     env:        'development',
     forceSSL:   false,
+    trustProxy: false,
   },
   azure: {
     accountName: undefined,
