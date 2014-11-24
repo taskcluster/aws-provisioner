@@ -88,11 +88,11 @@ function(req, res) {
   // set `deferAuth: true`, we can't do automatic authentication if the scopes
   // contain parameters like <workerType>
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
@@ -183,11 +183,11 @@ api.declare({
   var input       = req.body;
   var workerType  = req.params.workerType;
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   return ctx.WorkerType.load(workerType).then(function(worker) {
     return worker.modify(function() {
@@ -222,43 +222,12 @@ api.declare({
           }
           throw err;
         });
-      },
-      function(err) {
-        // Handle errors from `ctx.WorkerType.create`, not message publishing
-        // or res.reply
-
-
-        // Check that the code matches something you expected
-        if (err && err.code === 'EntityAlreadyExists') {
-          debug("createWorkerType failed, as '%s' already exists", workerType);
-          // This is how we return error messages, there is no formal way to this
-          // yet... We probably should add something res.reportError(code, {...}),
-          // But generally speaking we always want a "message" property, and all
-          // the other stuff we're willing to return we stuff into "error".
-          // Note, we do not return custom 500 errors.
-          return res.status(409).json({
-            message:          "Conflict: workerType already exists!",
-            error: {
-              workerType:     workerType,
-              reason:         'already-exists'
-            }
-          });
-        }
-
-        // If not handled above, rethrow, which will cause a 500 internal error
-        // Note, for 500 errors we return a generic message and a uuid that can
-        // be looked up in server logs. This way we don't expose sensitive
-        // information... Throwing an error in a promise returned in the handler
-        // will cause a 500, so rethrow here is perfect.
-        // Notice that I did do, return res.status(409)... above, so if handled
-        // the program won't go here.
-        throw err;
       })
   },
   function (err) {
     if (err.code === 'ResourceNotFound') {
       return res.status(404).json({
-        message: "Client not found"
+        message: "Worker Type not found"
       });
     }
   });
@@ -283,11 +252,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   return ctx.WorkerType.load(workerType).then(function(worker) {
     return res.reply(workerTypeForReply(workerType, worker));
@@ -304,6 +273,7 @@ api.declare({
 
 
 // Delete workerType
+// TODO: send a pulse message that a worker type was removed
 api.declare({
   method:         'delete',
   route:          '/worker-type/:workerType',
@@ -322,11 +292,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   return ctx.WorkerType.remove(workerType).then(function(worker) {
     return res.reply({});
@@ -374,11 +344,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   return this.WorkerType.loadAll().then(function(clients) {
     return res.reply(clients.map(function(client) {
@@ -405,6 +375,23 @@ api.declare({
     alive:    true,
     uptime:   process.uptime()
   });
+});
+
+/** Check that the server is a alive */
+api.declare({
+  method:   'get',
+  route:    '/api',
+  name:     'api',
+  title:    "api reference",
+  description: [
+    "Documented later...",
+    "",
+    "**Warning** this api end-point is **not stable**."
+  ].join('\n')
+}, function(req, res) {
+  res.status(200).json(api.reference({
+    baseUrl: 'http://localhost:5556/v1'
+  }));
 });
 
 

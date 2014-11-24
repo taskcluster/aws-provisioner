@@ -69,7 +69,7 @@ WorkerType.create = function(properties) {
   return base.Entity.create.call(this, properties);
 };
 
-/** Load client from worker type */
+/** Load worker from worker type */
 WorkerType.load = function(workerType) {
   return base.Entity.load.call(this, workerType, ROW_KEY_CONST);
 };

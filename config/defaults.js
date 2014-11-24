@@ -16,7 +16,7 @@ module.exports = {
     statsComponent:   'aws-provisioner2',
   },
   server: {
-    publicUrl:  'https://aws-provisioner.taskcluster.net',
+    publicUrl:  'https://localhost',
     port:       5556,
     env:        'development',
     forceSSL:   false,

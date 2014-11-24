@@ -1,29 +1,30 @@
 {
-  "name":             "taskcluster-aws-provisioner",
-  "version":          "0.1.0",
-  "private":          true,
-  "main":             "bin/server.js",
+  "name": "taskcluster-aws-provisioner",
+  "version": "0.1.0",
+  "private": true,
+  "main": "bin/server.js",
   "scripts": {
-    "test":           "test/runtests.sh"
+    "test": "test/runtests.sh"
   },
   "repository": {
-    "type":   "git",
-    "url":    "https://github.com/taskcluster/aws-provisioner.git"
+    "type": "git",
+    "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "promise":                          "6.0.1",
-    "lodash":                           "2.4.1",
-    "debug":                            "2.1.0",
-    "taskcluster-client":               "0.17.9",
-    "taskcluster-base":                 "0.6.0",
-    "aws-sdk":                          "2.0.23",
-    "aws-sdk-promise":                  "0.0.0"
+    "promise": "6.0.1",
+    "lodash": "2.4.1",
+    "debug": "2.1.0",
+    "taskcluster-client": "0.17.9",
+    "taskcluster-base": "0.6.0",
+    "aws-sdk": "2.0.23",
+    "aws-sdk-promise": "0.0.0"
   },
   "devDependencies": {
-    "mocha":                            "2.0.1",
-    "slugid":                           "1.0.3"
+    "mocha": "2.0.1",
+    "should": "^4.3.0",
+    "slugid": "1.0.3"
   },
   "engines": {
-    "node":                             "0.10.x"
+    "node": "0.10.x"
   }
 }
