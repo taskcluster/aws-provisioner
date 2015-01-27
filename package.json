@@ -11,13 +11,12 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "promise": "6.0.1",
-    "lodash": "2.4.1",
+    "aws-sdk-promise": "0.0.0",
     "debug": "2.1.0",
-    "taskcluster-client": "0.17.9",
+    "lodash": "2.4.1",
+    "promise": "6.0.1",
     "taskcluster-base": "0.6.0",
-    "aws-sdk": "2.0.23",
-    "aws-sdk-promise": "0.0.0"
+    "taskcluster-client": "0.19.4"
   },
   "devDependencies": {
     "mocha": "2.0.1",

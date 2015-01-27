@@ -11,9 +11,11 @@ module.exports = {
     password: undefined,
   },
   provisioner: {
+    id:                   'aws-provisioner2',
     workerTypeTableName:  'AwsWorkerTypes',
-    publishMetaData:  'false',
-    statsComponent:   'aws-provisioner2',
+    publishMetaData:      'false',
+    statsComponent:       'aws-provisioner2',
+    awsKeyPrefix:         'test-provisioner-managed:',
   },
   server: {
     publicUrl:  'https://localhost',

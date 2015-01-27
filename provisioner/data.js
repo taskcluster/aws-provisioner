@@ -2,6 +2,7 @@ var base        = require('taskcluster-base');
 var assert      = require('assert');
 var Promise     = require('promise');
 var _           = require('lodash');
+var debug = require('debug')('aws-provisioner:provisioner:data');
 
 var ROW_KEY_CONST = 'worker-type';
 
@@ -77,6 +78,14 @@ WorkerType.load = function(workerType) {
 /** Load all worker types */
 WorkerType.loadAll = function() {
   return base.Entity.queryRowKey.call(this, ROW_KEY_CONST);
+};
+
+WorkerType.loadAllNames = function() {
+  return base.Entity.queryRowKey.call(this, ROW_KEY_CONST).then(function(result) {
+    return result.map(function(i) { 
+      return i.workerType;
+    });
+  });
 };
 
 /** Remove worker type with given workertype */
