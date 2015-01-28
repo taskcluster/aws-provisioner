@@ -11,7 +11,14 @@ describe('provisioner api server', function() {
   var subject = helper.setup({title: "api-tests"});
 
   var wDefinition = {
-    "launchSpecification": {"workername": "john"},
+    "launchSpecification": {
+      "ImageId": "ami-fd2b60cd",
+      "InstanceType": "r3.xlarge",
+      "SecurityGroups": [
+        "docker-worker"
+      ],
+      "UserData": "eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImdhaWEiLCJwcm92aXNpb25lcklkIjoiYXdzLXByb3Zpc2lvbmVyIiwicmVnaXN0cmllcyI6eyJxdWF5LmlvL3Rhc2tjbHVzdGVyX3Rlc3QiOnsidXNlcm5hbWUiOiJ0YXNrY2x1c3Rlcl90ZXN0K2psYWwiLCJwYXNzd29yZCI6IldGTDUzS1U2S1NCODNRVUFDMVdET1Q0UzhUT1NGTDdWMU9WUFNPVkJUVVdTRElCMDdUMDlWMFEzUkJDTURBNTIifX0sInBhcGVydHJhaWwiOnsiZGVzaW50YXRpb24iOnsicG9ydCI6MjIzOTV9fX0="
+    },
     "scalingRatio": 1,
     "maxInstances": 100,
     "minSpotBid": 2,
@@ -20,7 +27,7 @@ describe('provisioner api server', function() {
     "canUseOndemand": true,
     "canUseSpot": true,
     "allowedInstanceTypes": ["john"],
-    "allowedRegions": ["us-west"]
+    "allowedRegions": ["us-west-2"]
   } 
 
   it('should respond to ping', function() {

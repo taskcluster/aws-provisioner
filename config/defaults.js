@@ -15,7 +15,7 @@ module.exports = {
     workerTypeTableName:  'AwsWorkerTypes',
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2',
-    awsKeyPrefix:         'test-provisioner-managed:',
+    awsKeyPrefix:         'taskcluster-aws-provisioner-managed:',
   },
   server: {
     publicUrl:  'https://localhost',

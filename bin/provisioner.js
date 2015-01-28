@@ -13,6 +13,8 @@ var cfg = base.config({
   profile: require('../config/' + profile),
   envs: [
     'provisioner_id',
+    'aws_accessKeyId',
+    'aws_secretAccessKey',
   ],
   filename: 'taskcluster-aws-provisioner'
 });
