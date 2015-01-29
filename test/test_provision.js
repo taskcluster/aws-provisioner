@@ -132,48 +132,60 @@ describe('countRunningCapacity', function() {
   });
 });
 
+function mockInstanceReply(testId, state) {
+  return {
+    data: {
+      Reservations: [{
+        Instances: [{
+          TestID: testId,
+          State: { Name: state},
+          KeyName: 'taskcluster-aws-provisioner-managed:gaia'
+        }]
+      }]
+    }
+  }
+}
+
+function mockSpotInstanceRequest(testId) {
+  return {
+    data: {
+      SpotInstanceRequests: [{
+        TestID: testId,
+        LaunchSpecification: {
+          KeyName: 'taskcluster-aws-provisioner-managed:gaia'
+        }
+      }]
+    }
+  }
+}
+
 describe('awsState', function() {
   var sandbox = sinon.sandbox.create();
   var aws = require('aws-sdk-promise');
   beforeEach(function() {
+    provision.init('aws-provisioner', undefined, 'taskcluster-aws-provisioner-managed:');
     sandbox.restore();
   });
 
-  var describeInstances = sandbox.stub(provision.ec2, 'describeInstances');
-  var describeSpotInstanceRequests = sandbox.stub(provision.ec2, 'describeSpotInstanceRequests');
+  var describeInstances = sandbox.stub(ec2stub, 'describeInstances');
+  var describeSpotInstanceRequests = sandbox.stub(ec2stub, 'describeSpotInstanceRequests');
   var subject = provision._awsState;
 
   describe('fetching state', function () {
 
     it('should only find related instances', function(done) {
-      // Wow, this is awful but I'm not sure how to stub it
-      // in a more intelligent way...
-      var describeInstances = sandbox.stub(provision.ec2, 'describeInstances');
-      describeInstances.returns({promise: function() { return Promise.resolve({
-        data: {
-          Reservations: [{
-            Instances: [{
-              KeyName: 'taskcluster-aws-provisioner-managed:test',
-              State: { Name: 'running'},
-              InstanceId: 'i-1234'
-            },{
-              KeyName: 'taskcluster-aws-provisioner-managed:test',
-              State: { Name: 'pending'},
-              InstanceId: 'i-1235'
-            }]
-          }]
-        }
-      })}});
-      
+      describeInstances.returns({promise: function() {
+        return mockInstanceReply(12345, 'running');
+      }});
       describeSpotInstanceRequests.returns({promise: function() {
-        return Promise.resolve({data: {SpotInstanceRequests: []}});
-      }})
+        return mockSpotInstanceRequest(12346); 
+      }}); 
 
-      subject().then(function(state) {
-        done()
-        state['test']['pending'][0].should.equal('i-1235');
-        state['test']['running'][0].should.equal('i-1234');
-      }, done).done();
+      subject().then(function(result) {
+        console.log(result);
+        done();
+      }).done();
+
     });
 
     it('should only find related spot requests', function(done) {

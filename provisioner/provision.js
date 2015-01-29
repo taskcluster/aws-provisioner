@@ -17,7 +17,7 @@ var Queue = new taskcluster.Queue();
 var WorkerType;
 var ProvisionerId;
 var KeyPrefix;
-function init (id, wt, kp, awsconf) {
+function init (id, wt, kp) {
   ProvisionerId = id;
   WorkerType = wt;
   KeyPrefix = kp;
@@ -115,41 +115,36 @@ function awsState() {
       }).promise(),
     ]).then(function(res) {
       debug('Retreived state from AWS');
-      console.log(res);
-      if (res && res[0] && res[0].data && res[0].data.Reservations) { 
-        res[0].data.Reservations.forEach(function(reservation) {
-          reservation.Instances.forEach(function(instance) {
-            var workerType = instance.KeyName.substr(KeyPrefix.length);
-            var instanceState = instance.State.Name;
-            
-            // Make sure we have the needed slots
-            if (!allState[workerType]) {
-              allState[workerType] = {};
-            }
-            if (!allState[workerType][instanceState]){
-              allState[workerType][instanceState] = [];
-            }
-
-            allState[workerType][instanceState].push(instance);
-          });
-        });
-      }
-
-      debug('Processed instance state');
-
-      if (res && res[1] && res[1].data && res[1].data.SpotInstanceRequests){
-        res[1].data.SpotInstanceRequests.forEach(function(request) {
-          var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
-
+      res[0].data.Reservations.forEach(function(reservation) {
+        reservation.Instances.forEach(function(instance) {
+          var workerType = instance.KeyName.substr(KeyPrefix.length);
+          var instanceState = instance.State.Name;
+          
+          // Make sure we have the needed slots
           if (!allState[workerType]) {
             allState[workerType] = {};
           }
-          if (!allState[workerType]['requestedSpot']){
-            allState[workerType]['requestedSpot'] = [];
+          if (!allState[workerType][instanceState]){
+            allState[workerType][instanceState] = [];
           }
-          allState[workerType]['requestedSpot'].push(request);
+
+          allState[workerType][instanceState].push(instance);
         });
-      }
+      });
+
+      debug('Processed instance state');
+
+      res[1].data.SpotInstanceRequests.forEach(function(request) {
+        var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
+
+        if (!allState[workerType]) {
+          allState[workerType] = {};
+        }
+        if (!allState[workerType]['requestedSpot']){
+          allState[workerType]['requestedSpot'] = [];
+        }
+        allState[workerType]['requestedSpot'].push(request);
+      });
 
       debug('Retreived AWS state for worker types: %s', JSON.stringify(Object.keys(allState)));
       resolve(allState);
