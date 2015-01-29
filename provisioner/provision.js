@@ -118,7 +118,6 @@ function awsState() {
       res[0].data.Reservations.forEach(function(reservation) {
         reservation.Instances.forEach(function(instance) {
           var workerType = instance.KeyName.substr(KeyPrefix.length);
-          // Hmm, probably not the right param name
           var instanceState = instance.State.Name;
           
           // Make sure we have the needed slots
@@ -135,6 +134,7 @@ function awsState() {
 
       res[1].data.SpotInstanceRequests.forEach(function(request) {
         var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
+
         if (!allState[workerType]) {
           allState[workerType] = {};
         }
@@ -166,7 +166,6 @@ function provisionForType(name, awsState, pending) {
 
       // Gather all the information we need
       var infoPromises = Promise.all([
-        // For now, we're ignoring the number of occupied nodes
         countRunningCapacity(workerType, awsState),
       ]);
 
@@ -357,10 +356,17 @@ function createLaunchSpec(workerType, overwrites) {
    units does not fit nicely with the number of capacity units available per
    instance type.  Positive value means add capacity, negative means destroy */
 function determineCapacityChange(scalingRatio, capacity, pending) {
-  var currentValue = capacity / scalingRatio;
-  var idealValue = pending / scalingRatio;
-  return idealValue - currentValue;
+
+  var x = Math.ceil((capacity * scalingRatio) + pending) - capacity;
+
+  debug('x: %d', x);
+  // For now we don't bother with negative values because we can't 
+  // ask machines to terminate, we can only force them off, which
+  // we don't want to do
+  return x>0 ? x : 0;
+
 }
+module.exports._determineCapacityChange = determineCapacityChange;
 
 
 /* Flow for monitoring nodes:
