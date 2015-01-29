@@ -201,7 +201,7 @@ function countRunningCapacity(workerType, awsState) {
         'launchSpeccificationOverwrites': {}
       }
      } */
-  var capacities;
+  var capacities = {};
   Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
     capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
   });
@@ -227,6 +227,7 @@ function countRunningCapacity(workerType, awsState) {
   
   return Promise.resolve(capacity);
 }
+module.exports._countRunningCapacity = countRunningCapacity;
 
 /* Make choices about whether machines should be created or destroyed.
    The promise returned resolves to the list of ec2 reponses from either
@@ -359,11 +360,10 @@ function determineCapacityChange(scalingRatio, capacity, pending) {
 
   var x = Math.ceil((capacity * scalingRatio) + pending) - capacity;
 
-  debug('x: %d', x);
   // For now we don't bother with negative values because we can't 
   // ask machines to terminate, we can only force them off, which
   // we don't want to do
-  return x>0 ? x : 0;
+  return x > 0 ? x : 0;
 
 }
 module.exports._determineCapacityChange = determineCapacityChange;

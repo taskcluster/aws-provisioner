@@ -4,7 +4,7 @@ var debug = require('debug')('provisioner:test:provison');
 var helper = require('./helper');
 var slugid = require('slugid');
 var should = require('should');
-var _ = require('lodash');
+var lodash = require('lodash');
 var data = require('../provisioner/data.js');
 
 var provision = require('../provisioner/provision');
@@ -57,5 +57,76 @@ describe('determineCapacityChange', function() {
       actual.should.equal(expected);
     });
 
+  });
+});
+
+describe('countRunningCapacity', function() {
+  var subject = provision._countRunningCapacity;
+
+  var fakeWorkerType = {
+    allowedInstanceTypes: {
+      'small': {
+        'capacity': 1,
+      },
+      'large': {
+        'capacity': 2,
+      }
+    }
+  };
+
+  describe('should be able to count running instances', function() {
+    it('should work with only instances', function(done) {
+      var expected = 3;
+      var fakeState = {
+        running: [{InstanceType: 'small'},{InstanceType: 'large'}],
+        pending: [],
+        spotRequested: [],
+      };
+      subject(fakeWorkerType, fakeState).then(function(actual) {
+        expected.should.equal(actual);
+        done();
+      }).done();
+    });
+
+    it('should count 0 instance when none are running', function(done) {
+      var expected = 0;
+      var fakeState = {
+        running: [],
+        pending: [],
+        spotRequested: [],
+      };
+      subject(fakeWorkerType, fakeState).then(function(actual) {
+        expected.should.equal(actual);
+        done();
+      }).done();
+
+    });
+
+    it('should assume capacity 1 for unknown InstanceTypes', function(done) {
+      var expected = 1;
+      var fakeState = {
+        running: [{InstanceType: 'unknown'}],
+        pending: [],
+        spotRequested: [],
+      };
+      subject(fakeWorkerType, fakeState).then(function(actual) {
+        expected.should.equal(actual);
+        done();
+      }).done();
+
+    });
+    
+    it('should count pending instances', function(done) {
+      var expected = 2;
+      var fakeState = {
+        running: [],
+        pending: [{InstanceType: 'large'}],
+        spotRequested: [],
+      };
+      subject(fakeWorkerType, fakeState).then(function(actual) {
+        expected.should.equal(actual);
+        done();
+      }).done();
+    });
   });
 });
