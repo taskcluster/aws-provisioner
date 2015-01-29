@@ -6,6 +6,7 @@ var slugid = require('slugid');
 var should = require('should');
 var lodash = require('lodash');
 var data = require('../provisioner/data.js');
+var sinon = require('sinon');
 
 var provision = require('../provisioner/provision');
 
@@ -127,6 +128,60 @@ describe('countRunningCapacity', function() {
         expected.should.equal(actual);
         done();
       }).done();
+    });
+  });
+});
+
+describe('awsState', function() {
+  var sandbox = sinon.sandbox.create();
+  var aws = require('aws-sdk-promise');
+  beforeEach(function() {
+    sandbox.restore();
+  });
+
+  var describeInstances = sandbox.stub(provision.ec2, 'describeInstances');
+  var describeSpotInstanceRequests = sandbox.stub(provision.ec2, 'describeSpotInstanceRequests');
+  var subject = provision._awsState;
+
+  describe('fetching state', function () {
+
+    it('should only find related instances', function(done) {
+      // Wow, this is awful but I'm not sure how to stub it
+      // in a more intelligent way...
+      var describeInstances = sandbox.stub(provision.ec2, 'describeInstances');
+      describeInstances.returns({promise: function() { return Promise.resolve({
+        data: {
+          Reservations: [{
+            Instances: [{
+              KeyName: 'taskcluster-aws-provisioner-managed:test',
+              State: { Name: 'running'},
+              InstanceId: 'i-1234'
+            },{
+              KeyName: 'taskcluster-aws-provisioner-managed:test',
+              State: { Name: 'pending'},
+              InstanceId: 'i-1235'
+            }]
+          }]
+        }
+      })}});
+      
+      describeSpotInstanceRequests.returns({promise: function() {
+        return Promise.resolve({data: {SpotInstanceRequests: []}});
+      }})
+
+      subject().then(function(state) {
+        done()
+        state['test']['pending'][0].should.equal('i-1235');
+        state['test']['running'][0].should.equal('i-1234');
+      }, done).done();
+    });
+
+    it('should only find related spot requests', function(done) {
+      done();
+    });
+
+    it('should create state correctly', function(done) {
+      done();
     });
   });
 });

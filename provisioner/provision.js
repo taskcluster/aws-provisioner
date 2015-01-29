@@ -7,7 +7,7 @@ var aws = require('aws-sdk-promise');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 
-var ec2 = exports.ec2 = new aws.EC2({'region': 'us-west-2'});
+var ec2 = module.exports.ec2 = new aws.EC2({'region': 'us-west-2'});
 
 var Queue = new taskcluster.Queue();
 
@@ -70,7 +70,6 @@ function provisionAll() {
     }, reject);
   });
 }
-
 module.exports.provisionAll = provisionAll;
 
 /* Figure out what the current state is for AWS ec2 for
@@ -115,34 +114,42 @@ function awsState() {
         }]
       }).promise(),
     ]).then(function(res) {
-      res[0].data.Reservations.forEach(function(reservation) {
-        reservation.Instances.forEach(function(instance) {
-          var workerType = instance.KeyName.substr(KeyPrefix.length);
-          var instanceState = instance.State.Name;
-          
-          // Make sure we have the needed slots
+      debug('Retreived state from AWS');
+      console.log(res);
+      if (res && res[0] && res[0].data && res[0].data.Reservations) { 
+        res[0].data.Reservations.forEach(function(reservation) {
+          reservation.Instances.forEach(function(instance) {
+            var workerType = instance.KeyName.substr(KeyPrefix.length);
+            var instanceState = instance.State.Name;
+            
+            // Make sure we have the needed slots
+            if (!allState[workerType]) {
+              allState[workerType] = {};
+            }
+            if (!allState[workerType][instanceState]){
+              allState[workerType][instanceState] = [];
+            }
+
+            allState[workerType][instanceState].push(instance);
+          });
+        });
+      }
+
+      debug('Processed instance state');
+
+      if (res && res[1] && res[1].data && res[1].data.SpotInstanceRequests){
+        res[1].data.SpotInstanceRequests.forEach(function(request) {
+          var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
+
           if (!allState[workerType]) {
             allState[workerType] = {};
           }
-          if (!allState[workerType][instanceState]){
-            allState[workerType][instanceState] = [];
+          if (!allState[workerType]['requestedSpot']){
+            allState[workerType]['requestedSpot'] = [];
           }
-
-          allState[workerType][instanceState].push(instance);
+          allState[workerType]['requestedSpot'].push(request);
         });
-      });
-
-      res[1].data.SpotInstanceRequests.forEach(function(request) {
-        var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
-
-        if (!allState[workerType]) {
-          allState[workerType] = {};
-        }
-        if (!allState[workerType]['requestedSpot']){
-          allState[workerType]['requestedSpot'] = [];
-        }
-        allState[workerType]['requestedSpot'].push(request);
-      });
+      }
 
       debug('Retreived AWS state for worker types: %s', JSON.stringify(Object.keys(allState)));
       resolve(allState);
@@ -150,6 +157,8 @@ function awsState() {
     }, reject);
   });
 }
+
+module.exports._awsState = awsState;
 
 
 
