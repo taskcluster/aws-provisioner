@@ -7,6 +7,7 @@ var base = require('taskcluster-base');
 var aws = require('aws-sdk-promise');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
+var uuid = require('node-uuid');
 
 var ec2 = module.exports.ec2 = new aws.EC2({'region': 'us-west-2'});
 
@@ -30,20 +31,13 @@ module.exports.init = init;
     - tests in base.
  */
 
-
-// XXX: We should make allowed instances this a mapping between
-// instance-type and launch spec overrides that should happen instance type
-// should have a utility value, how much better than a standard unit type
-// -- for figuring out which config to buy also store the capacity per
-// instance type bug about not giving each worker type star creds, temp
-// credentials in userdata
-
 /*
   TODO:
 
-  1. Store instance type dictionary
-  2. Figure out capacity instead of number of running nodes
-  3. 
+  1. update schema to reflect the structure of the instance type dict
+  2. sprinkle some uuids on debug messages for sanity's sake
+  3. should delete instances that might've been managed by provisioner but aren't currently known
+  4. figure out why promises are broken when returning promises from the .map() in provisionAll()
 
 */ 
 
@@ -53,28 +47,34 @@ module.exports.init = init;
 function provisionAll() {
   // We grab the pending task count here instead of in the provisionForType
   // method to avoid making a bunch of unneeded API calls
-  debug('Running provisionAll()');
-
-  return new Promise(function(resolve, reject) {
+  var runId = uuid.v4();
+  debug('Beginning provisioning run %s', runId);
+  return new Promise(function (resolve, reject) {
     Promise.all([
       Queue.pendingTaskCount(ProvisionerId),
       WorkerType.loadAllNames(),
-      awsState(),
+      awsState()
     ]).then(function(res) {
-      var pendingTaskCount = res.shift();
+      var pendingTasks = res.shift();
       var workerTypes = res.shift();
       var awsState = res.shift();
 
-      debug('Found managed AWSzeug: %s', JSON.stringify(Object.keys(awsState)));
-      debug('Found workerTypes: %s', JSON.stringify(workerTypes));
+      debug('AWS State for runId %s: ', runId, JSON.stringify(Object.keys(awsState)));
+      debug('WorkerTypes for runId %s: ', runId, JSON.stringify(workerTypes));
 
-      var provisioningPromises = workerTypes.map(function(workerType) {
-        return provisionForType(workerType, awsState[workerType] || {}, pendingTaskCount[workerType] || 0);
+      var p = workerTypes.map(function(workerType) {
+        provisionForType(workerType, awsState[workerType] || {}, pendingTaskCount[workerType] || 0);
       });
 
-      return Promise.all(provisioningPromises);
-    }, reject);
+      Promise.all(p).then(function(res2) {
+        debug('Completed %s', runId);
+        resolve(res2);
+      });
+      
+    });
+
   });
+
 }
 module.exports.provisionAll = provisionAll;
 
@@ -170,8 +170,8 @@ function awsState() {
  * caller. Note that awsState as passed in should be specific to a workerType
  */
 function provisionForType(name, awsState, pending) {
-  debug('Provising Worker Type %s', name);
   return new Promise(function(resolve, reject) {
+    resolve(true);
     WorkerType.load(name).then(function(workerType) {
      debug('Provisioning for %s', name);
 
@@ -193,9 +193,9 @@ function provisionForType(name, awsState, pending) {
               capacityChange > 0 ? 'increase' : 'decrease',
               capacityChange);
 
-        createOrDestroy(workerType, awsState, capacityChange).then(resolve, reject);
-      });
-    }, reject);
+        //createOrDestroy(workerType, awsState, capacityChange).then(resolve, reject);
+      }).done();
+    }, reject).done();
   });
 }
 

@@ -20,6 +20,7 @@ var cfg = base.config({
 
 var provisionerId = cfg.get('provisioner:id');
 var awsKeyPrefix = cfg.get('provisioner:awsKeyPrefix');
+var pulseRate = cfg.get('provisioner:pulseRate');
 debug('Using provisioner id of %s', provisionerId);
 
 provision.init(
@@ -34,5 +35,16 @@ provision.init(
 
 // Things like running this every X minutes goes here.  As does things like submitting statistics on the
 // provisioning run
-provision.provisionAll().then(function(x) { console.log(JSON.stringify(x)) }).done();
 
+
+debug(pulseRate + 'Hiyooo');
+function pulse () {
+  provision.provisionAll().then(function(x) {
+    console.log('Hi' + JSON.stringify(x));
+    setTimeout(pulse, pulseRate); 
+    debug('timer set');
+  }).done();
+  
+}
+
+pulse();
