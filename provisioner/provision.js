@@ -1,5 +1,6 @@
 'use strict';
 
+//var Promise = require('promise');
 var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provisioner:provision');
 var base = require('taskcluster-base');
@@ -30,10 +31,12 @@ module.exports.init = init;
  */
 
 
-    // XXX: We should make allowed instances this a mapping between instance-type and launch spec overrides that should happen
-    // instance type should have a utility value, how much better than a standard unit type -- for figuring out which config to buy
-    // also store the capacity per instance type
-    // bug about not giving each worker type star creds, temp credentials in userdata
+// XXX: We should make allowed instances this a mapping between
+// instance-type and launch spec overrides that should happen instance type
+// should have a utility value, how much better than a standard unit type
+// -- for figuring out which config to buy also store the capacity per
+// instance type bug about not giving each worker type star creds, temp
+// credentials in userdata
 
 /*
   TODO:
@@ -72,6 +75,31 @@ function provisionAll() {
 }
 module.exports.provisionAll = provisionAll;
 
+
+var awsStateAwsCalls = function () {
+  return Promise.all([
+    ec2.describeInstances({
+      Filters: [{
+        Name: 'key-name',
+        Values: [KeyPrefix + '*']
+      },{
+        Name: 'instance-state-name',
+        Values: ['running', 'pending']
+      }
+    
+    ]}).promise(),
+    ec2.describeSpotInstanceRequests({
+      Filters: [{
+        Name: 'launch.key-name',
+        Values: [KeyPrefix + '*']
+      }, {
+        Name: 'state',
+        Values: ['open']
+      }]
+    }).promise(),
+  ]);
+}
+
 /* Figure out what the current state is for AWS ec2 for
    managed image types.  This returns an object in the form:
   {
@@ -93,27 +121,8 @@ function awsState() {
   debug('Starting to find aws state');
   return new Promise(function(resolve, reject) {
     var allState = {};
-    Promise.all([
-      ec2.describeInstances({
-        Filters: [{
-          Name: 'key-name',
-          Values: [KeyPrefix + '*']
-        },{
-          Name: 'instance-state-name',
-          Values: ['running', 'pending']
-        }
-      
-      ]}).promise(),
-      ec2.describeSpotInstanceRequests({
-        Filters: [{
-          Name: 'launch.key-name',
-          Values: [KeyPrefix + '*']
-        }, {
-          Name: 'state',
-          Values: ['open']
-        }]
-      }).promise(),
-    ]).then(function(res) {
+    // If I don't use exports., sinon is unable to actually stub this
+    awsStateAwsCalls().then(function(res) {
       debug('Retreived state from AWS');
       res[0].data.Reservations.forEach(function(reservation) {
         reservation.Instances.forEach(function(instance) {
@@ -149,13 +158,9 @@ function awsState() {
       debug('Retreived AWS state for worker types: %s', JSON.stringify(Object.keys(allState)));
       resolve(allState);
 
-    }, reject);
+    }, reject).done();
   });
 }
-
-module.exports._awsState = awsState;
-
-
 
 /* Provision a specific workerType.  This promise will have a value of true if
  * everything worked.  Another option is resolving to the name of the worker to

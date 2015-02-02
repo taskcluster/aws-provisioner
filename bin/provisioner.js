@@ -12,7 +12,6 @@ var cfg = base.config({
   defaults: require('../config/defaults.js'),
   profile: require('../config/' + profile),
   envs: [
-    'provisioner_id',
     'aws_accessKeyId',
     'aws_secretAccessKey',
   ],
