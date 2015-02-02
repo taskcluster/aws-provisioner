@@ -1,2 +1,2 @@
 web:            node bin/server.js
-provisioner:    node bin/provisioner.js
+#provisioner:    node bin/provisioner.js

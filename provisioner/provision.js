@@ -207,7 +207,7 @@ function countRunningCapacity(workerType, awsState) {
       'instance-type': {
         'capacity': 3,
         'utilityFactor': 4,
-        'launchSpeccificationOverwrites': {}
+        'overwrites': {}
       }
      } */
   var capacities = {};
@@ -257,7 +257,6 @@ function spawnInstances(workerType, awsState, capacityNeeded) {
     var launchSpecs = [];
 
     var spotBidPrices = {};
-
     // This probably shouldn't be a while loop... does this
     // block the interpreter waiting on async results?
     while (capacityNeeded-- >= 0) { // Likely candidate for off by one!
@@ -268,10 +267,10 @@ function spawnInstances(workerType, awsState, capacityNeeded) {
         var region = res[0]; // only used later when we do multi-region
         var instanceType = res[1];
 
-        var overwrites = workerType.allowedInstances[instanceType].launchSpeccificationOverwrites;
-        createLaunchSpec(workerType, overwrites, region).then(function(launchSpec) {
+        var _overwrites = workerType.allowedInstances[instanceType].overwrites;
+        createLaunchSpec(workerType, _overwrites, region).then(function(launchSpec) {
           launchSpecs.push(launchSpec) 
-        }).done();;
+        }).done();
       }, reject);
     }
 
