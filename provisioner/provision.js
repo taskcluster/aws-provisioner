@@ -65,6 +65,9 @@ function provisionAll() {
       var workerTypes = res.shift();
       var awsState = res.shift();
 
+      debug('Found managed AWSzeug: %s', JSON.stringify(Object.keys(awsState)));
+      debug('Found workerTypes: %s', JSON.stringify(workerTypes));
+
       var provisioningPromises = workerTypes.map(function(workerType) {
         return provisionForType(workerType, awsState[workerType] || {}, pendingTaskCount[workerType] || 0);
       });
@@ -155,7 +158,6 @@ function awsState() {
         allState[workerType]['requestedSpot'].push(request);
       });
 
-      debug('Retreived AWS state for worker types: %s', JSON.stringify(Object.keys(allState)));
       resolve(allState);
 
     }, reject).done();

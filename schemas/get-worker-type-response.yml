@@ -40,12 +40,7 @@ properties:
     description: |
       True if this worker type is allowed spot instances
   allowedInstanceTypes:
-    type: array
-    items:
-      type: object
-    description: |
-      An optional list of instance types which this worker type is allowed
-      to run on.  This list is sorted such that index 0 is the first choice
+    type: object
   allowedRegions:
     type: array
     items:

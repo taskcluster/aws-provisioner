@@ -11,9 +11,6 @@ var client = new AwsProvisioner();
 
 var fileNames = process.argv.slice(2);
 
-debug(references);
-
-
 client.listWorkerTypes().then(function(extant) {
   
   fileNames.forEach(function(f) {
@@ -39,7 +36,7 @@ client.listWorkerTypes().then(function(extant) {
     p.then(client.workerType(workerType))
       .then(function(x) {
         console.log('Complete');
-        console.log(x);
+        console.log(JSON.stringify(x, null, 2));
       }, function (y) {
         console.log('Error!', y, y.stack);
       });
