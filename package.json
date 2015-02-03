@@ -14,6 +14,7 @@
     "aws-sdk-promise": "0.0.0",
     "debug": "2.1.0",
     "lodash": "^2.4.1",
+    "node-uuid": "^1.4.2",
     "promise": "6.0.1",
     "sinon": "^1.12.2",
     "taskcluster-base": "0.6.0",
