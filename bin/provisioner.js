@@ -40,9 +40,8 @@ provision.init(
 debug(pulseRate + 'Hiyooo');
 function pulse () {
   provision.provisionAll().then(function(x) {
-    console.log('Hi' + JSON.stringify(x));
     setTimeout(pulse, pulseRate); 
-    debug('timer set');
+    debug('This heart will beat in %d milliseconds', pulseRate);
   }).done();
   
 }

@@ -47,9 +47,9 @@ module.exports.init = init;
 function provisionAll() {
   // We grab the pending task count here instead of in the provisionForType
   // method to avoid making a bunch of unneeded API calls
-  var runId = uuid.v4();
-  debug('Beginning provisioning run %s', runId);
   return new Promise(function (resolve, reject) {
+    var runId = uuid.v4();
+    debug('Beginning provisioning run %s', runId);
     Promise.all([
       Queue.pendingTaskCount(ProvisionerId),
       WorkerType.loadAllNames(),
@@ -62,19 +62,24 @@ function provisionAll() {
       debug('AWS State for runId %s: ', runId, JSON.stringify(Object.keys(awsState)));
       debug('WorkerTypes for runId %s: ', runId, JSON.stringify(workerTypes));
 
+      var wtRunIds = [];
       var p = workerTypes.map(function(workerType) {
-        return provisionForType(workerType, awsState[workerType] || {}, pendingTasks[workerType] || 0);
+        var wtRunId = uuid.v4();
+        debug('Worker Type %s for runId %s has wtRunId of %s', workerType, runId, wtRunId);
+        wtRunIds.push(wtRunId);
+        return provisionForType(wtRunId, workerType, awsState[workerType] || {}, pendingTasks[workerType] || 0);
       });
 
       Promise.all(p).then(function(res2) {
-        debug('Completed %s', runId);
+        debug('Completed provisioning run %s', runId);
+        workerTypes.forEach(function(wt, idx) {
+          debug('Completed provisioning worker type %s with wtRunId %s', wt, wtRunIds[idx]);
+        });
         resolve();
-      });
+      }).catch(function(err) { reject(err) }).done();
       
     }).done();
-
   });
-
 }
 module.exports.provisionAll = provisionAll;
 
@@ -169,7 +174,7 @@ function awsState() {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-function provisionForType(name, awsState, pending) {
+function provisionForType(wtRunId, name, awsState, pending) {
   return new Promise(function(resolve, reject) {
     WorkerType.load(name).then(function(workerType){
       var infoPromises = [
