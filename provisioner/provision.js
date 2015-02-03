@@ -9,7 +9,6 @@ var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
 
-var ec2 = module.exports.ec2 = new aws.EC2({'region': 'us-west-2'});
 
 
 /* I don't want to do any setup in this module... This function should be
@@ -20,13 +19,17 @@ var ProvisionerId;
 var KeyPrefix;
 var cfg;
 var Queue;
+var ec2;
 
-function init (cfg, wt) {
+function init (_cfg, wt) {
+  cfg = _cfg;
+
   ProvisionerId = cfg.get('provisioner:id');
   WorkerType = wt;
   KeyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  cfg = cfg;
-  Queue = new taskcluster.Queue(cfg.get('taskcluster'));
+
+  Queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
+  ec2 = module.exports.ec2 = new aws.EC2(cfg.get('aws'));
 }
 module.exports.init = init;
 
@@ -56,8 +59,8 @@ function provisionAll() {
     var runId = uuid.v4();
     debug('Beginning provisioning run %s', runId);
     Promise.all([
-      Queue.pendingTaskCount(ProvisionerId),
-      WorkerType.loadAllNames(),
+      //Queue.pendingTaskCount(ProvisionerId),
+      //WorkerType.loadAllNames(),
       awsState()
     ]).then(function(res) {
       var pendingTasks = res.shift();

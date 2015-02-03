@@ -11,6 +11,7 @@ var profile = process.argv[2];
 var cfg = base.config({
   defaults: require('../config/defaults.js'),
   profile: require('../config/' + profile),
+  filename: 'taskcluster-aws-provisioner',
   envs: [
       'provisioner_publishMetaData',
       'taskcluster_queueBaseUrl',
@@ -24,9 +25,9 @@ var cfg = base.config({
       'azure_accountName',
       'azure_accountKey',
       'influx_connectionString'
-  ],
-  filename: 'taskcluster-aws-provisioner'
+  ]
 });
+
 
 var pulseRate = cfg.get('provisioner:pulseRate');
 provision.init(

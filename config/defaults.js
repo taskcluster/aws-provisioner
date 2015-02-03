@@ -29,6 +29,11 @@ module.exports = {
     accountName: undefined,
     accountKey:  undefined,
   },
+  aws: {
+    region: 'us-west-2',
+    accessKeyId: undefined,
+    secretAccessKey: undefined
+  },
   influx: {
     connectionString: undefined,
   },
