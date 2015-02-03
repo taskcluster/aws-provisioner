@@ -55,13 +55,14 @@ module.exports.init = init;
 function provisionAll() {
   // We grab the pending task count here instead of in the provisionForType
   // method to avoid making a bunch of unneeded API calls
+  debugger;
   return new Promise(function (resolve, reject) {
     var runId = uuid.v4();
     debug('Beginning provisioning run %s', runId);
     Promise.all([
-      //Queue.pendingTaskCount(ProvisionerId),
+      Queue.pendingTaskCount(ProvisionerId),
       WorkerType.loadAllNames(),
-      //awsState()
+      awsState()
     ]).then(function(res) {
       var pendingTasks = res.shift();
       var workerTypes = res.shift();
