@@ -60,8 +60,8 @@ function provisionAll() {
     debug('Beginning provisioning run %s', runId);
     Promise.all([
       //Queue.pendingTaskCount(ProvisionerId),
-      //WorkerType.loadAllNames(),
-      awsState()
+      WorkerType.loadAllNames(),
+      //awsState()
     ]).then(function(res) {
       var pendingTasks = res.shift();
       var workerTypes = res.shift();
