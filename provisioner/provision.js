@@ -307,7 +307,6 @@ function spawnInstances(workerType, awsState, capacityNeeded) {
         InstanceCount: 1,
         Type: 'one-time',
         LaunchSpecification: spec,
-        DryRun: true,
       }).promise()) 
     });
 
@@ -325,7 +324,6 @@ function destroyInstances(workerType, awsState, capacityToKill) {
   }
 
   promises.push(ec2.CancelSpotInstanceRequests({
-    DryRun: true,
     SpotInstanceRequestId: awsState.requestedSpot.slice(0, srToCancel).map(function(x) {
       return x.SpotInstanceRequestId
     })
@@ -336,7 +334,6 @@ function destroyInstances(workerType, awsState, capacityToKill) {
   var instancesToKill = [].concat(awsState.pending).concat(awsState.running).slice(0, instancesToKill)
 
   promises.push(ec2.terminateInstances({
-    DryRun: true,
     InstanceIds: instancesToKill.map(function(x) {
       x.InstanceId;
     })
