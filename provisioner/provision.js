@@ -63,15 +63,15 @@ function provisionAll() {
       debug('WorkerTypes for runId %s: ', runId, JSON.stringify(workerTypes));
 
       var p = workerTypes.map(function(workerType) {
-        provisionForType(workerType, awsState[workerType] || {}, pendingTaskCount[workerType] || 0);
+        return provisionForType(workerType, awsState[workerType] || {}, pendingTasks[workerType] || 0);
       });
 
       Promise.all(p).then(function(res2) {
         debug('Completed %s', runId);
-        resolve(res2);
+        resolve();
       });
       
-    });
+    }).done();
 
   });
 
@@ -171,31 +171,30 @@ function awsState() {
  */
 function provisionForType(name, awsState, pending) {
   return new Promise(function(resolve, reject) {
-    resolve(true);
-    WorkerType.load(name).then(function(workerType) {
-     debug('Provisioning for %s', name);
-
-      // Gather all the information we need
-      var infoPromises = Promise.all([
+    WorkerType.load(name).then(function(workerType){
+      var infoPromises = [
         countRunningCapacity(workerType, awsState),
-      ]);
+      ];
 
-      infoPromises.then(function(res) {
-        var runningCapacityCount = res[0] || 0
+      Promise.all(infoPromises).then(function(res){
+        var capacity = res[0] || 0; 
 
-        var capacityChange = determineCapacityChange(
+        var change = determineCapacityChange(
           workerType.scalingRatio,
-          runningCapacityCount,
+          capacity,
           pending
         );
 
-        debug('Capacity should %s by %d capacity units',
-              capacityChange > 0 ? 'increase' : 'decrease',
-              capacityChange);
-
-        //createOrDestroy(workerType, awsState, capacityChange).then(resolve, reject);
+        debug('Capacity change: %d', change);
+        resolve(change);
+      }).then(function(change){
+        createOrDestroy(workerType, awsState, change).then(function(){
+          resolve(); 
+        }).catch(function(err) {
+          resolve(err)
+        }).done();
       }).done();
-    }, reject).done();
+    }).done(); 
   });
 }
 
@@ -219,7 +218,14 @@ function countRunningCapacity(workerType, awsState) {
 
   // We are including pending instances in this loop because we want to make
   // sure that they aren't ignored and duplicated
-  [].concat(awsState.running).concat(awsState.pending).forEach(function(instance) {
+  var allInstances = [];
+  if (awsState.running) {
+    allInstances.concat(awsState.running);
+  }
+  if (awsState.pending) {
+    allInstances.concat(awsState.pending);
+  }
+  allInstances.forEach(function(instance, idx, arr) {
     var potentialCapacity = capacities[instance.InstanceType];
     if (potentialCapacity) {
       debug('Instance type %s for workerType %s has a capacity of %d, adding to %d',
