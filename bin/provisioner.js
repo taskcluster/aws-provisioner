@@ -28,26 +28,20 @@ var cfg = base.config({
   filename: 'taskcluster-aws-provisioner'
 });
 
-var provisionerId = cfg.get('provisioner:id');
-var awsKeyPrefix = cfg.get('provisioner:awsKeyPrefix');
 var pulseRate = cfg.get('provisioner:pulseRate');
-debug('Using provisioner id of %s', provisionerId);
-
 provision.init(
-  provisionerId,    
+  cfg,
   data.WorkerType.configure({
     tableName:        cfg.get('provisioner:workerTypeTableName'),
     credentials:      cfg.get('azure')
   }
-  ),
-  awsKeyPrefix
+  )
 );
 
 // Things like running this every X minutes goes here.  As does things like submitting statistics on the
 // provisioning run
 
 
-debug(pulseRate + 'Hiyooo');
 function pulse () {
   provision.provisionAll().then(function(x) {
     setTimeout(pulse, pulseRate); 

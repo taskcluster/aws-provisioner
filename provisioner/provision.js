@@ -11,7 +11,6 @@ var uuid = require('node-uuid');
 
 var ec2 = module.exports.ec2 = new aws.EC2({'region': 'us-west-2'});
 
-var Queue = new taskcluster.Queue();
 
 /* I don't want to do any setup in this module... This function should be
  * passed in a configured base.Entity, which will be used in this function.
@@ -19,12 +18,18 @@ var Queue = new taskcluster.Queue();
 var WorkerType;
 var ProvisionerId;
 var KeyPrefix;
-function init (id, wt, kp) {
-  ProvisionerId = id;
+var cfg;
+var Queue;
+
+function init (cfg, wt) {
+  ProvisionerId = cfg.get('provisioner:id');
   WorkerType = wt;
-  KeyPrefix = kp;
+  KeyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  cfg = cfg;
+  Queue = new taskcluster.Queue(cfg.get('taskcluster'));
 }
 module.exports.init = init;
+
 
 /* Influx DB
     - probably in queue
