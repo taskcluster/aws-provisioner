@@ -12,8 +12,18 @@ var cfg = base.config({
   defaults: require('../config/defaults.js'),
   profile: require('../config/' + profile),
   envs: [
-    'aws_accessKeyId',
-    'aws_secretAccessKey',
+      'provisioner_publishMetaData',
+      'taskcluster_queueBaseUrl',
+      'taskcluster_authBaseUrl',
+      'taskcluster_credentials_clientId',
+      'taskcluster_credentials_accessToken',
+      'pulse_username',
+      'pulse_password',
+      'aws_accessKeyId',
+      'aws_secretAccessKey',
+      'azure_accountName',
+      'azure_accountKey',
+      'influx_connectionString'
   ],
   filename: 'taskcluster-aws-provisioner'
 });
