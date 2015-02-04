@@ -11,6 +11,7 @@ var sinon = require('sinon');
 var provision = require('../provisioner/provision');
 
 var sampleWorkerType = require('./sampleWorkerType.json');
+var invalidUserDataWorkerType = require('./invalidUserDataWorkerType.json');
 
 describe('determineCapacityChange', function() {
   var subject = provision._determineCapacityChange;
@@ -149,6 +150,12 @@ describe('createLaunchSpec', function() {
   it('should cause error when instance type is not found', function() {
     subject(sampleWorkerType, 'impossibly.large').catch(function(err) {
       err.should.be.an.Error; 
+    }).done();
+  });
+
+  it('should cause error when user data is not base64', function() {
+    subject(invalidUserDataWorkerType, 'r3.xlarge').catch(function(err) {
+      err.should.be.an.Error;
     }).done();
   });
 });

@@ -47,6 +47,10 @@ module.exports.init = init;
   2. sprinkle some uuids on debug messages for sanity's sake
   3. should delete instances that might've been managed by provisioner but aren't currently known
   4. figure out why promises are broken when returning promises from the .map() in provisionAll()
+  5. schema for allowedinstancetypes should ensure overwrites.InstanceType exists
+  6. schema should ensure UserData is all Base64 valid
+  7. kill instances when we exceed the max capacity
+  8. kill instances/sir when they aren't known on the workerType table
 
 */ 
 
@@ -69,8 +73,8 @@ function provisionAll() {
       var workerTypes = res.shift();
       var awsState = res.shift();
 
-      debug('%s AWS State for runId: ', runId, JSON.stringify(Object.keys(awsState)));
-      debug('%s WorkerTypes for runId: ', runId, JSON.stringify(workerTypes));
+      debug('%s AWS State for runId: %s', runId, JSON.stringify(Object.keys(awsState)));
+      debug('%s WorkerTypes for runId: %s', runId, JSON.stringify(workerTypes));
       debug('%s Pending tasks for runId: ', runId, pendingTasks);
 
       var wtRunIds = [];
@@ -95,13 +99,8 @@ function provisionAll() {
 module.exports.provisionAll = provisionAll;
 
 
-function getPendingTasks() {
-  return new Promise(function(resolve, reject) {
-    Queue.pendingTaskCount 
-  });
-}
-
-
+/* Aws calls for finding state.  This is in it's own function to make
+ * testing easier */
 var awsStateAwsCalls = function () {
   return Promise.all([
     ec2.describeInstances({
@@ -112,7 +111,6 @@ var awsStateAwsCalls = function () {
         Name: 'instance-state-name',
         Values: ['running', 'pending']
       }
-    
     ]}).promise(),
     ec2.describeSpotInstanceRequests({
       Filters: [{
@@ -206,7 +204,8 @@ function provisionForType(wtRunId, name, awsState, pending) {
     return countRunningCapacity(workerType, awsState)
   });
   p = p.then(function (_capacity) {
-    debug('%s %s has %d existing capacity units', wtRunId, name, _capacity);
+    debug('%s %s has %d existing capacity units and %d pending tasks',
+      wtRunId, name, _capacity, pending);
     capacity = _capacity; 
     return _capacity;
   });
@@ -256,6 +255,9 @@ function countRunningCapacity(workerType, awsState) {
   }
   if (awsState.pending) {
     allInstances.concat(awsState.pending);
+  }
+  if (awsState.spotRequesets) {
+    allInstances.concat(awsState.spotRequests);
   }
   allInstances.forEach(function(instance, idx, arr) {
     var potentialCapacity = capacities[instance.InstanceType];
@@ -322,7 +324,7 @@ function spawnInstance(wtRunId, workerType, awsState) {
     debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
     return Promise.resolve(sir);
   });
-
+  return p;
 }
 
 /* Decide based on the utility factor which EC2 instance type we should be
@@ -333,6 +335,8 @@ function spawnInstance(wtRunId, workerType, awsState) {
  * which specifies max percentage or something like that. */
 function chooseInstanceType(workerType, awsState) {
   var instanceType = Object.keys(workerType.allowedInstanceTypes)[0];
+  // TODO: We should allow instance type nicknames.  meh
+  //var type = workerType.allowedInstanceTypes[instanceTypeTitle].overwrites.InstanceType;
   return Promise.resolve(instanceType);
 }
 
@@ -369,6 +373,8 @@ function destroyInstances(workerType, awsState, capacityToKill) {
   return Promise.all(promises);
 }
 
+var validB64Regex = /^[A-Za-z0-9+/=]*$/;
+
 /* Create a launch spec with values overwritten for a given aws instance type.
    the instanceTypeParam is the overwrites object from the allowedInstances
    workerType field */
@@ -382,6 +388,9 @@ function createLaunchSpec(workerType, instanceType) {
     }
     var actual = lodash.clone(workerType.allowedInstanceTypes[instanceType].overwrites);
     var newSpec = lodash.defaults(actual, workerType.launchSpecification);
+    if (!validB64Regex.exec(newSpec.UserData)) {
+      reject(new Error(util.format('Launch specification does not contain Base64: %s', newSpec.UserData)));
+    }
     resolve(newSpec);
   });
 }
