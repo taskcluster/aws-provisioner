@@ -51,6 +51,7 @@ module.exports.init = init;
   6. schema should ensure UserData is all Base64 valid
   7. kill instances when we exceed the max capacity
   8. kill instances/sir when they aren't known on the workerType table
+  9. create keypairs if they do not exist already
 
 */ 
 
@@ -143,46 +144,45 @@ function awsState() {
      4. join everything together
    */
   debug('Starting to find aws state');
-  return new Promise(function(resolve, reject) {
+  var p = awsStateAwsCalls()
+  p = p.then(function(res) {
     var allState = {};
-    // If I don't use exports., sinon is unable to actually stub this
-    awsStateAwsCalls().then(function(res) {
-      debug('Retreived state from AWS');
-      res[0].data.Reservations.forEach(function(reservation) {
-        reservation.Instances.forEach(function(instance) {
-          var workerType = instance.KeyName.substr(KeyPrefix.length);
-          var instanceState = instance.State.Name;
-          
-          // Make sure we have the needed slots
-          if (!allState[workerType]) {
-            allState[workerType] = {};
-          }
-          if (!allState[workerType][instanceState]){
-            allState[workerType][instanceState] = [];
-          }
-
-          allState[workerType][instanceState].push(instance);
-        });
-      });
-
-      debug('Processed instance state');
-
-      res[1].data.SpotInstanceRequests.forEach(function(request) {
-        var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
-
+    debug('Retreived state from AWS');
+    res[0].data.Reservations.forEach(function(reservation) {
+      reservation.Instances.forEach(function(instance) {
+        var workerType = instance.KeyName.substr(KeyPrefix.length);
+        var instanceState = instance.State.Name;
+        
+        // Make sure we have the needed slots
         if (!allState[workerType]) {
           allState[workerType] = {};
         }
-        if (!allState[workerType]['requestedSpot']){
-          allState[workerType]['requestedSpot'] = [];
+        if (!allState[workerType][instanceState]){
+          allState[workerType][instanceState] = [];
         }
-        allState[workerType]['requestedSpot'].push(request);
+
+        allState[workerType][instanceState].push(instance);
       });
+    });
 
-      resolve(allState);
+    debug('Processed instance state');
 
-    }, reject).done();
+    res[1].data.SpotInstanceRequests.forEach(function(request) {
+      var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
+
+      if (!allState[workerType]) {
+        allState[workerType] = {};
+      }
+      if (!allState[workerType]['requestedSpot']){
+        allState[workerType]['requestedSpot'] = [];
+      }
+      allState[workerType]['requestedSpot'].push(request);
+    });
+
+    return Promise.resolve(allState);
   });
+
+  return p;
 }
 
 /* Provision a specific workerType.  This promise will have a value of true if
@@ -391,6 +391,7 @@ function createLaunchSpec(workerType, instanceType) {
     if (!validB64Regex.exec(newSpec.UserData)) {
       reject(new Error(util.format('Launch specification does not contain Base64: %s', newSpec.UserData)));
     }
+    newSpec.KeyName = KeyPrefix + workerType.workerType;
     resolve(newSpec);
   });
 }
