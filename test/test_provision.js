@@ -10,6 +10,8 @@ var sinon = require('sinon');
 
 var provision = require('../provisioner/provision');
 
+var sampleWorkerType = require('./sampleWorkerType.json');
+
 describe('determineCapacityChange', function() {
   var subject = provision._determineCapacityChange;
 
@@ -61,6 +63,7 @@ describe('determineCapacityChange', function() {
   });
 });
 
+/*
 describe('countRunningCapacity', function() {
   var subject = provision._countRunningCapacity;
 
@@ -129,5 +132,23 @@ describe('countRunningCapacity', function() {
         done();
       }).done();
     });
+  });
+});
+*/
+
+describe('createLaunchSpec', function() {
+  var subject = provision._createLaunchSpec;
+
+  it('should overwrite values correctly', function() {
+    subject(sampleWorkerType, 'r3.xlarge').then(function(actual) {
+      actual.InstanceType.should.equal('r3.xlarge');
+      return Promise.resolve();
+    }).done();
+  });
+
+  it('should cause error when instance type is not found', function() {
+    subject(sampleWorkerType, 'impossibly.large').catch(function(err) {
+      err.should.be.an.Error; 
+    }).done();
   });
 });

@@ -45,7 +45,9 @@ provision.init(
 
 function pulse () {
   provision.provisionAll().then(function(x) {
-    setTimeout(pulse, pulseRate); 
+    if (!process.env.PROVISION_ONCE) {
+      setTimeout(pulse, pulseRate); 
+    }
     debug('This heart will beat in %d milliseconds', pulseRate);
   }).done();
   

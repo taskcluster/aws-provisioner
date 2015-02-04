@@ -8,6 +8,7 @@ var aws = require('aws-sdk-promise');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
+var util = require('util');
 
 
 
@@ -58,7 +59,7 @@ function provisionAll() {
   debugger;
   return new Promise(function (resolve, reject) {
     var runId = uuid.v4();
-    debug('Beginning provisioning run %s', runId);
+    debug('%s Beginning provisioning run %s', ProvisionerId, runId);
     Promise.all([
       Queue.pendingTaskCount(ProvisionerId),
       WorkerType.loadAllNames(),
@@ -68,21 +69,22 @@ function provisionAll() {
       var workerTypes = res.shift();
       var awsState = res.shift();
 
-      debug('AWS State for runId %s: ', runId, JSON.stringify(Object.keys(awsState)));
-      debug('WorkerTypes for runId %s: ', runId, JSON.stringify(workerTypes));
+      debug('%s AWS State for runId: ', runId, JSON.stringify(Object.keys(awsState)));
+      debug('%s WorkerTypes for runId: ', runId, JSON.stringify(workerTypes));
+      debug('%s Pending tasks for runId: ', runId, pendingTasks);
 
       var wtRunIds = [];
       var p = workerTypes.map(function(workerType) {
         var wtRunId = uuid.v4();
-        debug('Worker Type %s for runId %s has wtRunId of %s', workerType, runId, wtRunId);
+        debug('%s[%s] == %s worker', runId, workerType, wtRunId);
         wtRunIds.push(wtRunId);
         return provisionForType(wtRunId, workerType, awsState[workerType] || {}, pendingTasks[workerType] || 0);
       });
 
       Promise.all(p).then(function(res2) {
-        debug('Completed provisioning run %s', runId);
+        debug('%s Completed provisioning', runId);
         workerTypes.forEach(function(wt, idx) {
-          debug('Completed provisioning worker type %s with wtRunId %s', wt, wtRunIds[idx]);
+          debug('%s Completed provisioning worker type %s', wtRunIds[idx], wt);
         });
         resolve();
       }).catch(function(err) { reject(err) }).done();
@@ -91,6 +93,13 @@ function provisionAll() {
   });
 }
 module.exports.provisionAll = provisionAll;
+
+
+function getPendingTasks() {
+  return new Promise(function(resolve, reject) {
+    Queue.pendingTaskCount 
+  });
+}
 
 
 var awsStateAwsCalls = function () {
@@ -184,32 +193,41 @@ function awsState() {
  * caller. Note that awsState as passed in should be specific to a workerType
  */
 function provisionForType(wtRunId, name, awsState, pending) {
-  return new Promise(function(resolve, reject) {
-    WorkerType.load(name).then(function(workerType){
-      var infoPromises = [
-        countRunningCapacity(workerType, awsState),
-      ];
+  var workerType;
+  var capacity;
+  var change;
 
-      Promise.all(infoPromises).then(function(res){
-        var capacity = res[0] || 0; 
-
-        var change = determineCapacityChange(
-          workerType.scalingRatio,
-          capacity,
-          pending
-        );
-
-        debug('Capacity change: %d', change);
-        resolve(change);
-      }).then(function(change){
-        createOrDestroy(workerType, awsState, change).then(function(){
-          resolve(); 
-        }).catch(function(err) {
-          resolve(err)
-        }).done();
-      }).done();
-    }).done(); 
+  var p = WorkerType.load(name);
+  p = p.then(function (_workerType) { 
+    workerType = _workerType;
+    return _workerType;
   });
+  p = p.then(function () {
+    return countRunningCapacity(workerType, awsState)
+  });
+  p = p.then(function (_capacity) {
+    debug('%s %s has %d existing capacity units', wtRunId, name, _capacity);
+    capacity = _capacity; 
+    return _capacity;
+  });
+  p = p.then(function () {
+    change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
+    debug('%s %s needs %d capacity units created', wtRunId, name, change);
+    return Promise.resolve(change);
+  });
+  p = p.then(function() {
+    if (change <= 0) {
+      debug('%s %s does not need more capacity', wtRunId, name);
+      return Promise.resolve([]);
+    }
+    var spawners = [];
+    while (change--) {
+      spawners.push(spawnInstance(wtRunId, workerType, awsState));
+    }
+    return Promise.all(spawners);
+  });
+  
+  return p;
 }
 
 /* Count the amount of capacity that's running or pending */
@@ -260,58 +278,67 @@ function countRunningCapacity(workerType, awsState) {
 }
 module.exports._countRunningCapacity = countRunningCapacity;
 
-/* Make choices about whether machines should be created or destroyed.
-   The promise returned resolves to the list of ec2 reponses from either
-   of the appropriate api method */
-function createOrDestroy(workerType, awsState, capacityChange) {
-  if (capacityChange > 0) {
-    return spawnInstances(workerType, awsState, capacityChange);   
-  } else if (capacityChange < 0) {
-    return destroyInstances(workerType, awsState, -capacityChange);   
-  } else {
-    return Promise.resolve([]);
-  }
+/* Create Machines! */
+function spawnInstance(wtRunId, workerType, awsState) {
+  var spotBid;
+  var instanceType;
+  var launchSpec;
+
+  var p = chooseInstanceType(workerType, awsState);
+  p = p.then(function(_instanceType) {
+    debug('%s %s will use instance type %s', wtRunId, workerType.workerType, _instanceType);
+    instanceType = _instanceType;
+    return _instanceType;
+  });
+  p = p.then(function() {
+    return createLaunchSpec(workerType, instanceType);
+  });
+  p = p.then(function(_launchSpec) {
+    debug('%s %s has a launch specification', wtRunId, workerType.workerType);
+    //debug('Launch Spec: ' + JSON.stringify(_launchSpec));
+    launchSpec = _launchSpec;
+    return _launchSpec;
+  });
+  p = p.then(function() {
+    return pickSpotBid(workerType, awsState, instanceType);
+  });
+  p = p.then(function(_spotBid) {
+    debug('%s %s will have a spot bid of %d', wtRunId, workerType.workerType, _spotBid);
+    spotBid = _spotBid; 
+    return _spotBid;
+  });
+  p = p.then(function() {
+    debug('%s %s is creating spot request', wtRunId, workerType.workerType)
+    return ec2.requestSpotInstances({
+      InstanceCount: 1,
+      Type: 'one-time',
+      LaunchSpecification: launchSpec,
+      SpotPrice: String(spotBid).toString(),
+    }).promise();
+  });
+  p = p.then(function(spotRequest) {
+    // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
+    var sir = spotRequest.data.SpotInstanceRequests[0].SpotInstanceRequestId;
+    debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
+    return Promise.resolve(sir);
+  });
+
 }
 
-/* Create Machines! */
-function spawnInstances(workerType, awsState, capacityNeeded) {
-  return new Promise(function(resolve, reject) {
-    var launchSpecs = [];
+/* Decide based on the utility factor which EC2 instance type we should be
+ * creating.  Right now, we just pick the first one in the Object.keys list of
+ * instanceTypes allowed for a workerType.  In the future the goal is to pick
+ * the lowest of instanceType * instanceTypePrice.  The plan is to not pick
+ * all instance to be exactly the same type.  Maybe we'll have a schema key
+ * which specifies max percentage or something like that. */
+function chooseInstanceType(workerType, awsState) {
+  var instanceType = Object.keys(workerType.allowedInstanceTypes)[0];
+  return Promise.resolve(instanceType);
+}
 
-    var spotBidPrices = {};
-    // This probably shouldn't be a while loop... does this
-    // block the interpreter waiting on async results?
-    while (capacityNeeded-- >= 0) { // Likely candidate for off by one!
-      Promise.all([
-        pickInstanceType(workerType, awsState, capacityNeeded),
-        pickInstanceType(workerType, awsState, capacityNeeded),
-      ]).then(function(res) {
-        var region = res[0]; // only used later when we do multi-region
-        var instanceType = res[1];
-
-        var _overwrites = workerType.allowedInstances[instanceType].overwrites;
-        createLaunchSpec(workerType, _overwrites, region).then(function(launchSpec) {
-          launchSpecs.push(launchSpec) 
-        }).done();
-      }, reject);
-    }
-
-    var promises = [];
-    var spotBids = {};
-
-    launchSpecs.forEach(function(spec) {
-      promises.push(ec2.requestSpotInstance({
-        SpotPrice: workerType.maxSpotBid, // Thinking about it, this should probably move
-                                          // into the instance type key so that we can set
-                                          // per ec2-instanceType
-        InstanceCount: 1,
-        Type: 'one-time',
-        LaunchSpecification: spec,
-      }).promise()) 
-    });
-
-    Promise.all(launchSpecs).then(resolve, reject);
-  });
+/* Given an instanceType, pick what we should bid for the spot price */
+function pickSpotBid(workerType, awsState, instanceType) {
+  return Promise.resolve(workerType.maxSpotBid);
 }
 
 /* Destroy Machines! */
@@ -342,39 +369,23 @@ function destroyInstances(workerType, awsState, capacityToKill) {
   return Promise.all(promises);
 }
 
-function spotBid(region, instanceType) {
-  return Promise.resolve(0.5);
-}
-
-/* Pick which instance type should be created.  We want to
-   make sure that we select a variety of instance types to not put all
-   eggs in one basket.  We'll use the utility factor and pricing data
-   to ensure that we pick the best value for the money instance type
-   NOTE: For now we're just going to pick the first instance type
-*/
-function pickInstanceType(workerType, awsState) {
-  return Promise.resolve(Object.keys(workerType.allowedInstances)[0]);
-}
-
-/* Pick which awsRegion to create or destroy in.  We want to make sure
-   that even besides price that we don't always pick the same region.
-   Ideally, we would say that no region can have more than 80% of all
-   nodes.  When destroying is true, we use the opposite logic and say 
-   that we are picking the region from which to evict a node.
-   NOTE: we're just returning the first available region for now
- */
-function pickRegion(workerType, awsState, destroying) {
-  // Should probably use DescribeSpotPriceHistory
-  return Promise.resolve(workerType.allowedRegions[0]);
-}
-
 /* Create a launch spec with values overwritten for a given aws instance type.
    the instanceTypeParam is the overwrites object from the allowedInstances
    workerType field */
-function createLaunchSpec(workerType, overwrites) {
-  var actual = lodash.clone(overwrites);
-  return Promise.resolve(lodash.defaults(actual, workerType.launchSpecification));
+function createLaunchSpec(workerType, instanceType) {
+  return new Promise(function(resolve, reject) {
+    if (!workerType.allowedInstanceTypes[instanceType]) {
+      reject(new Error(util.format('%s only allows [%s] instances, not %s',
+            workerType.workerType,
+            Object.keys(workerType.allowedInstanceTypes).join(', '),
+            instanceType)));
+    }
+    var actual = lodash.clone(workerType.allowedInstanceTypes[instanceType].overwrites);
+    var newSpec = lodash.defaults(actual, workerType.launchSpecification);
+    resolve(newSpec);
+  });
 }
+module.exports._createLaunchSpec = createLaunchSpec;
 
 /* Figure out how many capacity units need to be created.  This number
    is determined by calculating how much capacity is needed to maintain a given
@@ -394,13 +405,3 @@ function determineCapacityChange(scalingRatio, capacity, pending) {
 
 }
 module.exports._determineCapacityChange = determineCapacityChange;
-
-
-/* Flow for monitoring nodes:
-
-   1. provisioner provides node with URL that it should hit every X minutes to prove it's alive
-      and give a 'utilization' percentage and another URL to ping when it changes from Occupied to Non-Occupied
-   2. provisioner monitors the results from these hits and when it thinks there's a dead
-      machine, kill it with fire
-
-*/
