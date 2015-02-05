@@ -52,8 +52,15 @@ module.exports.init = init;
   7. kill instances when we exceed the max capacity
   8. kill instances/sir when they aren't known on the workerType table
   9. create keypairs if they do not exist already
+  10. store pubkey to use in the provisioner config file
+  11. make this an object
 
-*/ 
+  To make this multiregion we should
+   1. pass in a regions list which is all allowed regions in all worker types
+   2. create a list of promises for each region
+   3. for each region, run the instance/spotreq queries
+   4. join everything together
+ */
 
 
 /* This is the main entry point into the provisioning routines.  It will
@@ -71,7 +78,7 @@ function provisionAll() {
   debug('%s Beginning provisioning run %s', ProvisionerId, runId);
   var p = Promise.all([
     Queue.pendingTaskCount(ProvisionerId),
-    WorkerType.loadAllNames(),
+    WorkerType.loadAll(),
     fetchAwsState()
   ]);
 
@@ -79,36 +86,48 @@ function provisionAll() {
     pendingTasks = res.shift();
     workerTypes = res.shift();
     awsState = res.shift();
-    debug('%s AWS State for runId: %s', runId, JSON.stringify(Object.keys(awsState)));
-    debug('%s WorkerTypes for runId: %s', runId, JSON.stringify(workerTypes));
-    //debug('%s Pending tasks for runId: ', runId, pendingTasks);
+    debug('%s AWS knows these workerTypes: %s', runId, JSON.stringify(Object.keys(awsState)));
+    // We could probably combine this with the .map of workerTypes below... meh...
+    debug('%s WorkerType Definitions for %s', runId, JSON.stringify(workerTypes.map(function(x) {
+      return x.workerType;
+    })));
 
     return Promise.all(workerTypes.map(function(workerType) {
       var wtRunId = uuid.v4();
       wtRunIds.push(wtRunId);
-      debug('%s[%s] == %s worker', runId, workerType, wtRunId);
-      var workerState = awsState[workerType] || {};
-      var pendingForWorker = pendingTasks[workerType] || 0;
+      debug('%s[%s] == %s worker', runId, workerType.workerType, wtRunId);
+      var workerState = awsState[workerType.workerType] || {};
+      var pendingForWorker = pendingTasks[workerType.workerType] || 0;
       return provisionForType(wtRunId, workerType, workerState, pendingForWorker);
     }));
   });
 
   p = p.then(function(res) {
     workerTypes.forEach(function(workerType, idx) {
-      debug('%s Completed provisioning for worker type %s', wtRunIds[idx], workerType);
+      debug('%s Completed provisioning for worker type %s', wtRunIds[idx], workerType.workerType);
     });
     debug('%s Provisioning run completed', runId); 
     return res;
   });
+
   return p;
 }
 module.exports.provisionAll = provisionAll;
 
 
-/* Aws calls for finding state.  This is in it's own function to make
- * testing easier */
-var awsStateAwsCalls = function () {
-  return Promise.all([
+/* Figure out what the current state is for AWS ec2 for
+   managed image types.  This returns an object in the form:
+  {
+    workerType1: {
+      running: [<instance>, <instance>],
+      pending: [<instance>],
+      requested: [<spotrequeset>],
+    }
+    workerType2: ...
+  }
+*/
+function fetchAwsState() {
+  var p = Promise.all([
     ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
@@ -128,28 +147,7 @@ var awsStateAwsCalls = function () {
       }]
     }).promise(),
   ]);
-}
 
-/* Figure out what the current state is for AWS ec2 for
-   managed image types.  This returns an object in the form:
-  {
-    workerType1: {
-      running: [<instance>, <instance>],
-      pending: [<instance>],
-      requested: [<spotrequeset>],
-    }
-    workerType2: ...
-  }
-*/
-function fetchAwsState() {
-  /* To make this multiregion we should
-     1. pass in a regions list which is all allowed regions in all worker types
-     2. create a list of promises for each region
-     3. for each region, run the instance/spotreq queries
-     4. join everything together
-   */
-  debug('Starting to find aws state');
-  var p = awsStateAwsCalls()
   p = p.then(function(res) {
     var allState = {};
     debug('Retreived state from AWS');
@@ -195,34 +193,28 @@ function fetchAwsState() {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-function provisionForType(wtRunId, name, awsState, pending) {
-  var workerType;
+function provisionForType(wtRunId, workerType, awsState, pending) {
   var capacity;
   var change;
 
-  var p = WorkerType.load(name);
-  p = p.then(function (_workerType) { 
-    workerType = _workerType;
-    return _workerType;
-  });
-  p = p.then(function() {
-    debug(workerType);
-    return countRunningCapacity(workerType, awsState);
-  });
+  var p = countRunningCapacity(workerType, awsState);
+
   p = p.then(function (_capacity) {
     debug('%s %s has %d existing capacity units and %d pending tasks',
-      wtRunId, name, _capacity, pending);
+      wtRunId, workerType.workerType, _capacity, pending);
     capacity = _capacity; 
     return _capacity;
   });
+
   p = p.then(function () {
     change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
-    debug('%s %s needs %d capacity units created', wtRunId, name, change);
+    debug('%s %s needs %d capacity units created', wtRunId, workerType.workerType, change);
     return Promise.resolve(change);
   });
+
   p = p.then(function() {
     if (change <= 0) {
-      debug('%s %s does not need more capacity', wtRunId, name);
+      debug('%s %s does not need more capacity', wtRunId, workerType.workerType);
       return Promise.resolve([]);
     }
     var spawners = [];
@@ -241,7 +233,6 @@ function countRunningCapacity(workerType, awsState) {
   return new Promise(function(resolve, reject) {
     var capacity = 0;
 
-    debug('hi');
     /* Remember that the allowedInstanceTypes is like this:
        { 
         'instance-type': {
@@ -251,7 +242,6 @@ function countRunningCapacity(workerType, awsState) {
         }
        } */
     var capacities = {};
-    debug(workerType);
     Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
       capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
     });
@@ -299,28 +289,34 @@ function spawnInstance(wtRunId, workerType, awsState) {
   var launchSpec;
 
   var p = chooseInstanceType(workerType, awsState);
+
   p = p.then(function(_instanceType) {
     debug('%s %s will use instance type %s', wtRunId, workerType.workerType, _instanceType);
     instanceType = _instanceType;
     return _instanceType;
   });
+
   p = p.then(function() {
     return createLaunchSpec(workerType, instanceType);
   });
+
   p = p.then(function(_launchSpec) {
     debug('%s %s has a launch specification', wtRunId, workerType.workerType);
     //debug('Launch Spec: ' + JSON.stringify(_launchSpec));
     launchSpec = _launchSpec;
     return _launchSpec;
   });
+
   p = p.then(function() {
     return pickSpotBid(workerType, awsState, instanceType);
   });
+
   p = p.then(function(_spotBid) {
     debug('%s %s will have a spot bid of %d', wtRunId, workerType.workerType, _spotBid);
     spotBid = _spotBid; 
     return _spotBid;
   });
+
   p = p.then(function() {
     debug('%s %s is creating spot request', wtRunId, workerType.workerType)
     return ec2.requestSpotInstances({
@@ -330,12 +326,14 @@ function spawnInstance(wtRunId, workerType, awsState) {
       SpotPrice: String(spotBid).toString(),
     }).promise();
   });
+
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
     var sir = spotRequest.data.SpotInstanceRequests[0].SpotInstanceRequestId;
     debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
     return Promise.resolve(sir);
   });
+
   return p;
 }
 
