@@ -61,41 +61,46 @@ module.exports.init = init;
 function provisionAll() {
   // We grab the pending task count here instead of in the provisionForType
   // method to avoid making a bunch of unneeded API calls
-  debugger;
-  return new Promise(function (resolve, reject) {
-    var runId = uuid.v4();
-    debug('%s Beginning provisioning run %s', ProvisionerId, runId);
-    Promise.all([
-      Queue.pendingTaskCount(ProvisionerId),
-      WorkerType.loadAllNames(),
-      awsState()
-    ]).then(function(res) {
-      var pendingTasks = res.shift();
-      var workerTypes = res.shift();
-      var awsState = res.shift();
 
-      debug('%s AWS State for runId: %s', runId, JSON.stringify(Object.keys(awsState)));
-      debug('%s WorkerTypes for runId: %s', runId, JSON.stringify(workerTypes));
-      debug('%s Pending tasks for runId: ', runId, pendingTasks);
+  var pendingTasks;
+  var workerTypes;
+  var awsState;
+  var runId = uuid.v4();
+  var wtRunIds = [];
 
-      var wtRunIds = [];
-      var p = workerTypes.map(function(workerType) {
-        var wtRunId = uuid.v4();
-        debug('%s[%s] == %s worker', runId, workerType, wtRunId);
-        wtRunIds.push(wtRunId);
-        return provisionForType(wtRunId, workerType, awsState[workerType] || {}, pendingTasks[workerType] || 0);
-      });
+  debug('%s Beginning provisioning run %s', ProvisionerId, runId);
+  var p = Promise.all([
+    Queue.pendingTaskCount(ProvisionerId),
+    WorkerType.loadAllNames(),
+    fetchAwsState()
+  ]);
 
-      Promise.all(p).then(function(res2) {
-        debug('%s Completed provisioning', runId);
-        workerTypes.forEach(function(wt, idx) {
-          debug('%s Completed provisioning worker type %s', wtRunIds[idx], wt);
-        });
-        resolve();
-      }).catch(function(err) { reject(err) }).done();
-      
-    }).done();
+  p = p.then(function(res) {
+    pendingTasks = res.shift();
+    workerTypes = res.shift();
+    awsState = res.shift();
+    debug('%s AWS State for runId: %s', runId, JSON.stringify(Object.keys(awsState)));
+    debug('%s WorkerTypes for runId: %s', runId, JSON.stringify(workerTypes));
+    //debug('%s Pending tasks for runId: ', runId, pendingTasks);
+
+    return Promise.all(workerTypes.map(function(workerType) {
+      var wtRunId = uuid.v4();
+      wtRunIds.push(wtRunId);
+      debug('%s[%s] == %s worker', runId, workerType, wtRunId);
+      var workerState = awsState[workerType] || {};
+      var pendingForWorker = pendingTasks[workerType] || 0;
+      return provisionForType(wtRunId, workerType, workerState, pendingForWorker);
+    }));
   });
+
+  p = p.then(function(res) {
+    workerTypes.forEach(function(workerType, idx) {
+      debug('%s Completed provisioning for worker type %s', wtRunIds[idx], workerType);
+    });
+    debug('%s Provisioning run completed', runId); 
+    return res;
+  });
+  return p;
 }
 module.exports.provisionAll = provisionAll;
 
@@ -136,7 +141,7 @@ var awsStateAwsCalls = function () {
     workerType2: ...
   }
 */
-function awsState() {
+function fetchAwsState() {
   /* To make this multiregion we should
      1. pass in a regions list which is all allowed regions in all worker types
      2. create a list of promises for each region
@@ -200,8 +205,9 @@ function provisionForType(wtRunId, name, awsState, pending) {
     workerType = _workerType;
     return _workerType;
   });
-  p = p.then(function () {
-    return countRunningCapacity(workerType, awsState)
+  p = p.then(function() {
+    debug(workerType);
+    return countRunningCapacity(workerType, awsState);
   });
   p = p.then(function (_capacity) {
     debug('%s %s has %d existing capacity units and %d pending tasks',
@@ -232,51 +238,57 @@ function provisionForType(wtRunId, name, awsState, pending) {
 /* Count the amount of capacity that's running or pending */
 function countRunningCapacity(workerType, awsState) {
   // For now, let's assume that an existing node is occupied
-  var capacity = 0;
+  return new Promise(function(resolve, reject) {
+    var capacity = 0;
 
-  /* Remember that the allowedInstanceTypes is like this:
-     { 
-      'instance-type': {
-        'capacity': 3,
-        'utilityFactor': 4,
-        'overwrites': {}
-      }
-     } */
-  var capacities = {};
-  Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
-    capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
-  });
+    debug('hi');
+    /* Remember that the allowedInstanceTypes is like this:
+       { 
+        'instance-type': {
+          'capacity': 3,
+          'utilityFactor': 4,
+          'overwrites': {}
+        }
+       } */
+    var capacities = {};
+    debug(workerType);
+    Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
+      capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
+    });
 
-  // We are including pending instances in this loop because we want to make
-  // sure that they aren't ignored and duplicated
-  var allInstances = [];
-  if (awsState.running) {
-    allInstances.concat(awsState.running);
-  }
-  if (awsState.pending) {
-    allInstances.concat(awsState.pending);
-  }
-  if (awsState.spotRequesets) {
-    allInstances.concat(awsState.spotRequests);
-  }
-  allInstances.forEach(function(instance, idx, arr) {
-    var potentialCapacity = capacities[instance.InstanceType];
-    if (potentialCapacity) {
-      debug('Instance type %s for workerType %s has a capacity of %d, adding to %d',
-            instance.InstanceType, workerType.workerType, potentialCapacity, capacity);
-      capacity += capacities[instance.InstanceType];
-    } else {
-      /* Rather than assuming that an unknown instance type has no capacity, we'll
-         assume the basic value (1) and move on.  Giving any other value would be
-         a bad idea, 0 means that we would be scaling indefinately and >1 would be
-         making assumptions which are not knowable */
-      debug('WorkerType %s does not list capacity for instance type %s, adding 1 to %d',
-            workerType.workerType, instance.InstanceType, capacity);
-      capacity++;
+
+    // We are including pending instances in this loop because we want to make
+    // sure that they aren't ignored and duplicated
+    var allInstances = [];
+    if (awsState.running) {
+      allInstances.concat(awsState.running);
     }
+    if (awsState.pending) {
+      allInstances.concat(awsState.pending);
+    }
+    if (awsState.spotRequesets) {
+      allInstances.concat(awsState.spotRequests);
+    }
+    allInstances.forEach(function(instance, idx, arr) {
+      var potentialCapacity = capacities[instance.InstanceType];
+      if (potentialCapacity) {
+        debug('Instance type %s for workerType %s has a capacity of %d, adding to %d',
+              instance.InstanceType, workerType.workerType, potentialCapacity, capacity);
+        capacity += capacities[instance.InstanceType];
+      } else {
+        /* Rather than assuming that an unknown instance type has no capacity, we'll
+           assume the basic value (1) and move on.  Giving any other value would be
+           a bad idea, 0 means that we would be scaling indefinately and >1 would be
+           making assumptions which are not knowable */
+        debug('WorkerType %s does not list capacity for instance type %s, adding 1 to %d',
+              workerType.workerType, instance.InstanceType, capacity);
+        capacity++;
+      }
+    });
+
+    resolve(capacity);
+      
   });
-  
-  return Promise.resolve(capacity);
 }
 module.exports._countRunningCapacity = countRunningCapacity;
 
