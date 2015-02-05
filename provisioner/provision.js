@@ -86,12 +86,28 @@ function provisionAll() {
     pendingTasks = res.shift();
     workerTypes = res.shift();
     awsState = res.shift();
+
     debug('%s AWS knows these workerTypes: %s', runId, JSON.stringify(Object.keys(awsState)));
     // We could probably combine this with the .map of workerTypes below... meh...
     debug('%s WorkerType Definitions for %s', runId, JSON.stringify(workerTypes.map(function(x) {
       return x.workerType;
     })));
 
+
+    return res;
+  });
+
+  p = p.then(function() { 
+    return fetchSpotPricingHistory(workerTypes);
+  });
+
+  p = p.then(function(awsPricingData) {
+    awsState.pricing = awsPricingData.data;
+    debug('%s Fetched EC2 Pricing data', runId);
+    return awsPricingData; 
+  });
+
+  p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
       var wtRunId = uuid.v4();
       wtRunIds.push(wtRunId);
@@ -226,6 +242,32 @@ function provisionForType(wtRunId, workerType, awsState, pending) {
   
   return p;
 }
+
+function fetchSpotPricingHistory(workerTypes) {
+  var types = [];
+  workerTypes.forEach(function(workerType) {
+    if (workerType.launchSpecification.InstanceType) {
+      types.push(workerType.launchSpecification.InstanceType);
+    }
+    Array.prototype.push.apply(types, Object.keys(workerType.allowedInstanceTypes));
+  });
+
+  debug(types);
+
+  var startDate = new Date();
+  startDate.setHours(startDate.getHours() - 2);
+
+  var p = ec2.describeSpotPriceHistory({
+    StartTime: startDate,
+    Filters: [{
+      Name: 'product-description',
+      Values: ['Linux/UNIX'],
+    }],
+    InstanceTypes: types,
+  }).promise(); 
+
+  return p;
+};
 
 /* Count the amount of capacity that's running or pending */
 function countRunningCapacity(workerType, awsState) {
