@@ -54,6 +54,7 @@ module.exports.init = init;
   9. create keypairs if they do not exist already
   10. store pubkey to use in the provisioner config file
   11. make this an object
+  12. pricing history should use the nextToken if present
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -94,7 +95,6 @@ function provisionAll() {
       return x.workerType;
     })));
 
-
     return res;
   });
 
@@ -103,7 +103,7 @@ function provisionAll() {
   });
 
   p = p.then(function(awsPricingData) {
-    pricing = awsPricingData.data;
+    pricing = awsPricingData.data.SpotPriceHistory;
     debug('%s Fetched EC2 Pricing data', runId);
     return awsPricingData; 
   });
@@ -167,7 +167,6 @@ function fetchAwsState() {
 
   p = p.then(function(res) {
     var allState = {};
-    debug('Retreived state from AWS');
     res[0].data.Reservations.forEach(function(reservation) {
       reservation.Instances.forEach(function(instance) {
         var workerType = instance.KeyName.substr(KeyPrefix.length);
@@ -185,7 +184,6 @@ function fetchAwsState() {
       });
     });
 
-    debug('Processed instance state');
 
     res[1].data.SpotInstanceRequests.forEach(function(request) {
       var workerType = request.LaunchSpecification.KeyName.substr(KeyPrefix.length);
@@ -236,7 +234,7 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
     }
     var spawners = [];
     while (change--) {
-      spawners.push(spawnInstance(wtRunId, workerType, awsState));
+      spawners.push(spawnInstance(wtRunId, workerType, awsState, pricing));
     }
     return Promise.all(spawners);
   });
@@ -244,7 +242,24 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
   return p;
 }
 
+
+
+/* Fetch the last hour of EC2 pricing data.  For now, we'll
+ * only fetch the first page of data, but in the future we will
+ * make sure to use the nextToken to read the whole thing in
+ */
 function fetchSpotPricingHistory(workerTypes) {
+/*
+   This promise is an object with a SpotInstances key that's a list of these:
+   {
+      InstanceType: 'r3.xlarge', 
+      ProductDescription: 'Linux/UNIX', 
+      SpotPrice: '0.042300', 
+      Timestamp: Thu Feb 05 2015 14:23:31 GMT+0100 (CET), 
+      AvailabilityZone: 'us-west-2c'
+    }
+ */
+
   var types = [];
   workerTypes.forEach(function(workerType) {
     if (workerType.launchSpecification.InstanceType) {
@@ -252,8 +267,6 @@ function fetchSpotPricingHistory(workerTypes) {
     }
     Array.prototype.push.apply(types, Object.keys(workerType.allowedInstanceTypes));
   });
-
-  debug(types);
 
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
@@ -280,7 +293,7 @@ function countRunningCapacity(workerType, awsState) {
        { 
         'instance-type': {
           'capacity': 3,
-          'utilityFactor': 4,
+          'utility': 4,
           'overwrites': {}
         }
        } */
@@ -326,17 +339,19 @@ function countRunningCapacity(workerType, awsState) {
 module.exports._countRunningCapacity = countRunningCapacity;
 
 /* Create Machines! */
-function spawnInstance(wtRunId, workerType, awsState) {
+function spawnInstance(wtRunId, workerType, awsState, pricing) {
   var spotBid;
   var instanceType;
   var launchSpec;
 
-  var p = chooseInstanceType(workerType, awsState);
+  var p = determineSpotBid(workerType, awsState, pricing);
 
-  p = p.then(function(_instanceType) {
-    debug('%s %s will use instance type %s', wtRunId, workerType.workerType, _instanceType);
-    instanceType = _instanceType;
-    return _instanceType;
+  p = p.then(function(bidInfo) {
+    instanceType = bidInfo.instanceType;
+    spotBid = bidInfo.spotBid;
+    debug('%s %s will bid on %s instance for $%d',
+      wtRunId, workerType.workerType, instanceType, spotBid);
+    return bidInfo;
   });
 
   p = p.then(function() {
@@ -348,16 +363,6 @@ function spawnInstance(wtRunId, workerType, awsState) {
     //debug('Launch Spec: ' + JSON.stringify(_launchSpec));
     launchSpec = _launchSpec;
     return _launchSpec;
-  });
-
-  p = p.then(function() {
-    return pickSpotBid(workerType, awsState, instanceType);
-  });
-
-  p = p.then(function(_spotBid) {
-    debug('%s %s will have a spot bid of %d', wtRunId, workerType.workerType, _spotBid);
-    spotBid = _spotBid; 
-    return _spotBid;
   });
 
   p = p.then(function() {
@@ -380,22 +385,64 @@ function spawnInstance(wtRunId, workerType, awsState) {
   return p;
 }
 
+/* Given the pricing data, what's the average price for this instance type.
+ * For now, we'll just pick the average of the most recent for each availability
+ * zone.  In future we should do things like:
+ *    - weight each AZ's price by how long it was the price
+ *    - do other smart things
+ */
+function findPriceForType(pricing, type) {
+  // This could probably be a single loop
+  var onlyThisType = pricing.filter(function(x) {
+    return x.InstanceType === type;
+  });
+  var azsSeen = [];
+  var sum = 0;
+  onlyThisType.forEach(function(histPoint) {
+    if (azsSeen.indexOf(histPoint.AvailabilityZone) < 0) {
+      sum += parseFloat(histPoint.SpotPrice);
+      azsSeen.push(histPoint.AvailabilityZone);
+    }
+  });
+
+  return sum / azsSeen.length;
+}
+
 /* Decide based on the utility factor which EC2 instance type we should be
  * creating.  Right now, we just pick the first one in the Object.keys list of
  * instanceTypes allowed for a workerType.  In the future the goal is to pick
  * the lowest of instanceType * instanceTypePrice.  The plan is to not pick
  * all instance to be exactly the same type.  Maybe we'll have a schema key
- * which specifies max percentage or something like that. */
-function chooseInstanceType(workerType, awsState) {
-  var instanceType = Object.keys(workerType.allowedInstanceTypes)[0];
-  // TODO: We should allow instance type nicknames.  meh
-  //var type = workerType.allowedInstanceTypes[instanceTypeTitle].overwrites.InstanceType;
-  return Promise.resolve(instanceType);
-}
+ * which specifies max percentage or something like that.  We return
+ * an object which has the spot bid to use and the type of instance.
+ * The spotbid is the best instance type's average spot price multiplied
+ * by 1.3 (30% more than what it is right now)*/
+function determineSpotBid(workerType, awsState, pricing) {
+  var ait = workerType.allowedInstanceTypes; // shorthand!  
+  
+  return new Promise(function(resolve, reject) {
+    var cheapestType;
+    var cheapestPrice;
+    var spotBid;
+    var priceMap = {};
 
-/* Given an instanceType, pick what we should bid for the spot price */
-function pickSpotBid(workerType, awsState, instanceType) {
-  return Promise.resolve(workerType.maxSpotBid);
+    Object.keys(ait).forEach(function(potentialType) {
+      var potentialSpotBid = findPriceForType(pricing, potentialType);
+      // Like capacity we assume that if a utility factor is not available
+      // that we consider it to be the base (1)
+      var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
+      if (!cheapestPrice || potentialPrice < cheapestPrice) {
+        cheapestPrice = potentialPrice;
+        cheapestType = potentialType;
+        // We bid a little higher because we don't want the machine to end
+        // too soon
+        spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000
+        
+      }
+    });
+
+    resolve({spotBid: spotBid, instanceType: cheapestType});
+  });
 }
 
 /* Destroy Machines! */
@@ -445,6 +492,7 @@ function createLaunchSpec(workerType, instanceType) {
       reject(new Error(util.format('Launch specification does not contain Base64: %s', newSpec.UserData)));
     }
     newSpec.KeyName = KeyPrefix + workerType.workerType;
+    newSpec.InstanceType = instanceType;
     resolve(newSpec);
   });
 }
