@@ -54,7 +54,7 @@ module.exports.init = init;
   9. create keypairs if they do not exist already
   10. store pubkey to use in the provisioner config file
   11. make this an object
-  12. pricing history should use the nextToken if present
+  12. pricing history should use the nextToken if present to
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -89,7 +89,7 @@ function provisionAll() {
     workerTypes = res.shift();
     awsState = res.shift();
 
-    debug('%s AWS knows these workerTypes: %s', runId, JSON.stringify(Object.keys(awsState)));
+    debug('%s AWS has instances of workerTypes: %s', runId, JSON.stringify(Object.keys(awsState)));
     // We could probably combine this with the .map of workerTypes below... meh...
     debug('%s WorkerType Definitions for %s', runId, JSON.stringify(workerTypes.map(function(x) {
       return x.workerType;
@@ -431,7 +431,7 @@ function determineSpotBid(workerType, awsState, pricing) {
       // Like capacity we assume that if a utility factor is not available
       // that we consider it to be the base (1)
       var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
-      if (!cheapestPrice || potentialPrice < cheapestPrice) {
+      if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > workerType.maxSpotBid)) {
         cheapestPrice = potentialPrice;
         cheapestType = potentialType;
         // We bid a little higher because we don't want the machine to end
