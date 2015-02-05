@@ -72,6 +72,7 @@ function provisionAll() {
   var pendingTasks;
   var workerTypes;
   var awsState;
+  var pricing;
   var runId = uuid.v4();
   var wtRunIds = [];
 
@@ -102,7 +103,7 @@ function provisionAll() {
   });
 
   p = p.then(function(awsPricingData) {
-    awsState.pricing = awsPricingData.data;
+    pricing = awsPricingData.data;
     debug('%s Fetched EC2 Pricing data', runId);
     return awsPricingData; 
   });
@@ -114,7 +115,7 @@ function provisionAll() {
       debug('%s[%s] == %s worker', runId, workerType.workerType, wtRunId);
       var workerState = awsState[workerType.workerType] || {};
       var pendingForWorker = pendingTasks[workerType.workerType] || 0;
-      return provisionForType(wtRunId, workerType, workerState, pendingForWorker);
+      return provisionForType(wtRunId, workerType, workerState, pricing, pendingForWorker);
     }));
   });
 
@@ -209,7 +210,7 @@ function fetchAwsState() {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-function provisionForType(wtRunId, workerType, awsState, pending) {
+function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
   var capacity;
   var change;
 
