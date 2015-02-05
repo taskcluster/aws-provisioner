@@ -10,7 +10,7 @@ var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
 
-
+// Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
 /* I don't want to do any setup in this module... This function should be
  * passed in a configured base.Entity, which will be used in this function.
