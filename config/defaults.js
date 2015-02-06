@@ -17,6 +17,7 @@ module.exports = {
     statsComponent:       'aws-provisioner2',
     awsKeyPrefix:         'aws-provisioner2-managed:',
     pulseRate:            10000,
+    awsInstancePubkey:    undefined,
   },
   server: {
     publicUrl:  'https://localhost',

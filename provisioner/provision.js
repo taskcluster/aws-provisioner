@@ -21,6 +21,7 @@ var KeyPrefix;
 var cfg;
 var Queue;
 var ec2;
+var InstancePubKey;
 
 function init (_cfg, wt) {
   cfg = _cfg;
@@ -28,6 +29,7 @@ function init (_cfg, wt) {
   ProvisionerId = cfg.get('provisioner:id');
   WorkerType = wt;
   KeyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  InstancePubKey = cfg.get('provisioner:awsInstancePubkey'); 
 
   Queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
   ec2 = module.exports.ec2 = new aws.EC2(cfg.get('aws'));
@@ -48,7 +50,6 @@ module.exports.init = init;
    3. should delete instances that might've been managed by provisioner but aren't currently known
    4. figure out why promises are broken when returning promises from the .map() in provisionall()
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
-   6. schema should ensure userdata is all base64 valid
    7. kill instances when we exceed the max capacity
    8. kill instances/sir when they aren't known on the workertype table
    9. create keypairs if they do not exist already
@@ -101,6 +102,9 @@ function provisionAll() {
     return res;
   });
 
+  // We don't combine history fetching with state because we only want pricing history
+  // for regions which we care about.  We also don't do this per-worker type because
+  // each workertype most likely will share instance types and this saves api calls
   p = p.then(function() { 
     return fetchSpotPricingHistory(workerTypes);
   });
@@ -215,13 +219,16 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
   var capacity;
   var change;
 
-  var p = countRunningCapacity(workerType, awsState);
+  var p = Promise.all([
+    countRunningCapacity(workerType, awsState),
+    assertKeyPair(workerType.workerType),
+  ]);
 
-  p = p.then(function (_capacity) {
+  p = p.then(function (res) {
     debug('%s %s has %d existing capacity units and %d pending tasks',
-      wtRunId, workerType.workerType, _capacity, pending);
-    capacity = _capacity; 
-    return _capacity;
+      wtRunId, workerType.workerType, res[0], pending);
+    capacity = res[0]; 
+    return res;
   });
 
   p = p.then(function () {
@@ -255,6 +262,36 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
   return p;
 }
 
+/* Check that we have a public key and create it if we don't */
+function assertKeyPair(workerTypeName) {
+  /* This might be better to do in the provisionAll step once the 
+     workertypes are loaded, then we can do a single key check per
+     provisioning run */
+  var keyName = KeyPrefix + workerTypeName;
+  var p = ec2.describeKeyPairs({
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }] 
+  }).promise();
+
+  p = p.then(function(res) {
+    var matchingKey = res.data.KeyPairs[0];
+
+    if (matchingKey) {
+      return Promise.resolve();
+    } else {
+      return ec2.importKeyPair({
+        KeyName: keyName,
+        PublicKeyMaterial: InstancePubKey,
+      }).promise().then(function () {
+        return Promise.resolve();
+      });
+    }
+  });
+
+  return p;
+}
 
 
 /* Fetch the last hour of EC2 pricing data.  For now, we'll
