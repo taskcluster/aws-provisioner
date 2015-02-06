@@ -43,15 +43,15 @@ module.exports.init = init;
 /*
   TODO:
 
-  1. update schema to reflect the structure of the instance type dict
-  2. sprinkle some uuids on debug messages for sanity's sake
-  3. should delete instances that might've been managed by provisioner but aren't currently known
-  4. figure out why promises are broken when returning promises from the .map() in provisionAll()
-  5. schema for allowedinstancetypes should ensure overwrites.InstanceType exists
-  6. schema should ensure UserData is all Base64 valid
-  7. kill instances when we exceed the max capacity
-  8. kill instances/sir when they aren't known on the workerType table
-  9. create keypairs if they do not exist already
+   1. update schema to reflect the structure of the instance type dict
+   2. sprinkle some uuids on debug messages for sanity's sake
+   3. should delete instances that might've been managed by provisioner but aren't currently known
+   4. figure out why promises are broken when returning promises from the .map() in provisionall()
+   5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
+   6. schema should ensure userdata is all base64 valid
+   7. kill instances when we exceed the max capacity
+   8. kill instances/sir when they aren't known on the workertype table
+   9. create keypairs if they do not exist already
   10. store pubkey to use in the provisioner config file
   11. make this an object
   12. pricing history should use the nextToken if present to
@@ -223,7 +223,17 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
 
   p = p.then(function () {
     change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
-    debug('%s %s needs %d capacity units created', wtRunId, workerType.workerType, change);
+    if (capacity + change > workerType.maxInstances) {
+      debug('%s %s a change of %d would exceed max of %d', wtRunId,
+          workerType.workerType, change, workerType.maxInstances);
+      change = capacity - workerType.maxInstances;
+    } else if (capacity + change < workerType.minInstances) {
+      debug('%s %s a change of %d would be less than min of %d', wtRunId,
+          workerType.workerType, change, workerType.minInstances);
+      change = workerType.minInstances - capacity;
+    }
+    debug('%s %s submitting request for %d more capacity units',
+        wtRunId, workerType.workerType, change);
     return Promise.resolve(change);
   });
 
@@ -302,32 +312,28 @@ function countRunningCapacity(workerType, awsState) {
       capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
     });
 
-
     // We are including pending instances in this loop because we want to make
     // sure that they aren't ignored and duplicated
-    var allInstances = [];
+    var instances = [];
     if (awsState.running) {
-      allInstances.concat(awsState.running);
+      Array.prototype.push.apply(instances, awsState.running);
     }
     if (awsState.pending) {
-      allInstances.concat(awsState.pending);
+      Array.prototype.push.apply(instances, awsState.pending);
     }
     if (awsState.spotRequesets) {
-      allInstances.concat(awsState.spotRequests);
+      Array.prototype.push.apply(instances, awsState.spotRequests);
     }
-    allInstances.forEach(function(instance, idx, arr) {
+
+    instances.forEach(function(instance, idx, arr) {
       var potentialCapacity = capacities[instance.InstanceType];
       if (potentialCapacity) {
-        debug('Instance type %s for workerType %s has a capacity of %d, adding to %d',
-              instance.InstanceType, workerType.workerType, potentialCapacity, capacity);
         capacity += capacities[instance.InstanceType];
       } else {
         /* Rather than assuming that an unknown instance type has no capacity, we'll
            assume the basic value (1) and move on.  Giving any other value would be
            a bad idea, 0 means that we would be scaling indefinately and >1 would be
            making assumptions which are not knowable */
-        debug('WorkerType %s does not list capacity for instance type %s, adding 1 to %d',
-              workerType.workerType, instance.InstanceType, capacity);
         capacity++;
       }
     });
@@ -506,13 +512,15 @@ module.exports._createLaunchSpec = createLaunchSpec;
    units does not fit nicely with the number of capacity units available per
    instance type.  Positive value means add capacity, negative means destroy */
 function determineCapacityChange(scalingRatio, capacity, pending) {
+  var percentPending = 1 + pending / capacity;
 
-  var x = Math.ceil((capacity * scalingRatio) + pending) - capacity;
+  var change = 0;
 
-  // For now we don't bother with negative values because we can't 
-  // ask machines to terminate, we can only force them off, which
-  // we don't want to do
-  return x > 0 ? x : 0;
+  if (percentPending > scalingRatio) {
+    var change = (capacity * scalingRatio) - capacity
+  }
+
+  return Math.floor(change);
 
 }
 module.exports._determineCapacityChange = determineCapacityChange;
