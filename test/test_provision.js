@@ -18,47 +18,24 @@ describe('determineCapacityChange', function() {
 
   describe('without scaling ratio', function() {
     it('should not change the number of nodes needed', function() {
-      var expected = 0;
-      var actual = subject(1, 10, 0);
-      actual.should.equal(expected);
+      subject(1, 100, 0).should.equal(0);
     });
 
-    it('should increase number of nodes needed', function() {
-      var expected = 1;
-      var actual = subject(1, 10, 1);
-      actual.should.equal(expected);
-      var expected = 2;
-      var actual = subject(1, 10, 2);
-      actual.should.equal(expected);
-      var expected = 3;
-      var actual = subject(1, 10, 3);
-      actual.should.equal(expected);
+    it('should increase number of nodes needed by number of pending', function() {
+      [1,2,3,4,5,6,100,10000].forEach(function(x) {
+        subject(1, 100, x).should.equal(x);
+      });
     });
   });
 
   describe('with scaling ratios', function() {
-    it('should not increase number of nodes when there are no pending tasks', function() {
-      var expected = 0;
-      var actual = subject(0.8, 10, 0);
-      actual.should.equal(expected);
-    });
-
-    it('should increase number of nodes when there are enough pending tasks', function() {
-      var expected = 2;
-      var actual = subject(0.8, 10, 4);
-      actual.should.equal(expected);
-    });
-
-    it('should not increase the number of nodes when there are too few pending tasks', function() {
-      var expected = 0;
-      var actual = subject(0.5, 20, 10);
-      actual.should.equal(expected);
-    });
-
-    it('should increase the number of nodes when there are enough pending tasks', function() {
-      var expected = 1;
-      var actual = subject(0.5, 20, 11);
-      actual.should.equal(expected);
+    it('should increase number of nodes only when there are enough pending tasks', function() {
+      subject(1.1, 100, 0).should.equal(0);
+      subject(1.1, 100, 9).should.equal(0);
+      subject(1.1, 100, 10).should.equal(0);
+      subject(1.1, 100, 11).should.equal(1);
+      subject(1.1, 100, 12).should.equal(2);
+      subject(1.1, 100, 100).should.equal(82);
     });
 
   });
@@ -155,7 +132,7 @@ describe('createLaunchSpec', function() {
 
   it('should cause error when user data is not base64', function() {
     subject(invalidUserDataWorkerType, 'r3.xlarge').catch(function(err) {
-      err.should.be.an.Error;
+       
     }).done();
   });
 });
