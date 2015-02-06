@@ -51,7 +51,6 @@ module.exports.init = init;
    4. figure out why promises are broken when returning promises from the .map() in provisionall()
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
    7. kill instances when we exceed the max capacity
-   8. kill instances/sir when they aren't known on the workertype table
   11. make this an object
   12. pricing history should use the nextToken if present to
   13. store requests and instance data independently so that we don't have issues
@@ -102,20 +101,20 @@ function provisionAll() {
     return res;
   });
 
-  // We don't combine history fetching with state because we only want pricing history
-  // for regions which we care about.  We also don't do this per-worker type because
-  // each workertype most likely will share instance types and this saves api calls
-  p = p.then(function() { 
-    return fetchSpotPricingHistory(workerTypes);
+  p = p.then(function() {
+    return Promise.all([
+        fetchSpotPricingHistory(workerTypes),
+        killOrphans(awsState, workerTypes),
+    ]);
   });
 
-  p = p.then(function(awsPricingData) {
-    pricing = awsPricingData.data.SpotPriceHistory;
+  p = p.then(function(res) {
+    pricing = res[0].data.SpotPriceHistory;
     debug('%s Fetched EC2 Pricing data', runId);
-    return awsPricingData; 
+    debug('%s Killed these orphaned instances: %s', runId, res[1]);
+    return res; 
   });
 
-  p = p.then(killOrphans(awsState, workerTypes));
 
   p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
@@ -220,30 +219,32 @@ function killOrphans(awsState, workerTypes) {
   var extant = Object.keys(awsState);
   var known = workerTypes.map(function(x) { return x.workerType });
   var orphans = extant.filter(function(x) { return known.indexOf(x) > 0 });
-  debug('Orphans found: %s', JSON.stringify(orphans));
-
   var instances = [];
   var srs = [];
 
-  orphans.forEach(function(orphanName) {
-    orphans.forEach(function(name) {
-      Array.prototype.push.apply(instances, awsState[name].running.map(function(x) { return x.InstanceId; }));
-      Array.prototype.push.apply(instances, awsState[name].pending.map(function(x) { return x.InstanceId; }));
-      Array.prototype.push.apply(srs, awsState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
-    });
+  orphans.forEach(function(name) {
+    Array.prototype.push.apply(instances, awsState[name].running.map(function(x) { return x.InstanceId; }));
+    Array.prototype.push.apply(instances, awsState[name].pending.map(function(x) { return x.InstanceId; }));
+    Array.prototype.push.apply(srs, awsState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
   });
 
-  debug('NOTE! NOT ACTUALLY KILLING ORPHANS %s', JSON.stringify(orphans));
-  return Promise.all([
-    ec2.CancelSpotInstanceRequests({
-      DryRun: true,
-      SpotInstanceRequestId: srs,
-    }).promise(),
-    ec2.terminateInstances({
-      DryRun: true,
+  var killinators = [];
+ 
+  if (instances.length > 0) {
+    killinators.push(ec2.terminateInstances({
       InstanceIds: instances,
-    }).promise(),
-  ]);
+    }).promise());
+  } 
+
+  if (srs.length > 0) {
+    killinators.push(ec2.cancelSpotInstanceRequests({
+      SpotInstanceRequestIds: srs,
+    }).promise());
+  }
+
+  return Promise.all(killinators).then(function(res) {
+    return Promise.resolve(orphans); 
+  });
   
 }
 
