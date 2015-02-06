@@ -47,13 +47,11 @@ module.exports.init = init;
 
    1. update schema to reflect the structure of the instance type dict
    2. sprinkle some uuids on debug messages for sanity's sake
-   3. should delete instances that might've been managed by provisioner but aren't currently known
-   4. figure out why promises are broken when returning promises from the .map() in provisionall()
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
    7. kill instances when we exceed the max capacity
   11. make this an object
   12. pricing history should use the nextToken if present to
-  13. store requests and instance data independently so that we don't have issues
+  13. store requests and instance data independently from AWS so that we don't have issues
       with the eventual consistency system.  This will also let us track when
       a spot request is rejected
   14. We should only kill orphans which have been orphaned for X hours in case of accidentally
