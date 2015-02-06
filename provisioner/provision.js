@@ -52,13 +52,13 @@ module.exports.init = init;
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
    7. kill instances when we exceed the max capacity
    8. kill instances/sir when they aren't known on the workertype table
-   9. create keypairs if they do not exist already
-  10. store pubkey to use in the provisioner config file
   11. make this an object
   12. pricing history should use the nextToken if present to
   13. store requests and instance data independently so that we don't have issues
       with the eventual consistency system.  This will also let us track when
       a spot request is rejected
+  14. We should only kill orphans which have been orphaned for X hours in case of accidentally
+      deleting the workerTypes
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -114,6 +114,8 @@ function provisionAll() {
     debug('%s Fetched EC2 Pricing data', runId);
     return awsPricingData; 
   });
+
+  p = p.then(killOrphans(awsState, workerTypes));
 
   p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
@@ -209,6 +211,43 @@ function fetchAwsState() {
 
   return p;
 }
+
+/* When we find an EC2 instance or spot request that is for a workerType that we
+ * don't know anything about, we will kill it.  NOTE: We currently do this as soon
+ * as the workerType definition is not found, but we should probably do something
+ * like wait for it to be gone for X hours before deleting it. */
+function killOrphans(awsState, workerTypes) {
+  var extant = Object.keys(awsState);
+  var known = workerTypes.map(function(x) { return x.workerType });
+  var orphans = extant.filter(function(x) { return known.indexOf(x) > 0 });
+  debug('Orphans found: %s', JSON.stringify(orphans));
+
+  var instances = [];
+  var srs = [];
+
+  orphans.forEach(function(orphanName) {
+    orphans.forEach(function(name) {
+      Array.prototype.push.apply(instances, awsState[name].running.map(function(x) { return x.InstanceId; }));
+      Array.prototype.push.apply(instances, awsState[name].pending.map(function(x) { return x.InstanceId; }));
+      Array.prototype.push.apply(srs, awsState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
+    });
+  });
+
+  debug('NOTE! NOT ACTUALLY KILLING ORPHANS %s', JSON.stringify(orphans));
+  return Promise.all([
+    ec2.CancelSpotInstanceRequests({
+      DryRun: true,
+      SpotInstanceRequestId: srs,
+    }).promise(),
+    ec2.terminateInstances({
+      DryRun: true,
+      InstanceIds: instances,
+    }).promise(),
+  ]);
+  
+}
+
+
 
 /* Provision a specific workerType.  This promise will have a value of true if
  * everything worked.  Another option is resolving to the name of the worker to
