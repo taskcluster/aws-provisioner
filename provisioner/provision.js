@@ -55,6 +55,9 @@ module.exports.init = init;
   10. store pubkey to use in the provisioner config file
   11. make this an object
   12. pricing history should use the nextToken if present to
+  13. store requests and instance data independently so that we don't have issues
+      with the eventual consistency system.  This will also let us track when
+      a spot request is rejected
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -512,15 +515,21 @@ module.exports._createLaunchSpec = createLaunchSpec;
    units does not fit nicely with the number of capacity units available per
    instance type.  Positive value means add capacity, negative means destroy */
 function determineCapacityChange(scalingRatio, capacity, pending) {
+  // We need to know the current ratio of capacity to pending
   var percentPending = 1 + pending / capacity;
 
   var change = 0;
 
+  // We only want to scale anything once we have a pending
+  // percentage that exceeds the scalingRatio
   if (percentPending > scalingRatio) {
-    var change = (capacity * scalingRatio) - capacity
+    // But when we do, let's submit enough requests that
+    // we end up in an ideal state if all are fulfilled
+    var ideal = (capacity + pending) / scalingRatio;
+    var change = ideal - capacity;
   }
 
-  return Math.floor(change);
+  return Math.round(change);
 
 }
 module.exports._determineCapacityChange = determineCapacityChange;
