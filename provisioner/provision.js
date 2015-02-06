@@ -507,13 +507,13 @@ function createLaunchSpec(workerType, instanceType) {
 }
 module.exports._createLaunchSpec = createLaunchSpec;
 
-/* Figure out how many capacity units need to be created.  This number
-   is determined by calculating how much capacity is needed to maintain a given
-   scaling ratio and returns the number of capacity units which need to be
-   created or destroyed.  This will give an exact number of units, something
-   else will be required to decide what to do if the number of needed capacity
-   units does not fit nicely with the number of capacity units available per
-   instance type.  Positive value means add capacity, negative means destroy */
+/* Figure out how many capacity units need to be created.  This number is
+ * determined by calculating how much capacity is needed to maintain a given
+ * scaling ratio and returns the number of capacity units which need to be
+ * created or destroyed.  This will give an exact number of units, something
+ * else will be required to decide what to do if the number of needed capacity
+ * units does not fit nicely with the number of capacity units available per
+ * instance type.  Positive value means add capacity, negative means destroy */
 function determineCapacityChange(scalingRatio, capacity, pending) {
   // We need to know the current ratio of capacity to pending
   var percentPending = 1 + pending / capacity;
