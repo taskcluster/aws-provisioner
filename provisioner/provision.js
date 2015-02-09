@@ -120,6 +120,22 @@ function Provisioner(cfg) {
 module.exports.Provisioner = Provisioner;
 
 
+Provisioner.prototype.run = function (x) {
+  var that = this;
+
+  // Hey Jonas, can you double check that I'm not leaking because of the timeouts?
+  function pulse() {
+    that.runAllProvisionersOnce().then(function() {
+      debug('Finished a provision pulse');
+      setTimeout(pulse, that.pulseRate);
+      return x;
+    }).done();
+  }
+
+  pulse();
+
+};
+
 /* This is the main entry point into the provisioning routines.  It will
  * return an array of promises with the outcome of provisioning */
 Provisioner.prototype.runAllProvisionersOnce = function() {

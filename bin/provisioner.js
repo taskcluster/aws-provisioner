@@ -41,4 +41,4 @@ var config = {
 }
 
 var provisioner = new provision.Provisioner(config);
-provisioner.runAllProvisionersOnce().then(function(x) { console.log(x) }).done();
+provisioner.run();
