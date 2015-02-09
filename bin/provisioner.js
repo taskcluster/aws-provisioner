@@ -29,28 +29,16 @@ var cfg = base.config({
 });
 
 
-var pulseRate = cfg.get('provisioner:pulseRate');
-provision.init(
-  cfg,
-  data.WorkerType.configure({
-    tableName:        cfg.get('provisioner:workerTypeTableName'),
-    credentials:      cfg.get('azure')
-  }
-  )
-);
-
-// Things like running this every X minutes goes here.  As does things like submitting statistics on the
-// provisioning run
-
-
-function pulse () {
-  provision.provisionAll().then(function(x) {
-    if (!process.env.PROVISION_ONCE) {
-      setTimeout(pulse, pulseRate); 
-    }
-    debug('This heart will beat in %d milliseconds', pulseRate);
-  }).done();
-  
+var config = {
+  provisionerId: cfg.get('provisioner:id'),
+  workerTypeTableName: cfg.get('provisioner:workerTypeTableName'),
+  awsKeyPrefix: cfg.get('provisioner:awsKeyPrefix'),
+  awsInstancePubKey: cfg.get('provisioner:awsInstancePubkey'),
+  taskcluster: cfg.get('taskcluster'),
+  aws: cfg.get('aws'),
+  azure: cfg.get('azure'),
+  pulseRate: cfg.get('provisioner:pulseRate'),
 }
 
-pulse();
+var provisioner = new provision.Provisioner(config);
+provisioner.Hello().then(function(x) { console.log(x) }).done();
