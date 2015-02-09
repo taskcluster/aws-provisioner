@@ -56,6 +56,8 @@ module.exports.init = init;
       a spot request is rejected
   14. We should only kill orphans which have been orphaned for X hours in case of accidentally
       deleting the workerTypes
+  15. rename max/min instances key to capacity
+  16. Provisioner init method should take a config object not a base.config object
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -258,7 +260,7 @@ function provisionForType(wtRunId, workerType, awsState, pricing, pending) {
   var change;
 
   var p = Promise.all([
-    countRunningCapacity(workerType, awsState),
+    countRunningCapacity(workerType, awsState, 'pending', 'running', 'requestedSpot'),
     assertKeyPair(workerType.workerType),
   ]);
 
@@ -373,6 +375,7 @@ function fetchSpotPricingHistory(workerTypes) {
 
 /* Count the amount of capacity that's running or pending */
 function countRunningCapacity(workerType, awsState) {
+  var statesToInclude = Array.prototype.slice.call(arguments).slice(2);
   // For now, let's assume that an existing node is occupied
   return new Promise(function(resolve, reject) {
     var capacity = 0;
@@ -393,14 +396,14 @@ function countRunningCapacity(workerType, awsState) {
     // We are including pending instances in this loop because we want to make
     // sure that they aren't ignored and duplicated
     var instances = [];
-    if (awsState.running) {
+    if (statesToInclude.indexOf('running') > 0) {
       Array.prototype.push.apply(instances, awsState.running);
     }
-    if (awsState.pending) {
+    if (statesToInclude.indexOf('pending') > 0) {
       Array.prototype.push.apply(instances, awsState.pending);
     }
-    if (awsState.spotRequesets) {
-      Array.prototype.push.apply(instances, awsState.spotRequests);
+    if (statesToInclude.indexOf('requestedSpot') > 0) {
+      Array.prototype.push.apply(instances, awsState.requestedSpot);
     }
 
     instances.forEach(function(instance, idx, arr) {
@@ -527,6 +530,30 @@ function determineSpotBid(workerType, awsState, pricing) {
 
     resolve({spotBid: spotBid, instanceType: cheapestType});
   });
+}
+
+/* Kill machines when we have more than the maximum allowed */
+function killExcess(workerType, awsState) {
+
+  // We only want to kill running or pending instances when we're over capacity
+  // because some of the oldest machines might end before spot requests are
+  // fulfilled.  In that case, we don't want to cancel a spot request until
+  // it's actually converted into an instance and is costing money
+  var p = countRunningCapacity(workerType, awsState, 'running', 'pending');
+
+  p = p.then(function(capacity) {
+    if (capacity < workerType.maxInstances) {
+      return Promise.resolve();
+    } else {
+      return Promise.resolve(capacity - workerType.maxInstances);
+    }
+  });
+
+  p = p.then(function(deaths) {
+    return destroyInstances(workerType, awsState, deaths); 
+  });
+  
+  return p;
 }
 
 /* Destroy Machines! */
