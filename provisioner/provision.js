@@ -9,6 +9,7 @@ var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
+var data = require('./data');
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -65,6 +66,89 @@ module.exports.init = init;
    3. for each region, run the instance/spotreq queries
    4. join everything together
  */
+
+
+/* Create a Provisioner object.  This object knows how to provision
+ * AWS Instances.  The config object should be structured like this:
+    cfg = {
+      provisionerId: 'aws-provisioner2-dev',
+      workerTypeTableName: 'AWSWorkerTypesDev',
+      awsKeyPrefix: 'aws-provisioner2-dev:',
+      awsInstancePubKey: 'ssh-rsa .....',
+      taskcluster: { <taskcluster client library config object>},
+      aws: { <aws config object> },
+      azure: { <azure config object> },
+      pulseRate: 10000,
+    };
+*/
+function Provisioner(cfg) {
+  // This is the ID of the provisioner.  It is used to interogate the queue
+  // for pending tasks
+  this.provisionerId = cfg.provisionerId;
+  if (!this.provisionerId || typeof this.provisionerId !== 'string') {
+    throw new Error('Missing or invalid provisioner id');
+  }
+
+  // This is a prefix which we use in AWS to determine ownership
+  // of a given instance.  If we could tag instances while they were
+  // still spot requests, we wouldn't need to do this.
+  this.awsKeyPrefix = cfg.awsKeyPrefix;
+  if (!this.awsKeyPrefix || typeof this.awsKeyPrefix !== 'string') {
+    throw new Error('AWS Key prefix is missing or invalid');
+  }
+
+  // For new types of workers, we need to know what public key data
+  // to pass to the instance as the key data
+  this.awsInstancePubKey = cfg.awsInstancePubKey;
+  if (!this.awsInstancePubKey || typeof this.awsInstancePubKey !== 'string') {
+    throw new Error('AWS Instance key is missing or invalid');
+  }
+
+  // This is the number of milliseconds to wait between completed provisioning runs
+  this.pulseRate = cfg.pulseRate;
+  if (!this.pulseRate || typeof this.pulseRate !== 'number' || isNaN(this.pulseRate)) {
+    // I remember there being something funky about using isNaN in JS...
+    throw new Error('Pulse rate is missing or not a number');
+  }
+
+  // This is the Queue object which we use for things like retreiving
+  // the pending jobs.
+  if (!cfg.taskcluster || typeof cfg.taskcluster !== 'object') {
+    throw new Error('Taskcluster client configuration is invalid');
+  }
+  if (!cfg.taskcluster.credentials || typeof cfg.taskcluster.credentials !== 'object') {
+    throw new Error('Taskcluster client credentials are misformed');
+  }
+  // We only grab the credentials for now, no need to store them in this object
+  this.Queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
+
+  if (!cfg.workerTypeTableName || typeof cfg.workerTypeTableName !== 'string') {
+    throw new Error('Missing or invalid workerType table name');
+  }
+  if (!cfg.azure || typeof cfg.azure !== 'object') {
+    throw new Error('Missing or invalid Azure configuration');
+  }
+  this.WorkerType = data.WorkerType.configure({
+    tableName: cfg.workerTypeTableName,
+    credentials: cfg.azure,
+  });
+  
+
+  if (!cfg.aws || typeof cfg.aws !== 'object') {
+    throw new Error('Missing or invalid AWS configuration object');
+  }
+  if (!cfg.aws.region) {
+    throw new Error('For now, you need to configure a specific AWS region.  hint: us-west-2');
+  }
+  // For now we have a single EC2 client object instance type
+  this.ec2 = new aws.EC2(cfg.aws);
+}
+
+module.exports.Provisioner = Provisioner;
+
+Provisioner.prototype.Hello = function() {
+  return new Promise.resolve('Hello');
+};
 
 
 /* This is the main entry point into the provisioning routines.  It will
