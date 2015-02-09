@@ -23,7 +23,6 @@ var data = require('./data');
    1. update schema to reflect the structure of the instance type dict
    2. sprinkle some uuids on debug messages for sanity's sake
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
-   7. kill instances when we exceed the max capacity
   12. pricing history should use the nextToken if present to
   13. store requests and instance data independently from AWS so that we don't have issues
       with the eventual consistency system.  This will also let us track when
@@ -120,14 +119,17 @@ function Provisioner(cfg) {
 module.exports.Provisioner = Provisioner;
 
 
-Provisioner.prototype.run = function (x) {
+Provisioner.prototype.run = function () {
   var that = this;
 
   // Hey Jonas, can you double check that I'm not leaking because of the timeouts?
   function pulse() {
-    that.runAllProvisionersOnce().then(function() {
+    that.runAllProvisionersOnce().then(function(x) {
       debug('Finished a provision pulse');
-      setTimeout(pulse, that.pulseRate);
+      if (!process.env.PROVISION_ONCE) {
+        debug('Not doing another cycle because of env PROVISION_ONCE being set');
+        setTimeout(pulse, that.pulseRate);
+      }
       return x;
     }).done();
   }
