@@ -18,6 +18,7 @@ module.exports = {
     awsKeyPrefix:         'aws-provisioner2-managed:',
     pulseRate:            10000,
     awsInstancePubkey:    undefined,
+    allowedRegions:       'us-west-2', // comma seperated list
   },
   server: {
     publicUrl:  'https://localhost',
@@ -31,7 +32,6 @@ module.exports = {
     accountKey:  undefined,
   },
   aws: {
-    region: 'us-west-2',
     accessKeyId: undefined,
     secretAccessKey: undefined
   },

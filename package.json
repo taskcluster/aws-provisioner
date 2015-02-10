@@ -11,7 +11,7 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "aws-sdk-promise": "0.0.0",
+    "multi-region-promised-aws": "0.0.2",
     "debug": "2.1.0",
     "lodash": "^2.4.1",
     "node-uuid": "^1.4.2",

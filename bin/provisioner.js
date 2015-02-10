@@ -28,7 +28,6 @@ var cfg = base.config({
   ]
 });
 
-
 var config = {
   provisionerId: cfg.get('provisioner:id'),
   workerTypeTableName: cfg.get('provisioner:workerTypeTableName'),
@@ -38,6 +37,7 @@ var config = {
   aws: cfg.get('aws'),
   azure: cfg.get('azure'),
   pulseRate: cfg.get('provisioner:pulseRate'),
+  allowedAwsRegions: cfg.get('provisioner:allowedRegions').split(','),
 }
 
 var provisioner = new provision.Provisioner(config);

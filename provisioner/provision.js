@@ -3,7 +3,7 @@
 var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provisioner:provision');
 var base = require('taskcluster-base');
-var aws = require('aws-sdk-promise');
+var aws = require('multi-region-promised-aws');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
@@ -31,6 +31,8 @@ var data = require('./data');
       deleting the workerTypes
   15. rename max/min instances key to capacity
   16. Provisioner init method should take a config object not a base.config object
+  17. provide metrics on how long it takes for spot request to be filled, etc
+  18. need to provide per-region instance configuration -- i.e. ami id per region
 
   To make this multiregion we should
    1. pass in a regions list which is all allowed regions in all worker types
@@ -109,11 +111,12 @@ function Provisioner(cfg) {
   if (!cfg.aws || typeof cfg.aws !== 'object') {
     throw new Error('Missing or invalid AWS configuration object');
   }
-  if (!cfg.aws.region) {
+  this.allowedAwsRegions = cfg.allowedAwsRegions;
+  if (!this.allowedAwsRegions) {
     throw new Error('For now, you need to configure a specific AWS region.  hint: us-west-2');
   }
-  // For now we have a single EC2 client object instance type
-  this.ec2 = new aws.EC2(cfg.aws);
+
+  this.ec2 = new aws('EC2', cfg.aws, this.allowedAwsRegions);
 }
 
 module.exports.Provisioner = Provisioner;
@@ -182,7 +185,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   p = p.then(function(res) {
-    pricing = res[0].data.SpotPriceHistory;
+    pricing = res[0].SpotPriceHistory;
     debug('%s Fetched EC2 Pricing data', runId);
     debug('%s Killed these orphaned instances: %s', runId, res[1]);
     return res; 
@@ -227,7 +230,7 @@ Provisioner.prototype.fetchAwsState = function() {
   var that = this;
 
   var p = Promise.all([
-    this.ec2.describeInstances({
+    this.ec2.describeInstances.inRegion('us-west-2', {
       Filters: [{
         Name: 'key-name',
         Values: [this.awsKeyPrefix + '*']
@@ -235,8 +238,8 @@ Provisioner.prototype.fetchAwsState = function() {
         Name: 'instance-state-name',
         Values: ['running', 'pending']
       }
-    ]}).promise(),
-    this.ec2.describeSpotInstanceRequests({
+    ]}),
+    this.ec2.describeSpotInstanceRequests.inRegion('us-west-2', {
       Filters: [{
         Name: 'launch.key-name',
         Values: [this.awsKeyPrefix + '*']
@@ -244,12 +247,12 @@ Provisioner.prototype.fetchAwsState = function() {
         Name: 'state',
         Values: ['open']
       }]
-    }).promise(),
+    }),
   ]);
 
   p = p.then(function(res) {
     var allState = {};
-    res[0].data.Reservations.forEach(function(reservation) {
+    res[0].Reservations.forEach(function(reservation) {
       reservation.Instances.forEach(function(instance) {
         var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
         var instanceState = instance.State.Name;
@@ -267,7 +270,7 @@ Provisioner.prototype.fetchAwsState = function() {
     });
 
 
-    res[1].data.SpotInstanceRequests.forEach(function(request) {
+    res[1].SpotInstanceRequests.forEach(function(request) {
       var workerType = request.LaunchSpecification.KeyName.substr(that.awsKeyPrefix.length);
 
       if (!allState[workerType]) {
@@ -307,15 +310,15 @@ Provisioner.prototype.killOrphans = function(awsState, workerTypes) {
   var killinators = [];
  
   if (instances.length > 0) {
-    killinators.push(this.ec2.terminateInstances({
+    killinators.push(this.ec2.terminateInstances.inRegion('us-west-2', {
       InstanceIds: instances,
-    }).promise());
+    }));
   } 
 
   if (srs.length > 0) {
-    killinators.push(this.ec2.cancelSpotInstanceRequests({
+    killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion('us-west-2', {
       SpotInstanceRequestIds: srs,
-    }).promise());
+    }));
   }
 
   return Promise.all(killinators).then(function(res) {
@@ -372,7 +375,7 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
     }
     var spawners = [];
     while (change--) {
-      spawners.push(spawnInstance(wtRunId, workerType, awsState, pricing));
+      spawners.push(that.spawnInstance(wtRunId, workerType, awsState, pricing));
     }
     return Promise.all(spawners);
   });
@@ -388,23 +391,23 @@ Provisioner.prototype.assertKeyPair = function(workerTypeName) {
   var that = this;
   var keyName = this.awsKeyPrefix + workerTypeName;
 
-  var p = this.ec2.describeKeyPairs({
+  var p = this.ec2.describeKeyPairs.inRegion('us-west-2', {
     Filters: [{
       Name: 'key-name',
       Values: [keyName]
     }] 
-  }).promise();
+  });
 
   p = p.then(function(res) {
-    var matchingKey = res.data.KeyPairs[0];
+    var matchingKey = res.KeyPairs[0];
 
     if (matchingKey) {
       return Promise.resolve();
     } else {
-      return that.ec2.importKeyPair({
+      return that.ec2.importKeyPair.inRegion('us-west-2', {
         KeyName: keyName,
         PublicKeyMaterial: InstancePubKey,
-      }).promise().then(function () {
+      }).then(function () {
         return Promise.resolve();
       });
     }
@@ -428,7 +431,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
       Timestamp: Thu Feb 05 2015 14:23:31 GMT+0100 (CET), 
       AvailabilityZone: 'us-west-2c'
     }
- */
+ .inRegion('us-west-2')*/
 
   var types = [];
   workerTypes.forEach(function(workerType) {
@@ -441,14 +444,14 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
 
-  var p = this.ec2.describeSpotPriceHistory({
+  var p = this.ec2.describeSpotPriceHistory.inRegion('us-west-2', {
     StartTime: startDate,
     Filters: [{
       Name: 'product-description',
       Values: ['Linux/UNIX'],
     }],
     InstanceTypes: types,
-  }).promise(); 
+  }); 
 
   return p;
 };
@@ -511,7 +514,7 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pr
   var instanceType;
   var launchSpec;
 
-  var p = determineSpotBid(workerType, awsState, pricing);
+  var p = that.determineSpotBid(workerType, awsState, pricing);
 
   p = p.then(function(bidInfo) {
     instanceType = bidInfo.instanceType;
@@ -522,7 +525,7 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pr
   });
 
   p = p.then(function() {
-    return createLaunchSpec(workerType, instanceType);
+    return that.createLaunchSpec(workerType, instanceType);
   });
 
   p = p.then(function(_launchSpec) {
@@ -534,17 +537,17 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pr
 
   p = p.then(function() {
     debug('%s %s is creating spot request', wtRunId, workerType.workerType)
-    return that.ec2.requestSpotInstances({
+    return that.ec2.requestSpotInstances.inRegion('us-west-2', {
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchSpec,
       SpotPrice: String(spotBid).toString(),
-    }).promise();
+    });
   });
 
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
-    var sir = spotRequest.data.SpotInstanceRequests[0].SpotInstanceRequestId;
+    var sir = spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
     debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
     return Promise.resolve(sir);
   });
@@ -586,6 +589,7 @@ Provisioner.prototype.findPriceForType = function(pricing, type) {
  * by 1.3 (30% more than what it is right now)*/
 Provisioner.prototype.determineSpotBid = function(workerType, awsState, pricing) {
   var ait = workerType.allowedInstanceTypes; // shorthand!  
+  var that = this;
   
   return new Promise(function(resolve, reject) {
     var cheapestType;
@@ -594,7 +598,7 @@ Provisioner.prototype.determineSpotBid = function(workerType, awsState, pricing)
     var priceMap = {};
 
     Object.keys(ait).forEach(function(potentialType) {
-      var potentialSpotBid = findPriceForType(pricing, potentialType);
+      var potentialSpotBid = that.findPriceForType(pricing, potentialType);
       // Like capacity we assume that if a utility factor is not available
       // that we consider it to be the base (1)
       var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
