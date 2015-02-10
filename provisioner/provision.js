@@ -713,6 +713,10 @@ var validB64Regex = /^[A-Za-z0-9+/=]*$/;
    workerType field */
 Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceType) {
   // NOTE: We should be doing the region overwrites here!
+
+  // These are the keys which are only applicable to a given region.
+  // We're going to make sure that none are set in the generic launchSpec
+  var regionSpecificKeys = ['ImageId'];
   var that = this;
   return new Promise(function(resolve, reject) {
     if (!workerType.allowedInstanceTypes[instanceType]) {
