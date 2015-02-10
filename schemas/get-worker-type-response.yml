@@ -42,12 +42,7 @@ properties:
   allowedInstanceTypes:
     type: object
   allowedRegions:
-    type: array
-    items:
-      type: string
-    description: |
-      An optional list of AWS Regions where this worker type is allowed to
-      run in.  This list is sorted such that index 0 is the first choice
+    type: object
 additionalProperties: false
 required:
   - workerType

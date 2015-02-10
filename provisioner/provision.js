@@ -33,12 +33,8 @@ var data = require('./data');
   16. Provisioner init method should take a config object not a base.config object
   17. provide metrics on how long it takes for spot request to be filled, etc
   18. need to provide per-region instance configuration -- i.e. ami id per region
-
-  To make this multiregion we should
-   1. pass in a regions list which is all allowed regions in all worker types
-   2. create a list of promises for each region
-   3. for each region, run the instance/spotreq queries
-   4. join everything together
+  19. need to figure out how to pick the correct size and number of instances. right now
+      we assume +5 change == +5 nodes of cheapest type
  */
 
 
@@ -152,8 +148,8 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   var pendingTasks;
   var workerTypes;
   var awsState;
-  var pricing;
   var runId = uuid.v4();
+  var pricing;
   var wtRunIds = [];
 
   debug('%s Beginning provisioning run %s', this.provisionerId, runId);
@@ -185,21 +181,24 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   p = p.then(function(res) {
-    pricing = res[0].SpotPriceHistory;
+    var regions = Object.keys(res[0]);
+    pricing = {};
+    // Get rid of the key we don't care about
+    regions.forEach(function(region) {
+      pricing[region] = res[0][region].SpotPriceHistory;
+    });
     debug('%s Fetched EC2 Pricing data', runId);
     debug('%s Killed these orphaned instances: %s', runId, res[1]);
-    return res; 
+    return Promise.resolve(); 
   });
-
 
   p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
       var wtRunId = uuid.v4();
       wtRunIds.push(wtRunId);
       debug('%s[%s] == %s worker', runId, workerType.workerType, wtRunId);
-      var workerState = awsState[workerType.workerType] || {};
       var pendingForWorker = pendingTasks[workerType.workerType] || 0;
-      return that.provisionType(wtRunId, workerType, workerState, pricing, pendingForWorker);
+      return that.provisionType(wtRunId, workerType, awsState, pricing, pendingForWorker);
     }));
   });
 
@@ -213,7 +212,6 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   return p;
 }
-
 
 /* Figure out what the current state is for AWS ec2 for
    managed image types.  This returns an object in the form:
@@ -230,7 +228,7 @@ Provisioner.prototype.fetchAwsState = function() {
   var that = this;
 
   var p = Promise.all([
-    this.ec2.describeInstances.inRegion('us-west-2', {
+    this.ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
         Values: [this.awsKeyPrefix + '*']
@@ -239,7 +237,7 @@ Provisioner.prototype.fetchAwsState = function() {
         Values: ['running', 'pending']
       }
     ]}),
-    this.ec2.describeSpotInstanceRequests.inRegion('us-west-2', {
+    this.ec2.describeSpotInstanceRequests({
       Filters: [{
         Name: 'launch.key-name',
         Values: [this.awsKeyPrefix + '*']
@@ -252,34 +250,36 @@ Provisioner.prototype.fetchAwsState = function() {
 
   p = p.then(function(res) {
     var allState = {};
-    res[0].Reservations.forEach(function(reservation) {
-      reservation.Instances.forEach(function(instance) {
-        var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
-        var instanceState = instance.State.Name;
-        
-        // Make sure we have the needed slots
-        if (!allState[workerType]) {
-          allState[workerType] = {};
-        }
-        if (!allState[workerType][instanceState]){
-          allState[workerType][instanceState] = [];
-        }
+    that.allowedAwsRegions.forEach(function(region) {
+      allState[region] = {};
+      res[0][region].Reservations.forEach(function(reservation) {
+        reservation.Instances.forEach(function(instance) {
+          var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
+          var instanceState = instance.State.Name;
+          
+          if (!allState[region][workerType]) {
+            allState[region][workerType] = {};
+          }
+          if (!allState[region][workerType][instanceState]){
+            allState[region][workerType][instanceState] = [];
+          }
 
-        allState[workerType][instanceState].push(instance);
+          allState[region][workerType][instanceState].push(instance);
+        });
       });
-    });
 
+      res[1][region].SpotInstanceRequests.forEach(function(request) {
+        var workerType = request.LaunchSpecification.KeyName.substr(that.awsKeyPrefix.length);
 
-    res[1].SpotInstanceRequests.forEach(function(request) {
-      var workerType = request.LaunchSpecification.KeyName.substr(that.awsKeyPrefix.length);
+        if (!allState[region][workerType]) {
+          allState[region][workerType] = {};
+        }
+        if (!allState[region][workerType]['requestedSpot']){
+          allState[region][workerType]['requestedSpot'] = [];
+        }
+        allState[region][workerType]['requestedSpot'].push(request);
 
-      if (!allState[workerType]) {
-        allState[workerType] = {};
-      }
-      if (!allState[workerType]['requestedSpot']){
-        allState[workerType]['requestedSpot'] = [];
-      }
-      allState[workerType]['requestedSpot'].push(request);
+      });
     });
 
     return Promise.resolve(allState);
@@ -295,28 +295,40 @@ Provisioner.prototype.fetchAwsState = function() {
 Provisioner.prototype.killOrphans = function(awsState, workerTypes) {
   var that = this;
 
-  var extant = Object.keys(awsState);
+  var p = Promise.all(this.allowedAwsRegions.map(function(region) {
+    return that.killOrphansInRegion(region, awsState[region], workerTypes);
+  }));
+  
+  return p;
+
+}
+
+/* Go through each region's state, find and kill orphans */
+Provisioner.prototype.killOrphansInRegion = function(awsRegion, awsRegionState, workerTypes) {
+  var that = this;
+
+  var extant = Object.keys(awsRegionState);
   var known = workerTypes.map(function(x) { return x.workerType });
   var orphans = extant.filter(function(x) { return known.indexOf(x) > 0 });
   var instances = [];
   var srs = [];
 
   orphans.forEach(function(name) {
-    Array.prototype.push.apply(instances, awsState[name].running.map(function(x) { return x.InstanceId; }));
-    Array.prototype.push.apply(instances, awsState[name].pending.map(function(x) { return x.InstanceId; }));
-    Array.prototype.push.apply(srs, awsState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
+    Array.prototype.push.apply(instances, awsRegionState[name].running.map(function(x) { return x.InstanceId; }));
+    Array.prototype.push.apply(instances, awsRegionState[name].pending.map(function(x) { return x.InstanceId; }));
+    Array.prototype.push.apply(srs, awsRegionState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
   });
 
   var killinators = [];
  
   if (instances.length > 0) {
-    killinators.push(this.ec2.terminateInstances.inRegion('us-west-2', {
+    killinators.push(this.ec2.terminateInstances.inRegion(awsRegion, {
       InstanceIds: instances,
     }));
   } 
 
   if (srs.length > 0) {
-    killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion('us-west-2', {
+    killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
       SpotInstanceRequestIds: srs,
     }));
   }
@@ -339,9 +351,14 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
 
   var capacity;
   var change;
+  var spotBids;
 
   var p = Promise.all([
-    this.countRunningCapacity(workerType, awsState, 'pending', 'running', 'requestedSpot'),
+    this.countRunningCapacity(
+      workerType,
+      awsState,
+      this.allowedAwsRegions,
+      ['pending', 'running', 'requestedSpot']),
     this.assertKeyPair(workerType.workerType),
   ]);
 
@@ -369,15 +386,27 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
   });
 
   p = p.then(function() {
-    if (change <= 0) {
+    return that.determineSpotBids(workerType, awsState, pricing, change);  
+  });
+
+  p = p.then(function(_spotBids) {
+    spotBids = _spotBids;
+    return _spotBids;
+  });
+
+  p = p.then(function() {
+    if (spotBids.length === 0) {
       debug('%s %s does not need more capacity', wtRunId, workerType.workerType);
-      return Promise.resolve([]);
+    } else {
+      spotBids.forEach(function(spotBid) {
+        debug('%s %s submitting spot request at %d for type %s in region %s',
+              wtrunId, workerType.workerType,
+              spotBid.spotPrice, spotBid.instanceType, spotBid.region);
+      });
     }
-    var spawners = [];
-    while (change--) {
-      spawners.push(that.spawnInstance(wtRunId, workerType, awsState, pricing));
-    }
-    return Promise.all(spawners);
+    return Promise.all(spotBids.map(function(spotBid) {
+      return that.spawnInstance(wtRunId, workerType, spotBid.region, spotBid.instanceType, spotBid.spotPrice);
+    }));
   });
   
   return p;
@@ -391,7 +420,7 @@ Provisioner.prototype.assertKeyPair = function(workerTypeName) {
   var that = this;
   var keyName = this.awsKeyPrefix + workerTypeName;
 
-  var p = this.ec2.describeKeyPairs.inRegion('us-west-2', {
+  var p = this.ec2.describeKeyPairs({
     Filters: [{
       Name: 'key-name',
       Values: [keyName]
@@ -399,18 +428,18 @@ Provisioner.prototype.assertKeyPair = function(workerTypeName) {
   });
 
   p = p.then(function(res) {
-    var matchingKey = res.KeyPairs[0];
+    var toCreate = [];
 
-    if (matchingKey) {
-      return Promise.resolve();
-    } else {
-      return that.ec2.importKeyPair.inRegion('us-west-2', {
-        KeyName: keyName,
-        PublicKeyMaterial: InstancePubKey,
-      }).then(function () {
-        return Promise.resolve();
-      });
-    }
+    that.allowedAwsRegions.forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (!matchingKey) {
+        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
+          KeyName: keyName,
+          PublicKeyMaterial: that.awsInstancePubKey,
+        }));
+      } 
+    });
+    return Promise.all(toCreate);
   });
 
   return p;
@@ -444,7 +473,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
 
-  var p = this.ec2.describeSpotPriceHistory.inRegion('us-west-2', {
+  var p = this.ec2.describeSpotPriceHistory({
     StartTime: startDate,
     Filters: [{
       Name: 'product-description',
@@ -457,8 +486,8 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
 };
 
 /* Count the amount of capacity that's running or pending */
-Provisioner.prototype.countRunningCapacity = function(workerType, awsState) {
-  var statesToInclude = Array.prototype.slice.call(arguments).slice(2);
+Provisioner.prototype.countRunningCapacity = function(workerType, awsState, regions, states) {
+  var that = this;
   // For now, let's assume that an existing node is occupied
   return new Promise(function(resolve, reject) {
     var capacity = 0;
@@ -471,23 +500,30 @@ Provisioner.prototype.countRunningCapacity = function(workerType, awsState) {
           'overwrites': {}
         }
        } */
+
     var capacities = {};
+    var instances = [];
+
     Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
       capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
     });
 
-    // We are including pending instances in this loop because we want to make
-    // sure that they aren't ignored and duplicated
-    var instances = [];
-    if (statesToInclude.indexOf('running') > 0) {
-      Array.prototype.push.apply(instances, awsState.running);
-    }
-    if (statesToInclude.indexOf('pending') > 0) {
-      Array.prototype.push.apply(instances, awsState.pending);
-    }
-    if (statesToInclude.indexOf('requestedSpot') > 0) {
-      Array.prototype.push.apply(instances, awsState.requestedSpot);
-    }
+    that.allowedAwsRegions.forEach(function(region) {
+      if (awsState[region][workerType.workerType]) {
+        var wtsr = awsState[region][workerType.workerType];
+        // We are including pending instances in this loop because we want to make
+        // sure that they aren't ignored and duplicated
+        if (states.indexOf('running') > 0 && wtsr.running) {
+          Array.prototype.push.apply(instances, wtsr.running);
+        }
+        if (states.indexOf('pending') > 0 && awsState[region].pending) {
+          Array.prototype.push.apply(instances, wtsr.pending);
+        }
+        if (states.indexOf('requestedSpot') > 0 && wtsr.requestedSpot) {
+          Array.prototype.push.apply(instances, wtsr.requestedSpot);
+        }
+      }
+    });
 
     instances.forEach(function(instance, idx, arr) {
       var potentialCapacity = capacities[instance.InstanceType];
@@ -508,25 +544,11 @@ Provisioner.prototype.countRunningCapacity = function(workerType, awsState) {
 }
 
 /* Create Machines! */
-Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pricing) {
+Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, instanceType, spotPrice) {
   var that = this;
-  var spotBid;
-  var instanceType;
   var launchSpec;
 
-  var p = that.determineSpotBid(workerType, awsState, pricing);
-
-  p = p.then(function(bidInfo) {
-    instanceType = bidInfo.instanceType;
-    spotBid = bidInfo.spotBid;
-    debug('%s %s will bid on %s instance for $%d',
-      wtRunId, workerType.workerType, instanceType, spotBid);
-    return bidInfo;
-  });
-
-  p = p.then(function() {
-    return that.createLaunchSpec(workerType, instanceType);
-  });
+  var p = that.createLaunchSpec(workerType, region, instanceType);
 
   p = p.then(function(_launchSpec) {
     debug('%s %s has a launch specification', wtRunId, workerType.workerType);
@@ -537,11 +559,11 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pr
 
   p = p.then(function() {
     debug('%s %s is creating spot request', wtRunId, workerType.workerType)
-    return that.ec2.requestSpotInstances.inRegion('us-west-2', {
+    return that.ec2.requestSpotInstances.inRegion(region, {
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchSpec,
-      SpotPrice: String(spotBid).toString(),
+      SpotPrice: String(spotPrice).toString(),
     });
   });
 
@@ -555,15 +577,68 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, awsState, pr
   return p;
 }
 
+/* Select region, instance type and spot bids based on the amount of capacity units needed.
+ * The region is picked randomly to distribute load but in future we could do smart things
+ * like say no region can use more than X% of instances.  We use the utility factor to
+ * determine which instance type to bid on.  Utility factor is a relative performance 
+ * indicator.  If we say that a large is worth 2 and a small is worth 1, we'll bid on
+ * smalls unless the price of a large is less than double that of a small.  Utility factors
+ * are currently hardcoded, but in the future we could do smart things like compare runtimes
+ * of things run on each instance type.  The spot bid is calcuated at the one in the price
+ * history multiplied by 1.3 to give a 30% buffer. */
+Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing, change) {
+  var that = this;
+  return new Promise(function(resolve, reject) {
+
+    var spotBids = [];
+    
+    while (change > 0) {
+      var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
+      var region = that.allowedAwsRegions[randomRegionIdx];
+      var ait = workerType.allowedInstanceTypes;
+
+      var cheapestType;
+      var cheapestPrice;
+      var spotBid;
+      var priceMap = {};
+
+      Object.keys(ait).forEach(function(potentialType) {
+        var potentialSpotBid = that.findPriceForType(pricing, region, potentialType);
+        // Like capacity we assume that if a utility factor is not available
+        // that we consider it to be the base (1)
+        var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
+        if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > workerType.maxSpotBid)) {
+          cheapestPrice = potentialPrice;
+          cheapestType = potentialType;
+          // We bid a little higher because we don't want the machine to end
+          // too soon
+          spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000
+        }
+      });
+
+      change -= ait[cheapestType].capacity;
+
+      spotBids.push({
+        region: region,
+        spotPrice: spotBid,
+        instanceType: cheapestType,
+      });
+    }
+
+    resolve(spotBids);
+
+  });
+}
+
 /* Given the pricing data, what's the average price for this instance type.
  * For now, we'll just pick the average of the most recent for each availability
  * zone.  In future we should do things like:
  *    - weight each AZ's price by how long it was the price
  *    - do other smart things
  */
-Provisioner.prototype.findPriceForType = function(pricing, type) {
+Provisioner.prototype.findPriceForType = function(pricing, region, type) {
   // This could probably be a single loop
-  var onlyThisType = pricing.filter(function(x) {
+  var onlyThisType = pricing[region].filter(function(x) {
     return x.InstanceType === type;
   });
   var azsSeen = [];
@@ -578,43 +653,6 @@ Provisioner.prototype.findPriceForType = function(pricing, type) {
   return sum / azsSeen.length;
 }
 
-/* Decide based on the utility factor which EC2 instance type we should be
- * creating.  Right now, we just pick the first one in the Object.keys list of
- * instanceTypes allowed for a workerType.  In the future the goal is to pick
- * the lowest of instanceType * instanceTypePrice.  The plan is to not pick
- * all instance to be exactly the same type.  Maybe we'll have a schema key
- * which specifies max percentage or something like that.  We return
- * an object which has the spot bid to use and the type of instance.
- * The spotbid is the best instance type's average spot price multiplied
- * by 1.3 (30% more than what it is right now)*/
-Provisioner.prototype.determineSpotBid = function(workerType, awsState, pricing) {
-  var ait = workerType.allowedInstanceTypes; // shorthand!  
-  var that = this;
-  
-  return new Promise(function(resolve, reject) {
-    var cheapestType;
-    var cheapestPrice;
-    var spotBid;
-    var priceMap = {};
-
-    Object.keys(ait).forEach(function(potentialType) {
-      var potentialSpotBid = that.findPriceForType(pricing, potentialType);
-      // Like capacity we assume that if a utility factor is not available
-      // that we consider it to be the base (1)
-      var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
-      if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > workerType.maxSpotBid)) {
-        cheapestPrice = potentialPrice;
-        cheapestType = potentialType;
-        // We bid a little higher because we don't want the machine to end
-        // too soon
-        spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000
-        
-      }
-    });
-
-    resolve({spotBid: spotBid, instanceType: cheapestType});
-  });
-}
 
 /* Kill machines when we have more than the maximum allowed */
 Provisioner.prototype.killExcess = function(workerType, awsState) {
@@ -623,7 +661,7 @@ Provisioner.prototype.killExcess = function(workerType, awsState) {
   // because some of the oldest machines might end before spot requests are
   // fulfilled.  In that case, we don't want to cancel a spot request until
   // it's actually converted into an instance and is costing money
-  var p = this.countRunningCapacity(workerType, awsState, 'running', 'pending');
+  var p = this.countRunningCapacity(workerType, awsState, this.allowedAwsRegions, ['running', 'pending']);
 
   p = p.then(function(capacity) {
     if (capacity < workerType.maxInstances) {
@@ -673,7 +711,12 @@ var validB64Regex = /^[A-Za-z0-9+/=]*$/;
 /* Create a launch spec with values overwritten for a given aws instance type.
    the instanceTypeParam is the overwrites object from the allowedInstances
    workerType field */
-Provisioner.prototype.createLaunchSpec = function(workerType, instanceType) {
+Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceType) {
+  // NOTE: We should be doing the region overwrites here!
+
+  // These are the keys which are only applicable to a given region.
+  // We're going to make sure that none are set in the generic launchSpec
+  var regionSpecificKeys = ['ImageId'];
   var that = this;
   return new Promise(function(resolve, reject) {
     if (!workerType.allowedInstanceTypes[instanceType]) {
