@@ -1,6 +1,16 @@
 module.exports = {
   provisioner: {
-    workerTypeTableName:  'TestProvisioner',
-    statsComponent: 'provisioner-tests',
+    id:                   'aws-provisioner2-test',
+    workerTypeTableName:  'AwsWorkerTypesTest',
+    publishMetaData:      'false',
+    statsComponent:       'aws-provisioner2-test',
+    awsKeyPrefix:         'aws-provisioner2-test-managed:',
+  },
+  server: {
+    publicUrl:  'https://aws-provisioner2-test.herokuapp.com',
+    port:       5556,
+    env:        'development',
+    forceSSL:   false,
+    trustProxy: false,
   },
 };

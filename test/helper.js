@@ -11,7 +11,7 @@ var taskcluster = require('taskcluster-client');
 var cfg = base.config({
   defaults:     require('../config/defaults'),
   profile:      require('../config/test'),
-  filename:     'taskcluster-aws-provisioner'
+  filename:         'test-config'
 });
 
 /** Return a promise that sleeps for `delay` ms before resolving */
@@ -35,7 +35,6 @@ exports.setup = function(options) {
 
   // Skip tests if no AWS credentials is configured
   if (!cfg.get('azure:accountKey') ||
-      !cfg.get('taskcluster:credentials:accessToken') ||
       !cfg.get('influx:connectionString')) {
     console.log("Skip tests for " + options.title +
                 " due to missing credentials!");
@@ -92,7 +91,6 @@ exports.setup = function(options) {
       subject.AwsProvisioner = taskcluster.createClient(reference);
       subject.awsProvisioner = new subject.AwsProvisioner({
         baseUrl:          baseUrl,
-        credentials:      cfg.get('taskcluster:credentials')
       });
 
       subject.badCred = new subject.AwsProvisioner({
@@ -100,14 +98,6 @@ exports.setup = function(options) {
         credentials: {clientId: 'c', accessToken: 'a'}
       });
 
-      /*
-      // Create client for binding to reference
-      var exchangeReference = exchanges.reference({
-        exchangePrefix:   cfg.get('auth:exchangePrefix')
-      });
-      subject.AuthEvents = taskcluster.createClient(exchangeReference);
-      subject.authEvents = new subject.AuthEvents();
-      */
     });
   });
 

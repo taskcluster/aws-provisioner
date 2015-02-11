@@ -47,22 +47,6 @@ var api = new base.API({
 // Export api
 module.exports = api;
 
-function workerTypeForReply(workerType, worker) {
-  return {
-    workerType: workerType,
-    launchSpecification: worker.launchSpecification,
-    minInstances: worker.minInstances,
-    maxInstances: worker.maxInstances,
-    scalingRatio: worker.scalingRatio,
-    minSpotBid: worker.minSpotBid,
-    maxSpotBid: worker.maxSpotBid,
-    canUseOndemand: worker.canUseOndemand,
-    canUseSpot: worker.canUseSpot,
-    allowedInstanceTypes: worker.allowedInstanceTypes,
-    allowedRegions: worker.allowedRegions,
-  }
-}
-
 // Create workerType
 api.declare({
   method:         'put',
@@ -102,66 +86,58 @@ function(req, res) {
 
   // Create workerType
 
-  return ctx.WorkerType.create({
-    workerType: workerType,
-    version: 1,
-    launchSpecification: input.launchSpecification,
-    scalingRatio: input.scalingRatio,
-    maxInstances: input.maxInstances,
-    minSpotBid: input.minSpotBid,
-    maxSpotBid: input.maxSpotBid,
-    minInstances: input.minInstances,
-    canUseOndemand: input.canUseOndemand,
-    canUseSpot: input.canUseSpot,
-    allowedInstanceTypes: input.allowedInstanceTypes,
-    allowedRegions: input.allowedRegions,
-  }).then(
-    function() {
-      // TODO: Should we be handling publish failures?
-      return ctx.publisher.workerTypeCreated({
-        workerType: workerType,
-      })
-    }).then(
-    function() {
-      // Send a reply (always use res.reply), only use
-      return ctx.WorkerType.load(workerType).then(function(worker) {
-        return res.reply(workerTypeForReply(workerType, worker));
-      }, function(err) {
-        if (err.code === 'ResourceNotFound') {
-          return res.status(404).json({
-            message: "Worker Type Not Found"
-          });
-        }
-        throw err;
-      });
-    },
-    function(err) {
-      // Check that the code matches something you expected
-      if (err && err.code === 'EntityAlreadyExists') {
-        debug("createWorkerType failed, as '%s' already exists", workerType);
-        // This is how we return error messages, there is no formal way to this
-        // yet... We probably should add something res.reportError(code, {...}),
-        // But generally speaking we always want a "message" property, and all
-        // the other stuff we're willing to return we stuff into "error".
-        // Note, we do not return custom 500 errors.
-        return res.status(409).json({
-          message:          "Conflict: workerType already exists!",
-          error: {
-            workerType:     workerType,
-            reason:         'already-exists'
-          }
+  var p = ctx.WorkerType.create(workerType, input)
+  
+  p = p.then(function() {
+    // TODO: Should we be handling publish failures?
+    return ctx.publisher.workerTypeCreated({
+      workerType: workerType,
+    })
+  });
+
+  p = p.then(function() {
+    // Send a reply (always use res.reply), only use
+    return ctx.WorkerType.loadForReply(workerType).then(function(worker) {
+      return res.reply(worker);
+    }, function(err) {
+      if (err.code === 'ResourceNotFound') {
+        return res.status(404).json({
+          message: "Worker Type Not Found"
         });
       }
-
-      // If not handled above, rethrow, which will cause a 500 internal error
-      // Note, for 500 errors we return a generic message and a uuid that can
-      // be looked up in server logs. This way we don't expose sensitive
-      // information... Throwing an error in a promise returned in the handler
-      // will cause a 500, so rethrow here is perfect.
-      // Notice that I did do, return res.status(409)... above, so if handled
-      // the program won't go here.
       throw err;
-    })
+    });
+  });
+
+  p = p.catch(function(err) {
+    // Check that the code matches something you expected
+    if (err && err.code === 'EntityAlreadyExists') {
+      debug("createWorkerType failed, as '%s' already exists", workerType);
+      // This is how we return error messages, there is no formal way to this
+      // yet... We probably should add something res.reportError(code, {...}),
+      // But generally speaking we always want a "message" property, and all
+      // the other stuff we're willing to return we stuff into "error".
+      // Note, we do not return custom 500 errors.
+      return res.status(409).json({
+        message:          "Conflict: workerType already exists!",
+        error: {
+          workerType:     workerType,
+          reason:         'already-exists'
+        }
+      });
+    }
+
+    // If not handled above, rethrow, which will cause a 500 internal error
+    // Note, for 500 errors we return a generic message and a uuid that can
+    // be looked up in server logs. This way we don't expose sensitive
+    // information... Throwing an error in a promise returned in the handler
+    // will cause a 500, so rethrow here is perfect.
+    // Notice that I did do, return res.status(409)... above, so if handled
+    // the program won't go here.
+    throw err;
+  });
+
+  return p;
 });
 
 // Update workerType
@@ -213,7 +189,7 @@ api.declare({
       function() {
         // Send a reply (always use res.reply), only use
         return ctx.WorkerType.load(workerType).then(function(worker) {
-          return res.reply(workerTypeForReply(workerType, worker));
+          return res.reply(worker);
         }, function(err) {
           if (err.code === 'ResourceNotFound') {
             return res.status(404).json({
@@ -259,7 +235,7 @@ api.declare({
   }
 
   return ctx.WorkerType.load(workerType).then(function(worker) {
-    return res.reply(workerTypeForReply(workerType, worker));
+    return res.reply(worker);
   }, function(err) {
     if (err.code === 'ResourceNotFound') {
       return res.status(404).json({
