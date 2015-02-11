@@ -377,14 +377,14 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
 
   p = p.then(function () {
     change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
-    if (capacity + change > workerType.maxInstances) {
+    if (capacity + change > workerType.maxCapacity) {
       debug('%s %s a change of %d would exceed max of %d', wtRunId,
-          workerType.workerType, change, workerType.maxInstances);
-      change = capacity - workerType.maxInstances;
-    } else if (capacity + change < workerType.minInstances) {
+          workerType.workerType, change, workerType.maxCapacity);
+      change = capacity - workerType.maxCapacity;
+    } else if (capacity + change < workerType.minCapacity) {
       debug('%s %s a change of %d would be less than min of %d', wtRunId,
-          workerType.workerType, change, workerType.minInstances);
-      change = workerType.minInstances - capacity;
+          workerType.workerType, change, workerType.minCapacity);
+      change = workerType.minCapacity - capacity;
     }
     debug('%s %s submitting request for %d more capacity units',
         wtRunId, workerType.workerType, change);
@@ -469,7 +469,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
 */
   var types = [];
   workerTypes.forEach(function(workerType) {
-    var newTypes = Object.keys(workerType.allowedInstanceTypes).filter(function(type) {
+    var newTypes = Object.keys(workerType.types).filter(function(type) {
       return types.indexOf(type) === -1;
     });
     Array.prototype.push.apply(types, newTypes);
@@ -513,7 +513,7 @@ Provisioner.prototype.countRunningCapacity = function(workerType, awsState, regi
   return new Promise(function(resolve, reject) {
     var capacity = 0;
 
-    /* Remember that the allowedInstanceTypes is like this:
+    /* Remember that the workerType.types is like this:
        { 
         'instance-type': {
           'capacity': 3,
@@ -525,8 +525,8 @@ Provisioner.prototype.countRunningCapacity = function(workerType, awsState, regi
     var capacities = {};
     var instances = [];
 
-    Object.keys(workerType.allowedInstanceTypes).forEach(function(type) {
-      capacities[type] = workerType.allowedInstanceTypes[type].capacity;   
+    Object.keys(workerType.types).forEach(function(type) {
+      capacities[type] = workerType.types[type].capacity;   
     });
 
     that.allowedAwsRegions.forEach(function(region) {
@@ -622,7 +622,7 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
       var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
       var region = that.allowedAwsRegions[randomRegionIdx];
 
-      var ait = workerType.allowedInstanceTypes;
+      var ait = workerType.types;
 
       var cheapestType;
       var cheapestPrice;
@@ -691,10 +691,10 @@ Provisioner.prototype.killExcess = function(workerType, awsState) {
   var p = this.countRunningCapacity(workerType, awsState, this.allowedAwsRegions, ['running', 'pending']);
 
   p = p.then(function(capacity) {
-    if (capacity < workerType.maxInstances) {
+    if (capacity < workerType.maxCapacity) {
       return Promise.resolve();
     } else {
-      return Promise.resolve(capacity - workerType.maxInstances);
+      return Promise.resolve(capacity - workerType.maxCapacity);
     }
   });
 
@@ -744,13 +744,13 @@ Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceTy
   var regionSpecificKeys = ['ImageId'];
   var that = this;
   return new Promise(function(resolve, reject) {
-    if (!workerType.allowedInstanceTypes[instanceType]) {
+    if (!workerType.types[instanceType]) {
       reject(new Error(util.format('%s only allows [%s] instances, not %s',
             workerType.workerType,
-            Object.keys(workerType.allowedInstanceTypes).join(', '),
+            Object.keys(workerType.types).join(', '),
             instanceType)));
     }
-    var actual = lodash.clone(workerType.allowedInstanceTypes[instanceType].overwrites);
+    var actual = lodash.clone(workerType.types[instanceType].overwrites);
     var newSpec = lodash.defaults(actual, workerType.launchSpecification);
     if (!validB64Regex.exec(newSpec.UserData)) {
       reject(new Error(util.format('Launch specification does not contain Base64: %s', newSpec.UserData)));
@@ -758,7 +758,7 @@ Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceTy
     newSpec.KeyName = that.awsKeyPrefix + workerType.workerType;
     newSpec.InstanceType = instanceType;
     regionSpecificKeys.forEach(function(key) {
-      newSpec[key] = workerType.allowedRegions[region].overwrites[key];
+      newSpec[key] = workerType.regions[region].overwrites[key];
     });
 
     debug(newSpec);
