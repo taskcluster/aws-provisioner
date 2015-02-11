@@ -27,8 +27,8 @@ var WorkerType = base.Entity.configure({
 
     // Store the maximum number of combined instances This is global max, so
     // across all instance types
-    { key: 'minInstances', type: 'number'},
-    { key: 'maxInstances', type: 'number'},
+    { key: 'minCapacity', type: 'number'},
+    { key: 'maxCapacity', type: 'number'},
 
     // A scaling ratio of 1.1 means that we don't start spawning new machines
     // until 10% of our capacity is pending.  A scaling ratio of 0.9 means that
@@ -48,11 +48,11 @@ var WorkerType = base.Entity.configure({
     
     // A list of ordered instance types allowed for this worker
     // This JSON is just a list
-    { key: 'allowedInstanceTypes', type: 'json'},
+    { key: 'types', type: 'json'},
 
     // A list of regions allowed for this worker type
     // This JSON is just a list
-    { key: 'allowedRegions', type: 'json'},
+    { key: 'regions', type: 'json'},
 
   ]
 });
@@ -65,14 +65,23 @@ var MANDATORY_ENTITIES = [
 ];
 
 /** Create a worker type */
-WorkerType.create = function(properties) {
+WorkerType.create = function(workerType, properties) {
   properties.RowKey = ROW_KEY_CONST;
+  properties.workerType = workerType;
+  properties.version = 1;
   return base.Entity.create.call(this, properties);
 };
 
 /** Load worker from worker type */
 WorkerType.load = function(workerType) {
   return base.Entity.load.call(this, workerType, ROW_KEY_CONST);
+};
+
+/** Prepare a workerType for display */
+WorkerType.loadForReply = function(workerType) {
+  var worker = this.load(workerType);
+  worker[workerType] = workerType;
+  return worker;
 };
 
 /** Load all worker types */

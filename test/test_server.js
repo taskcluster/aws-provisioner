@@ -7,9 +7,17 @@ describe('provisioner api server', function() {
   var should = require('should');
   var _ = require('lodash');
   var data = require('../provisioner/data.js');
+  var fs = require('fs');
 
   var subject = helper.setup({title: "api-tests"});
 
+
+  var wDefinition = JSON.parse(fs.readFileSync(__dirname + '/sampleWorkerType.json'));
+
+  var wDefinitionForCreate = _.clone(wDefinition);
+  delete wDefinitionForCreate['workerType'];
+
+  /*
   var wDefinition = {
     "launchSpecification": {
       "ImageId": "ami-fd2b60cd",
@@ -29,6 +37,7 @@ describe('provisioner api server', function() {
     "allowedInstanceTypes": ["john"],
     "allowedRegions": ["us-west-2"]
   } 
+  */
 
   it('should respond to ping', function() {
     return subject.awsProvisioner.ping();
@@ -86,11 +95,11 @@ describe('provisioner api server', function() {
       var wName = slugid.v4();
 
       // Expected object before modification
-      var expectedBefore = _.clone(wDefinition, true);
+      var expectedBefore = _.clone(wDefinitionForCreate, true);
       expectedBefore.workerType = wName;
 
       // Expected object after modification
-      var expectedAfter = _.clone(wDefinition, true);
+      var expectedAfter = _.clone(wDefinitionForCreate, true);
       expectedAfter.workerType = wName;
       expectedAfter.scalingRatio = 2;
 
@@ -98,7 +107,7 @@ describe('provisioner api server', function() {
       var mod = _.clone(wDefinition, true);
       mod.scalingRatio = 2;
         
-      return subject.awsProvisioner.createWorkerType(wName, wDefinition)
+      return subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate)
         .then(function(result) {
           // TODO: Make sure it publishes to pulse
           result.should.eql(expectedBefore);
