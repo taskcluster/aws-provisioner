@@ -98,7 +98,7 @@ additionalProperties: false
 required:
   - workerType
   - launchSpecification
-  - maxInstances
+  - maxCapacity
   - scalingRatio
   - minSpotBid
   - maxSpotBid

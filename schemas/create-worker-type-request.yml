@@ -93,7 +93,7 @@ properties:
 additionalProperties: false
 required:
   - launchSpecification
-  - maxInstances
+  - maxCapacity
   - scalingRatio
   - minSpotBid
   - maxSpotBid
