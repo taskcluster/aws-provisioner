@@ -46,9 +46,12 @@ var launch = function(profile) {
   });
 
   // Configure WorkerType entities
-  var WorkerType = data.WorkerType.configure({
-    tableName:        cfg.get('provisioner:workerTypeTableName'),
-    credentials:      cfg.get('azure')
+  var WorkerType = data.WorkerType.setup({
+    table: cfg.get('provisioner:workerTypeTableName'),
+    credentials: cfg.get('azure'),
+    //account: cfg.get('azure:accountName'),
+    //credentials: cfg.get('taskcluster:credentials'),
+    //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
   });
 
   // Setup Pulse exchanges and create a publisher
@@ -87,7 +90,7 @@ var launch = function(profile) {
   // When: publisher, schema and validator is created, proceed
   return Promise.all([
     publisherCreated,
-    WorkerType.createTable(),
+    WorkerType.ensureTable(),
   ]).then(function() {
     // Create API router and publish reference if needed
     return v1.setup({

@@ -4,102 +4,97 @@ var Promise     = require('promise');
 var _           = require('lodash');
 var debug = require('debug')('aws-provisioner:provisioner:data');
 
-var ROW_KEY_CONST = 'worker-type';
+var KEY_CONST = 'worker-type';
 
 /** Entities for persisting WorkerType */
 var WorkerType = base.Entity.configure({
-  mapping: [
-    {
-      key:                'PartitionKey',
-      property:           'workerType',
-      type:               'keystring'
-    }, {
-      // This is always hardcoded to 'worker-type', as we don't have any sane
-      // value for this key
-      key:              'RowKey',
-      type:             'string',
-      hidden:           true
-    },
-    { key: 'version', type: 'number'},
-
-    // Store worker specific information
-    { key: 'launchSpecification', type: 'json'},
-
-    // Store the maximum number of combined instances This is global max, so
-    // across all instance types
-    { key: 'minCapacity', type: 'number'},
-    { key: 'maxCapacity', type: 'number'},
-
-    // A scaling ratio of 1.1 means that we don't start spawning new machines
-    // until 10% of our capacity is pending.  A scaling ratio of 0.9 means that
-    // we spawn enough machines that we always have 10% empty capacity.
-    // DEFAULT: 1
-    { key: 'scalingRatio', type: 'number'},
-
-    // What are our minimum and maximum spot bids in dollars?
-    { key: 'minSpotBid', type: 'number'},
-    { key: 'maxSpotBid', type: 'number'},
-
-    // Can we use ondemand, just 'true' or 'false'
-    { key: 'canUseOndemand', type: 'json'},
-    
-    // Can we use spot, just 'true' or 'false'
-    { key: 'canUseSpot', type: 'json'},
-    
-    // A list of ordered instance types allowed for this worker
-    // This JSON is just a list
-    { key: 'types', type: 'json'},
-
-    // A list of regions allowed for this worker type
-    // This JSON is just a list
-    { key: 'regions', type: 'json'},
-
-  ]
+  version: 1,
+  partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
+  rowKey: base.Entity.keys.StringKey('workerType'),
+  properties: {
+    workerType: base.Entity.types.String,
+    launchSpecification: base.Entity.types.JSON,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minSpotBid: base.Entity.types.Number,
+    maxSpotBid: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON,
+    canUseSpot: base.Entity.types.JSON,
+    types: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+  }
 });
-
-// RowKey constant, used as we don't need a RowKey
-var ROW_KEY_CONST = 'worker-type';
-
-var MANDATORY_ENTITIES = [
-  
-];
 
 /** Create a worker type */
 WorkerType.create = function(workerType, properties) {
-  properties.RowKey = ROW_KEY_CONST;
+  //properties.RowKey = KEY_CONST;
   properties.workerType = workerType;
-  properties.version = 1;
   return base.Entity.create.call(this, properties);
 };
 
 /** Load worker from worker type */
 WorkerType.load = function(workerType) {
-  return base.Entity.load.call(this, workerType, ROW_KEY_CONST);
+  return base.Entity.load.call(this, {
+    workerType: workerType
+  });
 };
 
 /** Prepare a workerType for display */
 WorkerType.loadForReply = function(workerType) {
-  var worker = this.load(workerType);
-  worker[workerType] = workerType;
-  return worker;
-};
+  var p = this.load(workerType);
 
-/** Load all worker types */
-WorkerType.loadAll = function() {
-  return base.Entity.queryRowKey.call(this, ROW_KEY_CONST);
-};
-
-WorkerType.loadAllNames = function() {
-  return base.Entity.queryRowKey.call(this, ROW_KEY_CONST).then(function(result) {
-    return result.map(function(i) { 
-      return i.workerType;
-    });
+  p = p.then(function(worker) {
+    var forReply = _.clone(worker.__properties);
+    forReply.workerType = workerType;
+    return forReply
   });
+
+  return p;
+};
+
+/** Load all worker types.  Note that this
+ * This method only returns the __properties
+ * from base.Entity.scan */
+WorkerType.loadAll = function() {
+  var workers = [];
+
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      workers.push(item.__properties);
+    }
+  });
+
+  p = p.then(function() {
+    return workers;
+  });
+
+  return p;
+};
+
+/** Load all workerTypes.  This won't scale perfectly, but
+ *  we don't see there being a huge number of these upfront */
+WorkerType.loadAllNames = function() {
+  var names = [];
+
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      names.push(item.workerType);
+    }
+  });
+
+  p = p.then(function() {
+    return names;
+  });
+
+  return p;
 };
 
 /** Remove worker type with given workertype */
 WorkerType.remove = function(workerType) {
-  return base.Entity.remove.call(this, workerType, ROW_KEY_CONST);
+  return base.Entity.remove.call(this, {
+    workerType: workerType
+  });
 };
 
 // Export WorkerType

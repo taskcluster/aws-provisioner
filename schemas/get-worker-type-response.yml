@@ -1,5 +1,4 @@
----
-id:       http://schemas.taskcluster.net/aws-provisioner/v1/get-worker-type-request.json#
+id:       http://schemas.taskcluster.net/aws-provisioner/v1/get-worker-type-response.json#
 $schema:  http://json-schema.org/draft-04/schema#
 title:                      "Get Worker Type Request"
 description: |

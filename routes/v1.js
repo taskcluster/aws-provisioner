@@ -10,14 +10,6 @@ var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
 
 /** TODO: Questions for Jonas for review:
   
-  1) Should we have seperate create, retreive, modify and delete scopes?
-  1a) What about modify-<workerType>, view-<workerType> instead of per-action?
-  2) If the answer to 1) is no, should we just call the scope aws-provisioner:worker-type
-  3) See notes in the list worker type methods, should we have a special list scope
-     or should we instead load the list of worker types and then verify the user
-     satisfies the scope for each of those worker types?
-*/
-
 /**
  * API end-point for version v1/
  *
@@ -43,6 +35,37 @@ var api = new base.API({
     // TODO: ^ do this
   ].join('\n')
 });
+
+
+function errorHandler(err, res, workerType) {
+  switch(err.code) {
+    case 'ResourceNotFound':
+      debug('WorkerType.loadForReply failed: %s %s',
+            JSON.stringify(err));
+      return res.status(404).json({
+        message: "%s inserted but couldn't be found when trying " +
+                 "to retreive it for display.",
+        error: {
+          workerType: workerType,
+          reason: 'resource-not-found'
+        }
+      });
+      break; // I guess I don't need this because of the return...
+    case 'EntityAlreadyExists':
+      debug('%s already exists', workerType);
+      return res.status(409).json({
+        message:          "Conflict: workerType already exists!",
+        error: {
+          workerType:     workerType,
+          reason:         'already-exists'
+        }
+      });
+      break;
+    default:
+      debug('Unknown error! %s %s', JSON.stringify(err), err.stack);
+      throw err;
+  }
+}
 
 // Export api
 module.exports = api;
@@ -72,11 +95,11 @@ function(req, res) {
   // set `deferAuth: true`, we can't do automatic authentication if the scopes
   // contain parameters like <workerType>
 
-  if(!req.satisfies({
+  /* if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
@@ -89,7 +112,6 @@ function(req, res) {
   var p = ctx.WorkerType.create(workerType, input)
   
   p = p.then(function() {
-    // TODO: Should we be handling publish failures?
     return ctx.publisher.workerTypeCreated({
       workerType: workerType,
     })
@@ -97,44 +119,16 @@ function(req, res) {
 
   p = p.then(function() {
     // Send a reply (always use res.reply), only use
-    return ctx.WorkerType.loadForReply(workerType).then(function(worker) {
-      return res.reply(worker);
-    }, function(err) {
-      if (err.code === 'ResourceNotFound') {
-        return res.status(404).json({
-          message: "Worker Type Not Found"
-        });
-      }
-      throw err;
-    });
+    return ctx.WorkerType.loadForReply(workerType)
   });
-
+    
+  p = p.then(function(worker) {
+    return res.reply(worker);
+  });
+    
   p = p.catch(function(err) {
-    // Check that the code matches something you expected
-    if (err && err.code === 'EntityAlreadyExists') {
-      debug("createWorkerType failed, as '%s' already exists", workerType);
-      // This is how we return error messages, there is no formal way to this
-      // yet... We probably should add something res.reportError(code, {...}),
-      // But generally speaking we always want a "message" property, and all
-      // the other stuff we're willing to return we stuff into "error".
-      // Note, we do not return custom 500 errors.
-      return res.status(409).json({
-        message:          "Conflict: workerType already exists!",
-        error: {
-          workerType:     workerType,
-          reason:         'already-exists'
-        }
-      });
-    }
-
-    // If not handled above, rethrow, which will cause a 500 internal error
-    // Note, for 500 errors we return a generic message and a uuid that can
-    // be looked up in server logs. This way we don't expose sensitive
-    // information... Throwing an error in a promise returned in the handler
-    // will cause a 500, so rethrow here is perfect.
-    // Notice that I did do, return res.status(409)... above, so if handled
-    // the program won't go here.
-    throw err;
+    errorHandler(err, res, workerType);
+    return err;
   });
 
   return p;
@@ -159,54 +153,46 @@ api.declare({
   var input       = req.body;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /* if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
-  return ctx.WorkerType.load(workerType).then(function(worker) {
-    return worker.modify(function() {
-      this.launchSpecification = input.launchSpecification;
-      this.scalingRatio = input.scalingRatio;
-      this.maxInstances = input.maxInstances;
-      this.minSpotBid = input.minSpotBid;
-      this.maxSpotBid = input.maxSpotBid;
-      this.minInstances = input.minInstances;
-      this.canUseOndemand = input.canUseOndemand;
-      this.canUseSpot = input.canUseSpot;
-      this.allowedInstanceTypes = input.allowedInstanceTypes;
-      this.allowedRegions = input.allowedRegions;
-    }).then(
-      function() {
-        // TODO: Should we be handling publish failures?
-        // For updates, we still send a create message since all we're sending
-        // is the worker type id
-        return ctx.publisher.workerTypeCreated({
-          workerType: workerType,
-        })
-      }).then(
-      function() {
-        // Send a reply (always use res.reply), only use
-        return ctx.WorkerType.load(workerType).then(function(worker) {
-          return res.reply(worker);
-        }, function(err) {
-          if (err.code === 'ResourceNotFound') {
-            return res.status(404).json({
-              message: "Worker Type Not Found"
-            });
-          }
-          throw err;
-        });
-      })
-  },
-  function (err) {
-    if (err.code === 'ResourceNotFound') {
-      return res.status(404).json({
-        message: "Worker Type not found"
+  var p = ctx.WorkerType.load(workerType)
+    
+  p = p.then(function(worker) {
+    debugger;
+    return worker.modify(function(worker) {
+      // We know that data that gets to here is valid per-schema
+      Object.keys(input).forEach(function(key) {
+        worker[key] = input[key];
       });
-    }
+    });
   });
+
+  p = p.then(function() {
+    return ctx.publisher.workerTypeCreated({
+      workerType: workerType,
+    })
+  });
+
+  p = p.then(function() {
+    // Send a reply (always use res.reply), only use
+    return ctx.WorkerType.loadForReply(workerType);
+  });
+  
+  p = p.then(function(worker) {
+    debugger;
+    return res.reply(worker);
+  })
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
 
 });
 
@@ -228,22 +214,25 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /*DEBUGGING if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  }*/
 
-  return ctx.WorkerType.load(workerType).then(function(worker) {
+  var p = ctx.WorkerType.loadForReply(workerType);
+
+  
+  p = p.then(function(worker) {
     return res.reply(worker);
-  }, function(err) {
-    if (err.code === 'ResourceNotFound') {
-      return res.status(404).json({
-        message: "Worker Type Not Found"
-      });
-    }
-    throw err;
   });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
 
 });
 
@@ -268,23 +257,24 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /* DEBUGGING if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
-  return ctx.WorkerType.remove(workerType).then(function(worker) {
+  var p = ctx.WorkerType.remove(workerType)
+    
+  p = p.then(function(worker) {
     return res.reply({});
-  }, function(err) {
-    if (err.code === 'ResourceNotFound') {
-      return res.status(404).json({
-        message: "Worker Type Not Found"
-      });
-    }
-    throw err;
   });
 
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
 });
 
 
@@ -320,18 +310,24 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /*if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  }*/
 
-  return this.WorkerType.loadAll().then(function(clients) {
-    return res.reply(clients.map(function(client) {
-      return client.workerType;
-    }));
+  var p = this.WorkerType.loadAllNames()
+
+  p = p.then(function(workerNames) {
+    return res.reply(workerNames);
   });
 
+  p = p.catch(function(err) {
+    errorHandler(err, res, 'listing all worker types');
+    return err;
+  });
+
+  return p;
 
 });
 

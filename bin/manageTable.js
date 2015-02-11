@@ -24,15 +24,15 @@ var cfg = base.config({
 });
 var tableName = cfg.get('provisioner:workerTypeTableName');
 var credentials = cfg.get('azure');
-var WorkerType = data.WorkerType.configure({
-  tableName:        tableName,
+var WorkerType = data.WorkerType.setup({
+  table:            tableName,
   credentials:      credentials,
 });
 
 debug('Operating on %s', tableName);
 
 if (action === 'create') {
-  WorkerType.createTable().then(function(x) {
+  WorkerType.ensureTable().then(function(x) {
     console.log('Table Created');
     debug(x);
   }).catch(function(x) { 
@@ -46,7 +46,7 @@ if (action === 'create') {
     }
   }).done();
 } else if (action === 'delete') {
-  WorkerType.deleteTable().then(function(x) {
+  WorkerType.removeTable().then(function(x) {
     console.log('Table Deleted'); 
   }).catch(function(x) {
     if (x.statusCode === 404) {

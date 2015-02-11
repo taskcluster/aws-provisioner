@@ -56,7 +56,7 @@ describe('provisioner api server', function() {
         }
       );
     });
-    it('should cause failure when creating', function () {
+    it('should cause failure when updating', function () {
       var wName = 'createBadInput';
       return subject.awsProvisioner
         .updateWorkerType(wName, {bad: 'worker'})
@@ -68,7 +68,6 @@ describe('provisioner api server', function() {
         }
       );
     });
-
     it('should fail when workertype is not found', function() {
       return subject.awsProvisioner.workerType('akdsfjlaksdjfl')
         .then(function() { throw new Error('should have failed'); },
@@ -90,7 +89,7 @@ describe('provisioner api server', function() {
   })
     
   describe('be able to create, fetch, update and delete a worker type', function() {
-    it('should update the worker', function () {
+    it('should work', function () {
 
       var wName = slugid.v4();
 
@@ -104,33 +103,46 @@ describe('provisioner api server', function() {
       expectedAfter.scalingRatio = 2;
 
       // Object to submit as the modification
-      var mod = _.clone(wDefinition, true);
+      var mod = _.clone(wDefinitionForCreate, true);
       mod.scalingRatio = 2;
         
-      return subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate)
-        .then(function(result) {
-          // TODO: Make sure it publishes to pulse
-          result.should.eql(expectedBefore);
-          return result;
+      var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
 
-        }).then(function() {
-          return subject.awsProvisioner.updateWorkerType(wName, mod)
-            .then(function(result) {
-              // TODO: Make sure it publishes to pulse
-              result.should.eql(expectedAfter);
-              return result;
-            });
-        }).then(function() {
-          return subject.awsProvisioner.workerType(wName)
-            .then(function(result) {
-              result.should.eql(expectedAfter);
-            });
-        }).then(function() {
-          return subject.awsProvisioner.removeWorkerType(wName)
-            .then(function(result) {
-              result.should.eql({});
-            })
-        });
+      p = p.then(function(result) {
+        // TODO: Make sure it publishes to pulse
+        result.should.eql(expectedBefore);
+        console.log('insert done');
+        return result;
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.updateWorkerType(wName, mod);
+      });
+
+      p = p.then(function(result) {
+        result.should.eql(expectedAfter);
+        console.log('update done');
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.workerType(wName);
+      });
+
+      p = p.then(function(result) {
+        result.should.eql(expectedAfter);
+        console.log('fetch updated copy done');
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.removeWorkerType(wName);
+      });
+
+      p = p.then(function(result) {
+        result.should.eql({});
+        console.log('remove done');
+      });
+
+      return p;
     }); 
   });
 
