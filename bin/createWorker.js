@@ -12,7 +12,6 @@ var client = new AwsProvisioner();
 var fileNames = process.argv.slice(2);
 
 client.listWorkerTypes().then(function(extant) {
-  
   fileNames.forEach(function(f) {
     var rawData = fs.readFileSync(f);
     var data;
@@ -38,7 +37,7 @@ client.listWorkerTypes().then(function(extant) {
         console.log('Complete');
         console.log(JSON.stringify(x, null, 2));
       }, function (y) {
-        console.log('Error!', y, y.stack);
+        console.log('Error!', y.stack, JSON.stringify(y, null, 2));
       });
   });
 }).done();

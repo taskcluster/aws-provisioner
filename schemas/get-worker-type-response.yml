@@ -1,4 +1,4 @@
-id:       http://schemas.taskcluster.net/aws-provisioner/v1/get-worker-type-response.json#
+id:       http://schemas.taskcluster.net/aws-provisioner/v1/get-worker-type-request.json#
 $schema:  http://json-schema.org/draft-04/schema#
 title:                      "Get Worker Type Request"
 description: |
@@ -8,17 +8,24 @@ properties:
   workerType:
     type: string
     description: |
-      The name of the worker type
+      The ID of the workerType
   launchSpecification:
     type: object
     description: |
-      An object which describes all worker specific meta-data
-  minInstances:
+      AWS LaunchSpecification values shared by all regions and all instance-types.
+      This launch spec should not contain either an InstanceType or ImageId.  The
+      former should always be a key in the types object and the latter should be
+      an overwrite in the regions object
+  minCapacity:
     type: number
-    description: "Minimum number of instances to run"
-  maxInstances:
+    description: |
+      Minimum number of capacity units to be provisioned.  A capacity unit
+      is an abstract unit of capacity, where one capacity unit is roughly
+      one task which should be taken off the queue
+  maxCapacity:
     type: number
-    description: "Maximum number of instances to run"
+    description: |
+      Maximum number of capacity units to be provisioned.
   scalingRatio:
     type: number
     description: |
@@ -27,10 +34,10 @@ properties:
       we spawn enough machines that we always have 10% empty capacity.
   minSpotBid:
     type: number
-    description: minimum spot instance bid
+    description: global minimum spot instance bid
   maxSpotBid:
     type: number
-    description: maximum spot instance bid
+    description: global maximum spot instance bid
   canUseOndemand:
     type: boolean
     description: |
@@ -39,15 +46,65 @@ properties:
     type: boolean
     description: |
       True if this worker type is allowed spot instances
-  allowedInstanceTypes:
+  types:
     type: object
-  allowedRegions:
+    description: |
+      This is a dictionary which contains information about the instance types
+      which can be used and how to configure each instance type.
+    properties:
+      type: object
+      description: |
+        Type specific information
+      properties:
+        capacity:
+          type: number
+          description: |
+            This number is a count of the abstract number of Capacity Units this
+            machine can have.  Capacity units are roughly equivalent to the number
+            of pending tasks that this machine can take care of
+        utility:
+          type: number
+          description: |
+            This number is an abstract relative measure of performance.  A machine
+            with a utility factor of 5 will be picked over a machine that has a
+            utility factor of 1 if the price of the more expensive machine is less
+            that 5 times that of the cheaper machine.
+        overwrites:
+          type: object
+          description:
+            This object contains keys which will overwrite the default AWS Launch
+            Specification with values that are unique to this instance type.
+      required:
+        - capacity
+        - utility
+        - overwrites
+      additionalProperties: false
+  regions:
     type: object
+    description: |
+      This object contains information which is unique to a specific AWS Region.
+      Information in this dictionary takes precedence over per-instance-type keys
+    properties:
+      overwrites:
+        type: object
+        description: |
+          This object contains keys which will overwrite keys in the default and
+          instance-type specialized Launch Specifications.
+        properties:
+          ImageId:
+            type: string
+            description: |
+              Because AMI IDs (ImageId in the API Objects) are unique to each region
+              we force this key to be present
+        required:
+          - ImageId
 additionalProperties: false
 required:
   - workerType
   - launchSpecification
-  - maxInstances
+  - maxCapacity
   - scalingRatio
   - minSpotBid
   - maxSpotBid
+  - types
+  - regions
