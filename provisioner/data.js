@@ -8,67 +8,28 @@ var ROW_KEY_CONST = 'worker-type';
 
 /** Entities for persisting WorkerType */
 var WorkerType = base.Entity.configure({
-  mapping: [
-    {
-      key:                'PartitionKey',
-      property:           'workerType',
-      type:               'keystring'
-    }, {
-      // This is always hardcoded to 'worker-type', as we don't have any sane
-      // value for this key
-      key:              'RowKey',
-      type:             'string',
-      hidden:           true
-    },
-    { key: 'version', type: 'number'},
-
-    // Store worker specific information
-    { key: 'launchSpecification', type: 'json'},
-
-    // Store the maximum number of combined instances This is global max, so
-    // across all instance types
-    { key: 'minCapacity', type: 'number'},
-    { key: 'maxCapacity', type: 'number'},
-
-    // A scaling ratio of 1.1 means that we don't start spawning new machines
-    // until 10% of our capacity is pending.  A scaling ratio of 0.9 means that
-    // we spawn enough machines that we always have 10% empty capacity.
-    // DEFAULT: 1
-    { key: 'scalingRatio', type: 'number'},
-
-    // What are our minimum and maximum spot bids in dollars?
-    { key: 'minSpotBid', type: 'number'},
-    { key: 'maxSpotBid', type: 'number'},
-
-    // Can we use ondemand, just 'true' or 'false'
-    { key: 'canUseOndemand', type: 'json'},
-    
-    // Can we use spot, just 'true' or 'false'
-    { key: 'canUseSpot', type: 'json'},
-    
-    // A list of ordered instance types allowed for this worker
-    // This JSON is just a list
-    { key: 'types', type: 'json'},
-
-    // A list of regions allowed for this worker type
-    // This JSON is just a list
-    { key: 'regions', type: 'json'},
-
-  ]
+  version: 1,
+  partitionKey: base.Entity.keys.StringKey('workerType'),
+  rowKey: base.Entity.keys.StringKey('workerType'),
+  properties: {
+    workerType: base.Entity.types.String,
+    launchSpecification: base.Entity.types.JSON,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRation: base.Entity.types.Number,
+    minSpotBid: base.Entity.types.Number,
+    maxSpotBid: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON,
+    canUseSpot: base.Entity.types.JSON,
+    types: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+  }
 });
-
-// RowKey constant, used as we don't need a RowKey
-var ROW_KEY_CONST = 'worker-type';
-
-var MANDATORY_ENTITIES = [
-  
-];
 
 /** Create a worker type */
 WorkerType.create = function(workerType, properties) {
   properties.RowKey = ROW_KEY_CONST;
   properties.workerType = workerType;
-  properties.version = 1;
   return base.Entity.create.call(this, properties);
 };
 

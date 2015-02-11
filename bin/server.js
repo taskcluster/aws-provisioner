@@ -46,9 +46,11 @@ var launch = function(profile) {
   });
 
   // Configure WorkerType entities
-  var WorkerType = data.WorkerType.configure({
-    tableName:        cfg.get('provisioner:workerTypeTableName'),
-    credentials:      cfg.get('azure')
+  var WorkerType = data.WorkerType.setup({
+    table: cfg.get('provisioner:workerTypeTableName'),
+    account: cfg.get('azure:accountName'),
+    credentials: cfg.get('taskcluster:credentials'),
+    authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
   });
 
   // Setup Pulse exchanges and create a publisher
