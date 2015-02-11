@@ -66,11 +66,11 @@ properties:
         description:
           This object contains keys which will overwrite the default AWS Launch
           Specification with values that are unique to this instance type.
-      required:
-        - capacity
-        - utility
-        - overwrites
-      additionalProperties: false
+    required:
+      - capacity
+      - utility
+      - overwrites
+    additionalProperties: false
   regions:
     type: object
     description: |
@@ -88,8 +88,8 @@ properties:
             description: |
               Because AMI IDs (ImageId in the API Objects) are unique to each region
               we force this key to be present
-          required:
-            - ImageId
+        required:
+          - ImageId
 additionalProperties: false
 required:
   - launchSpecification
@@ -97,3 +97,5 @@ required:
   - scalingRatio
   - minSpotBid
   - maxSpotBid
+  - types
+  - regions
