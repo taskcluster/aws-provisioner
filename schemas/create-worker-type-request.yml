@@ -48,29 +48,33 @@ properties:
       This is a dictionary which contains information about the instance types
       which can be used and how to configure each instance type.
     properties:
-      capacity:
-        type: number
-        description: |
-          This number is a count of the abstract number of Capacity Units this
-          machine can have.  Capacity units are roughly equivalent to the number
-          of pending tasks that this machine can take care of
-      utility:
-        type: number
-        description: |
-          This number is an abstract relative measure of performance.  A machine
-          with a utility factor of 5 will be picked over a machine that has a
-          utility factor of 1 if the price of the more expensive machine is less
-          that 5 times that of the cheaper machine.
-      overwrites:
-        type: object
-        description:
-          This object contains keys which will overwrite the default AWS Launch
-          Specification with values that are unique to this instance type.
-    required:
-      - capacity
-      - utility
-      - overwrites
-    additionalProperties: false
+      type: object
+      description: |
+        Type specific information
+      properties:
+        capacity:
+          type: number
+          description: |
+            This number is a count of the abstract number of Capacity Units this
+            machine can have.  Capacity units are roughly equivalent to the number
+            of pending tasks that this machine can take care of
+        utility:
+          type: number
+          description: |
+            This number is an abstract relative measure of performance.  A machine
+            with a utility factor of 5 will be picked over a machine that has a
+            utility factor of 1 if the price of the more expensive machine is less
+            that 5 times that of the cheaper machine.
+        overwrites:
+          type: object
+          description:
+            This object contains keys which will overwrite the default AWS Launch
+            Specification with values that are unique to this instance type.
+      required:
+        - capacity
+        - utility
+        - overwrites
+      additionalProperties: false
   regions:
     type: object
     description: |
