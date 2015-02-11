@@ -35,6 +35,17 @@ var data = require('./data');
   18. need to provide per-region instance configuration -- i.e. ami id per region
   19. need to figure out how to pick the correct size and number of instances. right now
       we assume +5 change == +5 nodes of cheapest type
+  20. remove Promise.resolve
+  21. rename pulse/pulseRate to provisioningInterval
+  22. move data.WorkerType.configure to bin/provisioner
+  23. store the list of known to exist keynames in the program state OR 24.
+  24. move the keypair creation and deletion to the create/delete provisioner-api
+  25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
+  26. move creating launch configuration to the WorkerType object
+  27. use Queue.pendingTasks instead -- extra api hits...
+  28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
+      state of pending jobs
+  
  */
 
 
@@ -181,12 +192,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   p = p.then(function(res) {
-    var regions = Object.keys(res[0]);
-    pricing = {};
-    // Get rid of the key we don't care about
-    regions.forEach(function(region) {
-      pricing[region] = res[0][region].SpotPriceHistory;
-    });
+    pricing = res[0];
     debug('%s Fetched EC2 Pricing data', runId);
     debug('%s Killed these orphaned instances: %s', runId, res[1]);
     return Promise.resolve(); 
@@ -282,7 +288,7 @@ Provisioner.prototype.fetchAwsState = function() {
       });
     });
 
-    return Promise.resolve(allState);
+    return allState;
   });
 
   return p;
@@ -400,7 +406,7 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
     } else {
       spotBids.forEach(function(spotBid) {
         debug('%s %s submitting spot request at %d for type %s in region %s',
-              wtrunId, workerType.workerType,
+              wtRunId, workerType.workerType,
               spotBid.spotPrice, spotBid.instanceType, spotBid.region);
       });
     }
@@ -460,27 +466,42 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
       Timestamp: Thu Feb 05 2015 14:23:31 GMT+0100 (CET), 
       AvailabilityZone: 'us-west-2c'
     }
- .inRegion('us-west-2')*/
-
+*/
   var types = [];
   workerTypes.forEach(function(workerType) {
-    if (workerType.launchSpecification.InstanceType) {
-      types.push(workerType.launchSpecification.InstanceType);
-    }
-    Array.prototype.push.apply(types, Object.keys(workerType.allowedInstanceTypes));
+    var newTypes = Object.keys(workerType.allowedInstanceTypes).filter(function(type) {
+      return types.indexOf(type) === -1;
+    });
+    Array.prototype.push.apply(types, newTypes);
   });
 
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
 
-  var p = this.ec2.describeSpotPriceHistory({
+  var requestObj = {
     StartTime: startDate,
     Filters: [{
       Name: 'product-description',
       Values: ['Linux/UNIX'],
     }],
     InstanceTypes: types,
-  }); 
+  }
+
+  var p = this.ec2.describeSpotPriceHistory(requestObj); 
+
+  p = p.then(function(pricing) {
+    var regions = Object.keys(pricing);
+    var fixed = {};
+    // Get rid of the key we don't care about
+    regions.forEach(function(region) {
+      fixed[region] = pricing[region].SpotPriceHistory;
+      if (fixed[region].length === 0) {
+        throw new Error('Could not fetch pricing data for ' + region);
+      }
+    });
+
+    return fixed;
+  })
 
   return p;
 };
@@ -593,8 +614,14 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
     var spotBids = [];
     
     while (change > 0) {
+
+      // For now, let's randomly pick regions.  The assumption here is that over time
+      // each datacenter will average the same number of nodes.  We should be smarter
+      // and do things like monitor AWS State to see which regions have the most
+      // capacity and assign new nodes to other regions
       var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
       var region = that.allowedAwsRegions[randomRegionIdx];
+
       var ait = workerType.allowedInstanceTypes;
 
       var cheapestType;
@@ -612,7 +639,7 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
           cheapestType = potentialType;
           // We bid a little higher because we don't want the machine to end
           // too soon
-          spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000
+          spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000;
         }
       });
 
@@ -712,8 +739,6 @@ var validB64Regex = /^[A-Za-z0-9+/=]*$/;
    the instanceTypeParam is the overwrites object from the allowedInstances
    workerType field */
 Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceType) {
-  // NOTE: We should be doing the region overwrites here!
-
   // These are the keys which are only applicable to a given region.
   // We're going to make sure that none are set in the generic launchSpec
   var regionSpecificKeys = ['ImageId'];
@@ -732,6 +757,11 @@ Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceTy
     }
     newSpec.KeyName = that.awsKeyPrefix + workerType.workerType;
     newSpec.InstanceType = instanceType;
+    regionSpecificKeys.forEach(function(key) {
+      newSpec[key] = workerType.allowedRegions[region].overwrites[key];
+    });
+
+    debug(newSpec);
     resolve(newSpec);
   });
 }
