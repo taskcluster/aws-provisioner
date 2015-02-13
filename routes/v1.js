@@ -221,8 +221,11 @@ api.declare({
   }*/
 
   var p = ctx.WorkerType.load(workerType);
+
   
   p = p.then(function(worker) {
+    console.log(workerType)
+    console.log(worker);
     return res.reply(worker);
   });
 

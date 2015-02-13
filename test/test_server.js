@@ -44,6 +44,7 @@ describe('provisioner api server', function() {
   });
 
   describe('bad input', function() {
+/**
     it('should cause failure when creating', function () {
       var wName = 'createBadInput';
       return subject.awsProvisioner
@@ -68,7 +69,7 @@ describe('provisioner api server', function() {
         }
       );
     });
-
+*/
     it('should fail when workertype is not found', function() {
       return subject.awsProvisioner.workerType('akdsfjlaksdjfl')
         .then(function() { throw new Error('should have failed'); },
@@ -107,30 +108,42 @@ describe('provisioner api server', function() {
       var mod = _.clone(wDefinition, true);
       mod.scalingRatio = 2;
         
-      return subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate)
-        .then(function(result) {
-          // TODO: Make sure it publishes to pulse
-          result.should.eql(expectedBefore);
-          return result;
+      console.log(wDefinitionForCreate);
 
-        }).then(function() {
-          return subject.awsProvisioner.updateWorkerType(wName, mod)
-            .then(function(result) {
-              // TODO: Make sure it publishes to pulse
-              result.should.eql(expectedAfter);
-              return result;
-            });
-        }).then(function() {
-          return subject.awsProvisioner.workerType(wName)
-            .then(function(result) {
-              result.should.eql(expectedAfter);
-            });
-        }).then(function() {
-          return subject.awsProvisioner.removeWorkerType(wName)
-            .then(function(result) {
-              result.should.eql({});
-            })
-        });
+      var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
+
+      p = p.then(function(result) {
+        console.log('create done');
+        // TODO: Make sure it publishes to pulse
+        result.should.eql(expectedBefore);
+        return result;
+      });
+
+      p = p.then(subject.awsProvisioner.updateWorkerType(wName, mod));
+
+      p = p.then(function(result) {
+        result.should.eql(expectedAfter);
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.workerType(wName);
+      });
+
+      p = p.then(function(result) {
+        console.log('Fetching grr.' + wName);
+        console.log(result);
+        result.should.eql(expectedAfter);
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.removeWorkerType(wName);
+      });
+
+      p = p.then(function(result) {
+        result.should.eql({});
+      });
+
+      return p;
     }); 
   });
 
