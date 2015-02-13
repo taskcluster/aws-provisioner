@@ -17,28 +17,6 @@ describe('provisioner api server', function() {
   var wDefinitionForCreate = _.clone(wDefinition);
   delete wDefinitionForCreate['workerType'];
 
-  /*
-  var wDefinition = {
-    "launchSpecification": {
-      "ImageId": "ami-fd2b60cd",
-      "InstanceType": "r3.xlarge",
-      "SecurityGroups": [
-        "docker-worker"
-      ],
-      "UserData": "eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImdhaWEiLCJwcm92aXNpb25lcklkIjoiYXdzLXByb3Zpc2lvbmVyIiwicmVnaXN0cmllcyI6eyJxdWF5LmlvL3Rhc2tjbHVzdGVyX3Rlc3QiOnsidXNlcm5hbWUiOiJ0YXNrY2x1c3Rlcl90ZXN0K2psYWwiLCJwYXNzd29yZCI6IldGTDUzS1U2S1NCODNRVUFDMVdET1Q0UzhUT1NGTDdWMU9WUFNPVkJUVVdTRElCMDdUMDlWMFEzUkJDTURBNTIifX0sInBhcGVydHJhaWwiOnsiZGVzaW50YXRpb24iOnsicG9ydCI6MjIzOTV9fX0="
-    },
-    "scalingRatio": 1,
-    "maxInstances": 100,
-    "minSpotBid": 2,
-    "maxSpotBid": 2200,
-    "minInstances": 1,
-    "canUseOndemand": true,
-    "canUseSpot": true,
-    "allowedInstanceTypes": ["john"],
-    "allowedRegions": ["us-west-2"]
-  } 
-  */
-
   it('should respond to ping', function() {
     return subject.awsProvisioner.ping();
   });
@@ -46,46 +24,68 @@ describe('provisioner api server', function() {
   describe('bad input', function() {
     it('should cause failure when creating', function () {
       var wName = 'createBadInput';
-      return subject.awsProvisioner
-        .createWorkerType(wName, {bad: 'worker'})
-        .then(function(result) {
-          throw new Error('should have failed here');
-        },
-        function(error) {
-          error.should.be.an.Error;
-        }
-      );
+
+      var p = subject.awsProvisioner.createWorkerType(wName, {bad: 'worker'});
+
+      p = p.then(function(result) {
+        throw new Error('should have failed here');
+      });
+
+      p = p.catch(function(error) {
+        error.should.be.an.Error;
+      });
+
+      return p;
     });
+
     it('should cause failure when updating', function () {
       var wName = 'createBadInput';
-      return subject.awsProvisioner
-        .updateWorkerType(wName, {bad: 'worker'})
-        .then(function(result) {
-          throw new Error('should have failed here');
-        },
-        function(error) {
-          error.should.be.an.Error;
-        }
-      );
+
+      var p = subject.awsProvisioner.updateWorkerType(wName, {bad: 'worker'});
+
+      p = p.then(function(result) {
+        throw new Error('should have failed here');
+      });
+
+      p = p.catch(function(error) {
+        error.should.be.an.Error;
+      });
+
+      return p;
     });
+
     it('should fail when workertype is not found', function() {
-      return subject.awsProvisioner.workerType('akdsfjlaksdjfl')
-        .then(function() { throw new Error('should have failed'); },
-          function(err) { err.should.be.an.Error; });
+      var p = subject.awsProvisioner.workerType('akdsfjlaksdjfl');
+
+      p = p.then(function() {
+        throw new Error('should have failed');
+      });
+
+      p = p.catch(function(err) {
+        err.should.be.an.Error;
+      });
+
+      return p;
     });
   });
 
   // TODO: Write tests to check that auth works for real on all endpoints
   it('should fail with invalid credentials', function() {
-    Promise.all([
+    var p = Promise.all([
       subject.badCred.workerType('dontmatter'),
-    ]).then(function(res) {
+    ]);
+
+    p = p.then(function(res) {
       res.forEach(function(e) {
         e.should.be.an.Error;
       });
-    }, function(err) {
+    });
+
+    p = p.catch(function(err) {
       console.error(err); 
-    }).done();
+    })
+    
+    return p;;
   })
     
   describe('be able to create, fetch, update and delete a worker type', function() {
@@ -148,11 +148,14 @@ describe('provisioner api server', function() {
 
   describe('listing worker types', function() {
     it('should return a list', function() {
-      return subject.awsProvisioner.listWorkerTypes()
-        .then(function(result) {
-          result.should.be.an.Array;  
-          return result;
-        });
+      var p = subject.awsProvisioner.listWorkerTypes();
+
+      p = p.then(function(result) {
+        result.should.be.an.Array;  
+        return result;
+      });
+
+      return p;
     });
   });
 

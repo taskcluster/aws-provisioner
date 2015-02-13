@@ -95,11 +95,11 @@ function(req, res) {
   // set `deferAuth: true`, we can't do automatic authentication if the scopes
   // contain parameters like <workerType>
 
-  /* if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  } */
+  }
 
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
@@ -153,11 +153,11 @@ api.declare({
   var input       = req.body;
   var workerType  = req.params.workerType;
 
-  /* if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  } */
+  }
 
   var p = ctx.WorkerType.load(workerType)
     
@@ -214,11 +214,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /*DEBUGGING if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   var p = ctx.WorkerType.loadForReply(workerType);
 
@@ -257,11 +257,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /* DEBUGGING if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  } */
+  }
 
   var p = ctx.WorkerType.remove(workerType)
     
@@ -310,11 +310,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  /*if(!req.satisfies({
+  if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }*/
+  }
 
   var p = this.WorkerType.loadAllNames()
 
