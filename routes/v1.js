@@ -162,10 +162,11 @@ api.declare({
   var p = ctx.WorkerType.load(workerType)
     
   p = p.then(function(worker) {
-    return worker.modify(function() {
+    debugger;
+    return worker.modify(function(worker) {
       // We know that data that gets to here is valid per-schema
       Object.keys(input).forEach(function(key) {
-        this[key] = input[key];
+        worker[key] = input[key];
       });
     });
   });
@@ -176,16 +177,15 @@ api.declare({
     })
   });
 
-  /*
   p = p.then(function() {
     // Send a reply (always use res.reply), only use
-    return ctx.WorkerType.load(workerType);
+    return ctx.WorkerType.loadForReply(workerType);
   });
   
   p = p.then(function(worker) {
+    debugger;
     return res.reply(worker);
   })
-  */
 
   p = p.catch(function(err) {
     errorHandler(err, res, workerType);
@@ -220,12 +220,10 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }*/
 
-  var p = ctx.WorkerType.load(workerType);
+  var p = ctx.WorkerType.loadForReply(workerType);
 
   
   p = p.then(function(worker) {
-    console.log(workerType)
-    console.log(worker);
     return res.reply(worker);
   });
 

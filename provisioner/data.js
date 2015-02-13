@@ -35,23 +35,22 @@ WorkerType.create = function(workerType, properties) {
 
 /** Load worker from worker type */
 WorkerType.load = function(workerType) {
-  var p = base.Entity.load.call(this, {
+  return base.Entity.load.call(this, {
     workerType: workerType
   });
-
-  p = p.then(function(worker) {
-    // Hmm... touching this variable feels dirty
-    return worker.__properties;
-  });
-
-  return p;
 };
 
 /** Prepare a workerType for display */
 WorkerType.loadForReply = function(workerType) {
-  var worker = this.load(workerType);
-  worker[workerType] = workerType;
-  return worker;
+  var p = this.load(workerType);
+
+  p = p.then(function(worker) {
+    var forReply = _.clone(worker.__properties);
+    forReply.workerType = workerType;
+    return forReply
+  });
+
+  return p;
 };
 
 /** Load all worker types.  Note that this

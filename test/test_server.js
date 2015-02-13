@@ -105,24 +105,25 @@ describe('provisioner api server', function() {
       expectedAfter.scalingRatio = 2;
 
       // Object to submit as the modification
-      var mod = _.clone(wDefinition, true);
+      var mod = _.clone(wDefinitionForCreate, true);
       mod.scalingRatio = 2;
         
-      console.log(wDefinitionForCreate);
-
       var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
 
       p = p.then(function(result) {
-        console.log('create done');
         // TODO: Make sure it publishes to pulse
         result.should.eql(expectedBefore);
+        console.log('insert done');
         return result;
       });
 
-      p = p.then(subject.awsProvisioner.updateWorkerType(wName, mod));
+      p = p.then(function() {
+        return subject.awsProvisioner.updateWorkerType(wName, mod);
+      });
 
       p = p.then(function(result) {
         result.should.eql(expectedAfter);
+        console.log('update done');
       });
 
       p = p.then(function() {
@@ -130,9 +131,8 @@ describe('provisioner api server', function() {
       });
 
       p = p.then(function(result) {
-        console.log('Fetching grr.' + wName);
-        console.log(result);
         result.should.eql(expectedAfter);
+        console.log('fetch updated copy done');
       });
 
       p = p.then(function() {
@@ -141,6 +141,7 @@ describe('provisioner api server', function() {
 
       p = p.then(function(result) {
         result.should.eql({});
+        console.log('remove done');
       });
 
       return p;
