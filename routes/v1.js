@@ -37,7 +37,7 @@ var api = new base.API({
 });
 
 
-function errorHandler(err, res) {
+function errorHandler(err, res, workerType) {
   switch(err.code) {
     case 'ResourceNotFound':
       debug('WorkerType.loadForReply failed: %s %s',
@@ -95,11 +95,11 @@ function(req, res) {
   // set `deferAuth: true`, we can't do automatic authentication if the scopes
   // contain parameters like <workerType>
 
-  if(!req.satisfies({
+  /* if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
@@ -127,7 +127,7 @@ function(req, res) {
   });
     
   p = p.catch(function(err) {
-    errorHandler(err, res);
+    errorHandler(err, res, workerType);
     return err;
   });
 
@@ -142,7 +142,7 @@ api.declare({
   deferAuth:      true,
   scopes:         ['aws-provisioner:update-worker-type:<workerType>'],
   input:          SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  //output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title:          "Update Worker Type",
   description: [
     'Placeholder',
@@ -153,11 +153,11 @@ api.declare({
   var input       = req.body;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /* if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
   var p = ctx.WorkerType.load(workerType)
     
@@ -176,6 +176,7 @@ api.declare({
     })
   });
 
+  /*
   p = p.then(function() {
     // Send a reply (always use res.reply), only use
     return ctx.WorkerType.load(workerType);
@@ -184,9 +185,10 @@ api.declare({
   p = p.then(function(worker) {
     return res.reply(worker);
   })
+  */
 
   p = p.catch(function(err) {
-    errorHandler(err, res);
+    errorHandler(err, res, workerType);
     return err;
   });
 
@@ -212,11 +214,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /*DEBUGGING if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  }*/
 
   var p = ctx.WorkerType.load(workerType);
   
@@ -225,7 +227,7 @@ api.declare({
   });
 
   p = p.catch(function(err) {
-    errorHandler(err, res);
+    errorHandler(err, res, workerType);
     return err;
   });
 
@@ -254,11 +256,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /* DEBUGGING if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  } */
 
   var p = ctx.WorkerType.remove(workerType)
     
@@ -267,7 +269,7 @@ api.declare({
   });
 
   p = p.catch(function(err) {
-    errorHandler(err, res);
+    errorHandler(err, res, workerType);
     return err;
   });
 
@@ -307,11 +309,11 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  if(!req.satisfies({
+  /*if(!req.satisfies({
     workerType:       workerType
   })) {
     return; // by default req.satisfies() sends a response on failure, so we're done
-  }
+  }*/
 
   var p = this.WorkerType.loadAllNames()
 
@@ -320,7 +322,7 @@ api.declare({
   });
 
   p = p.catch(function(err) {
-    errorHandler(err, res);
+    errorHandler(err, res, 'listing all worker types');
     return err;
   });
 

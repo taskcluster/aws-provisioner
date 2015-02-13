@@ -90,7 +90,7 @@ describe('provisioner api server', function() {
   })
     
   describe('be able to create, fetch, update and delete a worker type', function() {
-    it('should update the worker', function () {
+    it('should work', function () {
 
       var wName = slugid.v4();
 

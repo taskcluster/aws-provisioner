@@ -5,7 +5,8 @@ var debug = require('debug')('bin:createWorker');
 var tc = require('taskcluster-client');
 var api = require('../routes/v1');
 
-var references = api.reference({baseUrl: "https://aws-provisioner2.herokuapp.com/v1"});
+//var references = api.reference({baseUrl: "https://aws-provisioner2.herokuapp.com/v1"});
+var references = api.reference({baseUrl: "http://localhost:5556/v1"});
 var AwsProvisioner = tc.createClient(references);
 var client = new AwsProvisioner();
 
