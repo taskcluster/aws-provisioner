@@ -35,9 +35,16 @@ WorkerType.create = function(workerType, properties) {
 
 /** Load worker from worker type */
 WorkerType.load = function(workerType) {
-  return base.Entity.load.call(this, {
+  var p = base.Entity.load.call(this, {
     workerType: workerType
   });
+
+  p = p.then(function(worker) {
+    // Hmm... touching this variable feels dirty
+    return worker.__properties;
+  });
+
+  return p;
 };
 
 /** Prepare a workerType for display */
@@ -47,9 +54,23 @@ WorkerType.loadForReply = function(workerType) {
   return worker;
 };
 
-/** Load all worker types */
+/** Load all worker types.  Note that this
+ * This method only returns the __properties
+ * from base.Entity.scan */
 WorkerType.loadAll = function() {
-  return base.Entity.queryPartitionKey.call(this, KEY_CONST);
+  var workers = [];
+
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      workers.push(item.__properties);
+    }
+  });
+
+  p = p.then(function() {
+    return workers;
+  });
+
+  return p;
 };
 
 /** Load all workerTypes.  This won't scale perfectly, but

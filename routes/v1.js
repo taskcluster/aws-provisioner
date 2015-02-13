@@ -41,7 +41,7 @@ function errorHandler(err, res, workerType) {
   switch(err.code) {
     case 'ResourceNotFound':
       debug('WorkerType.loadForReply failed: %s %s',
-            JSON.stringify(err), err.stack);
+            JSON.stringify(err));
       return res.status(404).json({
         message: "%s inserted but couldn't be found when trying " +
                  "to retreive it for display.",
@@ -142,7 +142,7 @@ api.declare({
   deferAuth:      true,
   scopes:         ['aws-provisioner:update-worker-type:<workerType>'],
   input:          SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  //output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title:          "Update Worker Type",
   description: [
     'Placeholder',
