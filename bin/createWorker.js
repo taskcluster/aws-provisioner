@@ -43,13 +43,25 @@ function slurp (filenames) {
   return files;
 }
 
+function writeWorkerTypes(workerTypes) {
+  return Promise.all(workerTypes.map(function(name) {
+    return client.workerType(name);
+  })).then(function(res) {
+    res.forEach(function(worker) {
+      var filename = worker.workerType + '.json';
+      fs.writeFileSync(filename.replace(' ', '_'), worker);
+    });
+    console.log('Fetched and wrote workerTypes');
+  });
+}
+
 switch(action) {
   case 'list':
     client.listWorkerTypes().then(function(workerTypes) {
       if (workerTypes.length > 0) {
         console.log('The system knows the following workertypes:');
         workerTypes.forEach(function(name) {
-          console.log('  - %s', name);
+          console.log('  * %s', name);
         });
       } else {
         console.log('There are no worker types');
@@ -67,14 +79,11 @@ switch(action) {
 
     p = p.then(function(classified) {
       var promises = [];
-      console.log(classified);
       classified.present.forEach(function(name) {
-        console.log('adding an update for ' + name);
         delete files[name]['workerType'];
         promises.push(client.updateWorkerType(name, files[name])); 
       });
       classified.absent.forEach(function(name) {
-        console.log('adding a create for ' + name);
         delete files[name]['workerType'];
         promises.push(client.createWorkerType(name, files[name]));
       });
@@ -90,6 +99,7 @@ switch(action) {
 
     break;
   case 'delete':
+  case 'remove':
     var workerTypes;
     var p = classifyNames(names);
 
@@ -111,40 +121,18 @@ switch(action) {
 
     p.done();
     break;
+  case 'fetchall':
+    client.listWorkerTypes().then(function(names) {
+      return writeWorkerTypes(names);
+    }).done();
+    break;
+  case 'fetch':
+    writeWorkerTypes(names).catch(function() {
+      console.error('Error!');
+    }).done();
+    break;
   default:
     console.error('You must specify a supported action');
     process.exit(1);
 }
-
-/*client.listWorkerTypes().then(function(extant) {
-  console.log('There are these types of workers: %s', JSON.stringify(extant));
-  names.forEach(function(f) {
-    var rawData = fs.readFileSync(f);
-    var data;
-    try {
-      data = JSON.parse(rawData);
-    } catch (e) {
-      console.error('Error reading', f, e);
-      process.exit(1);
-    }
-    debug(data);
-    var workerType = data.workerType;
-    delete data.workerType;
-
-    var p;
-    if (-1 === extant.indexOf(workerType)) {
-      p = client.createWorkerType(workerType, data);
-    } else {
-      p = client.updateWorkerType(workerType, data);
-    }
-
-    p.then(client.workerType(workerType))
-      .then(function(x) {
-        console.log('Complete');
-        console.log(JSON.stringify(x, null, 2));
-      }, function (y) {
-        console.log('Error!', y.stack, JSON.stringify(y, null, 2));
-      });
-  });
-}).done();*/
 
