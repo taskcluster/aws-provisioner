@@ -20,7 +20,6 @@ var data = require('./data');
 /*
   TODO:
 
-   1. update schema to reflect the structure of the instance type dict
    2. sprinkle some uuids on debug messages for sanity's sake
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
   12. pricing history should use the nextToken if present to
@@ -29,13 +28,7 @@ var data = require('./data');
       a spot request is rejected
   14. We should only kill orphans which have been orphaned for X hours in case of accidentally
       deleting the workerTypes
-  15. rename max/min instances key to capacity
-  16. Provisioner init method should take a config object not a base.config object
   17. provide metrics on how long it takes for spot request to be filled, etc
-  18. need to provide per-region instance configuration -- i.e. ami id per region
-  19. need to figure out how to pick the correct size and number of instances. right now
-      we assume +5 change == +5 nodes of cheapest type
-  20. remove Promise.resolve
   21. rename pulse/pulseRate to provisioningInterval
   22. move data.WorkerType.configure to bin/provisioner
   23. store the list of known to exist keynames in the program state OR 24.
@@ -45,6 +38,12 @@ var data = require('./data');
   27. use Queue.pendingTasks instead -- extra api hits...
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
+  29. do ami copy when machine is inserted or updated in the azure table storage
+      http://aws.amazon.com/about-aws/whats-new/2013/03/12/announcing-ami-copy-for-amazon-ec2/
+  30. add influx timing to the multiaws
+  31. find cheapest instance per region, then find the cheapest type
+  32. testers don't change instance types
+  33. api endpoint when the machine comes up to tell us how long it took to turn on
   
  */
 
@@ -195,7 +194,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     pricing = res[0];
     debug('%s Fetched EC2 Pricing data', runId);
     debug('%s Killed these orphaned instances: %s', runId, res[1]);
-    return Promise.resolve(); 
+    return; 
   });
 
   p = p.then(function() {
@@ -340,7 +339,7 @@ Provisioner.prototype.killOrphansInRegion = function(awsRegion, awsRegionState, 
   }
 
   return Promise.all(killinators).then(function(res) {
-    return Promise.resolve(orphans); 
+    return orphans; 
   });
   
 }
@@ -388,7 +387,7 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
     }
     debug('%s %s submitting request for %d more capacity units',
         wtRunId, workerType.workerType, change);
-    return Promise.resolve(change);
+    return change;
   });
 
   p = p.then(function() {
@@ -592,7 +591,7 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, inst
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
     var sir = spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
     debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
-    return Promise.resolve(sir);
+    return sir;
   });
 
   return p;
@@ -692,9 +691,9 @@ Provisioner.prototype.killExcess = function(workerType, awsState) {
 
   p = p.then(function(capacity) {
     if (capacity < workerType.maxCapacity) {
-      return Promise.resolve();
+      return 0;
     } else {
-      return Promise.resolve(capacity - workerType.maxCapacity);
+      return capacity - workerType.maxCapacity;
     }
   });
 
