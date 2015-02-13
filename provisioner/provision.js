@@ -2,7 +2,6 @@
 
 var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provisioner:provision');
-var base = require('taskcluster-base');
 var aws = require('multi-region-promised-aws');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
@@ -674,7 +673,7 @@ Provisioner.prototype.killExcess = function(workerType, awsState) {
   });
 
   p = p.then(function(deaths) {
-    return destroyInstances(workerType, awsState, deaths); 
+    return this.destroyInstances(workerType, awsState, deaths); 
   });
   
   return p;
@@ -697,11 +696,11 @@ Provisioner.prototype.destroyInstances = function(workerType, awsState, capacity
 
   var instancesToKill = capacityToKill - srToCancel;
 
-  var instancesToKill = [].concat(awsState.pending).concat(awsState.running).slice(0, instancesToKill)
+  instancesToKill = [].concat(awsState.pending).concat(awsState.running).slice(0, instancesToKill)
 
   promises.push(this.ec2.terminateInstances({
     InstanceIds: instancesToKill.map(function(x) {
-      x.InstanceId;
+      return x.InstanceId;
     })
   }));
 
@@ -760,7 +759,7 @@ function determineCapacityChange(scalingRatio, capacity, pending) {
     // But when we do, let's submit enough requests that
     // we end up in an ideal state if all are fulfilled
     var ideal = (capacity + pending) / scalingRatio;
-    var change = ideal - capacity;
+    change = ideal - capacity;
   }
 
   return Math.round(change);
