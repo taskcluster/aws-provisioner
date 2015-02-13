@@ -44,7 +44,6 @@ describe('provisioner api server', function() {
   });
 
   describe('bad input', function() {
-/**
     it('should cause failure when creating', function () {
       var wName = 'createBadInput';
       return subject.awsProvisioner
@@ -57,7 +56,7 @@ describe('provisioner api server', function() {
         }
       );
     });
-    it('should cause failure when creating', function () {
+    it('should cause failure when updating', function () {
       var wName = 'createBadInput';
       return subject.awsProvisioner
         .updateWorkerType(wName, {bad: 'worker'})
@@ -69,7 +68,6 @@ describe('provisioner api server', function() {
         }
       );
     });
-*/
     it('should fail when workertype is not found', function() {
       return subject.awsProvisioner.workerType('akdsfjlaksdjfl')
         .then(function() { throw new Error('should have failed'); },
