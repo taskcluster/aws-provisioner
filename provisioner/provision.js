@@ -108,8 +108,8 @@ function Provisioner(cfg) {
   if (!cfg.azure || typeof cfg.azure !== 'object') {
     throw new Error('Missing or invalid Azure configuration');
   }
-  this.WorkerType = data.WorkerType.configure({
-    tableName: cfg.workerTypeTableName,
+  this.WorkerType = data.WorkerType.setup({
+    table: cfg.workerTypeTableName,
     credentials: cfg.azure,
   });
   
@@ -494,11 +494,9 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
     // Get rid of the key we don't care about
     regions.forEach(function(region) {
       fixed[region] = pricing[region].SpotPriceHistory;
-      if (fixed[region].length === 0) {
-        throw new Error('Could not fetch pricing data for ' + region);
-      }
     });
 
+    debug(fixed);
     return fixed;
   })
 
