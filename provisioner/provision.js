@@ -9,6 +9,7 @@ var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
+var Joi = require('joi');
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -65,63 +66,37 @@ var data = require('./data');
 function Provisioner(cfg) {
   // This is the ID of the provisioner.  It is used to interogate the queue
   // for pending tasks
+  Joi.assert(cfg.provisionerId, Joi.string(), 'Missing or invalid provisioner id');
   this.provisionerId = cfg.provisionerId;
-  if (!this.provisionerId || typeof this.provisionerId !== 'string') {
-    throw new Error('Missing or invalid provisioner id');
-  }
-
   // This is a prefix which we use in AWS to determine ownership
   // of a given instance.  If we could tag instances while they were
   // still spot requests, we wouldn't need to do this.
+  Joi.assert(cfg.awsKeyPrefix, Joi.string(), 'AWS Key prefix is missing or invalid');
   this.awsKeyPrefix = cfg.awsKeyPrefix;
-  if (!this.awsKeyPrefix || typeof this.awsKeyPrefix !== 'string') {
-    throw new Error('AWS Key prefix is missing or invalid');
-  }
-
   // For new types of workers, we need to know what public key data
   // to pass to the instance as the key data
+  Joi.assert(cfg.awsInstancePubKey, Joi.string(), 'AWS Instance key is missing or invalid');
   this.awsInstancePubKey = cfg.awsInstancePubKey;
-  if (!this.awsInstancePubKey || typeof this.awsInstancePubKey !== 'string') {
-    throw new Error('AWS Instance key is missing or invalid');
-  }
-
   // This is the number of milliseconds to wait between completed provisioning runs
+  Joi.assert(cfg.pulseRate, Joi.number(), 'Pulse rate is missing or not a number');
   this.pulseRate = cfg.pulseRate;
-  if (!this.pulseRate || typeof this.pulseRate !== 'number' || isNaN(this.pulseRate)) {
-    // I remember there being something funky about using isNaN in JS...
-    throw new Error('Pulse rate is missing or not a number');
-  }
-
   // This is the Queue object which we use for things like retreiving
   // the pending jobs.
-  if (!cfg.taskcluster || typeof cfg.taskcluster !== 'object') {
-    throw new Error('Taskcluster client configuration is invalid');
-  }
-  if (!cfg.taskcluster.credentials || typeof cfg.taskcluster.credentials !== 'object') {
-    throw new Error('Taskcluster client credentials are misformed');
-  }
+  Joi.assert(cfg.taskcluster, Joi.object().keys({
+      credentials: Joi.object().required()
+  }), 'Taskcluster client credentials are nissing or misformed');
   // We only grab the credentials for now, no need to store them in this object
   this.Queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
-
-  if (!cfg.workerTypeTableName || typeof cfg.workerTypeTableName !== 'string') {
-    throw new Error('Missing or invalid workerType table name');
-  }
-  if (!cfg.azure || typeof cfg.azure !== 'object') {
-    throw new Error('Missing or invalid Azure configuration');
-  }
+  Joi.assert(cfg.workerTypeTableName, Joi.string(), 'Missing or invalid workerType table name');
+  Joi.assert(cfg.azure, Joi.object(), 'Missing or invalid Azure configuration');
   this.WorkerType = data.WorkerType.configure({
     tableName: cfg.workerTypeTableName,
     credentials: cfg.azure,
   });
-  
 
-  if (!cfg.aws || typeof cfg.aws !== 'object') {
-    throw new Error('Missing or invalid AWS configuration object');
-  }
+  Joi.assert(cfg.aws, Joi.object(), 'Missing or invalid AWS configuration object');
+  Joi.assert(cfg.allowedAwsRegions, Joi.any(), 'For now, you need to configure a specific AWS region.  hint: us-west-2');
   this.allowedAwsRegions = cfg.allowedAwsRegions;
-  if (!this.allowedAwsRegions) {
-    throw new Error('For now, you need to configure a specific AWS region.  hint: us-west-2');
-  }
 
   this.ec2 = new aws('EC2', cfg.aws, this.allowedAwsRegions);
 }
