@@ -2,29 +2,101 @@ var base        = require('taskcluster-base');
 var assert      = require('assert');
 var Promise     = require('promise');
 var _           = require('lodash');
+var debug = require('debug')('aws-provisioner:provisioner:data');
+
+var KEY_CONST = 'worker-type';
 
 /** Entities for persisting WorkerType */
 var WorkerType = base.Entity.configure({
-  mapping: [
-    {
-      key:                'PartitionKey',
-      property:           'workerType',
-      type:               'keystring'
-    }, {
-      // This is always hardcoded to 'worker-type', as we don't have any sane
-      // value for this key
-      key:              'RowKey',
-      type:             'string',
-      hidden:           true
-    },
-    { key: 'version',     type: 'number'    },
-    { key: 'definition',  type: 'json'      } // up to 32kb JSON data
-    // Note, not all properties have to be properties on the entity.
-    // It only makes sense to add multiple properties if you want to query by
-    // them... Or if you want to add a lot of JSON, it can be necessary to split
-    // it...
-  ]
+  version: 1,
+  partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
+  rowKey: base.Entity.keys.StringKey('workerType'),
+  properties: {
+    workerType: base.Entity.types.String,
+    launchSpecification: base.Entity.types.JSON,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minSpotBid: base.Entity.types.Number,
+    maxSpotBid: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON,
+    canUseSpot: base.Entity.types.JSON,
+    types: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+  }
 });
+
+/** Create a worker type */
+WorkerType.create = function(workerType, properties) {
+  //properties.RowKey = KEY_CONST;
+  properties.workerType = workerType;
+  return base.Entity.create.call(this, properties);
+};
+
+/** Load worker from worker type */
+WorkerType.load = function(workerType) {
+  return base.Entity.load.call(this, {
+    workerType: workerType
+  });
+};
+
+/** Prepare a workerType for display */
+WorkerType.loadForReply = function(workerType) {
+  var p = this.load(workerType);
+
+  p = p.then(function(worker) {
+    var forReply = _.clone(worker.__properties);
+    forReply.workerType = workerType;
+    return forReply
+  });
+
+  return p;
+};
+
+/** Load all worker types.  Note that this
+ * This method only returns the __properties
+ * from base.Entity.scan */
+WorkerType.loadAll = function() {
+  var workers = [];
+
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      workers.push(item.__properties);
+    }
+  });
+
+  p = p.then(function() {
+    return workers;
+  });
+
+  return p;
+};
+
+/** Load all workerTypes.  This won't scale perfectly, but
+ *  we don't see there being a huge number of these upfront */
+WorkerType.loadAllNames = function() {
+  var names = [];
+
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      names.push(item.workerType);
+    }
+  });
+
+  p = p.then(function() {
+    return names;
+  });
+
+  return p;
+};
+
+/** Remove worker type with given workertype */
+WorkerType.remove = function(workerType) {
+  return base.Entity.remove.call(this, {
+    workerType: workerType
+  });
+};
+
 
 // Export WorkerType
 exports.WorkerType = WorkerType;
