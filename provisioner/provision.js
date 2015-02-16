@@ -93,7 +93,7 @@ function Provisioner(cfg) {
   this.provisionIterationInterval = cfg.provisionIterationInterval;
   if (!this.provisionIterationInterval || typeof this.provisionIterationInterval !== 'number' || isNaN(this.provisionIterationInterval)) {
     // I remember there being something funky about using isNaN in JS...
-    throw new Error('Pulse rate is missing or not a number');
+    throw new Error('Provision Iteration Interval is missing or not a number');
   }
 
   // This is the Queue object which we use for things like retreiving
@@ -136,19 +136,22 @@ module.exports.Provisioner = Provisioner;
 Provisioner.prototype.run = function () {
   var that = this;
 
-  // Hey Jonas, can you double check that I'm not leaking because of the timeouts?
-  function pulse() {
-    that.runAllProvisionersOnce().then(function(x) {
-      debug('Finished a provision pulse');
+  function provisionIteration() {
+    that.runAllProvisionersOnce().then(function() {
+      debug('Finished a provision iteration');
       if (!process.env.PROVISION_ONCE) {
-        debug('Not doing another cycle because of env PROVISION_ONCE being set');
+        debug('Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
+      } else {
+        debug('PROVISION_ONCE environment variable is set, ');
       }
-      return x;
+    }).catch(function(err) {
+      debug('Error running a provisioning iteration');
+      debug(err);
     }).done();
   }
 
-  pulse();
+  provisionIteration();
 
 };
 
