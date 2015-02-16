@@ -29,7 +29,6 @@ var data = require('./data');
   14. We should only kill orphans which have been orphaned for X hours in case of accidentally
       deleting the workerTypes
   17. provide metrics on how long it takes for spot request to be filled, etc
-  21. rename pulse/pulseRate to provisioningInterval
   22. move data.WorkerType.configure to bin/provisioner
   23. store the list of known to exist keynames in the program state OR 24.
   24. move the keypair creation and deletion to the create/delete provisioner-api
@@ -47,6 +46,10 @@ var data = require('./data');
   34. verify that we use the subset of workerType allowed regions and config allowed
       regions instead of only one or the other
   35. Look at Rail's joi patch and figure out why things are breaking with it
+  36. add the following things:
+        - api end point that lists all instances and spot requests in all regions
+        - api end point that shuts off all instances managed by this provisioner
+        - api end point to kill all instances of a specific type
   
  */
 
@@ -61,7 +64,7 @@ var data = require('./data');
       taskcluster: { <taskcluster client library config object>},
       aws: { <aws config object> },
       azure: { <azure config object> },
-      pulseRate: 10000,
+      provisionIterationInterval: 10000,
     };
 */
 function Provisioner(cfg) {
@@ -88,8 +91,8 @@ function Provisioner(cfg) {
   }
 
   // This is the number of milliseconds to wait between completed provisioning runs
-  this.pulseRate = cfg.pulseRate;
-  if (!this.pulseRate || typeof this.pulseRate !== 'number' || isNaN(this.pulseRate)) {
+  this.provisionIterationInterval = cfg.provisionIterationInterval;
+  if (!this.provisionIterationInterval || typeof this.provisionIterationInterval !== 'number' || isNaN(this.provisionIterationInterval)) {
     // I remember there being something funky about using isNaN in JS...
     throw new Error('Pulse rate is missing or not a number');
   }
@@ -140,7 +143,7 @@ Provisioner.prototype.run = function () {
       debug('Finished a provision pulse');
       if (!process.env.PROVISION_ONCE) {
         debug('Not doing another cycle because of env PROVISION_ONCE being set');
-        setTimeout(pulse, that.pulseRate);
+        setTimeout(provisionIteration, that.provisionIterationInterval);
       }
       return x;
     }).done();
@@ -499,7 +502,6 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
       fixed[region] = pricing[region].SpotPriceHistory;
     });
 
-    debug(fixed);
     return fixed;
   })
 
@@ -761,7 +763,6 @@ Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceTy
       newSpec[key] = workerType.regions[region].overwrites[key];
     });
 
-    debug(newSpec);
     resolve(newSpec);
   });
 }

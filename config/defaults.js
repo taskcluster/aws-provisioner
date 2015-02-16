@@ -17,7 +17,7 @@ module.exports = {
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2',
     awsKeyPrefix:         'aws-provisioner2-managed:',
-    pulseRate:            10000,
+    iterationInterval:    10000,
     awsInstancePubkey:    undefined,
     allowedRegions:       'us-west-1,us-west-2', // comma seperated list
   },
