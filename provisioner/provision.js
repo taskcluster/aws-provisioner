@@ -461,16 +461,30 @@ Provisioner.prototype.assertKeyPair = function(workerTypeName) {
  * make sure to use the nextToken to read the whole thing in
  */
 Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
-/*
-   This promise is an object with a SpotInstances key that's a list of these:
-   {
-      InstanceType: 'r3.xlarge', 
-      ProductDescription: 'Linux/UNIX', 
-      SpotPrice: '0.042300', 
-      Timestamp: Thu Feb 05 2015 14:23:31 GMT+0100 (CET), 
-      AvailabilityZone: 'us-west-2c'
+  var that = this;
+
+  if (this.__pricingCache) {
+    // We want to cache the results of the amazon pricing data
+    if (new Date() < this.__pricingCache.expires) {
+      debug('Cached spot pricing history is still good, returning it');
+      return Promise.resolve(this.__pricingCache.data);
+    } else {
+      debug('Have cached spot pricing history, but it has expired');
     }
-*/
+  } else {
+    debug('No cached spot pricing history');
+    this.__pricingCache = {
+      expires: undefined, // These aren't nessecary but a reminder of shape
+      data: undefined,
+    };
+  }
+
+  // We want to cache the results of the amazon pricing data
+  if (new Date() < this.__expiresLastFetchedSpotPricingHistory) {
+    debug('Have cached amazon pricing data, returning it');
+    return Promise.resolve(this.__lastFetchedSpotPricingHistory);
+  }
+
   var types = [];
   workerTypes.forEach(function(workerType) {
     var newTypes = Object.keys(workerType.types).filter(function(type) {
@@ -500,6 +514,13 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
     regions.forEach(function(region) {
       fixed[region] = pricing[region].SpotPriceHistory;
     });
+
+    // Store the pricing data and an expiration time
+    var expires = new Date();
+    expires.setMinutes((expires.getMinutes() + 15) % 60);
+
+    that.__pricingCache.expires = expires;
+    that.__pricingCache.data = fixed;
 
     return fixed;
   })
