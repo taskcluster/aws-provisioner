@@ -36,7 +36,7 @@ var config = {
   taskcluster: cfg.get('taskcluster'),
   aws: cfg.get('aws'),
   azure: cfg.get('azure'),
-  pulseRate: cfg.get('provisioner:pulseRate'),
+  provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
   allowedAwsRegions: cfg.get('provisioner:allowedRegions').split(','),
 }
 
