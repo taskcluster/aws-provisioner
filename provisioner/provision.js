@@ -29,12 +29,11 @@ var data = require('./data');
   14. We should only kill orphans which have been orphaned for X hours in case of accidentally
       deleting the workerTypes
   17. provide metrics on how long it takes for spot request to be filled, etc
-  22. move data.WorkerType.configure to bin/provisioner
-  23. store the list of known to exist keynames in the program state OR 24.
+  22. move data.WorkerType.configure to bin/provisioner... why?
+  23. store the list of known to exist keynames in the program state OR #24 below.
   24. move the keypair creation and deletion to the create/delete provisioner-api
   25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
   26. move creating launch configuration to the WorkerType object
-  27. use Queue.pendingTasks instead -- extra api hits...
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
   29. do ami copy when machine is inserted or updated in the azure table storage
@@ -170,13 +169,11 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   debug('%s Beginning provisioning run %s', this.provisionerId, runId);
   var p = Promise.all([
-    this.Queue.pendingTaskCount(this.provisionerId),
     this.WorkerType.loadAll(),
     this.fetchAwsState()
   ]);
 
   p = p.then(function(res) {
-    pendingTasks = res.shift();
     workerTypes = res.shift();
     awsState = res.shift();
 
@@ -208,8 +205,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       var wtRunId = uuid.v4();
       wtRunIds.push(wtRunId);
       debug('%s[%s] == %s worker', runId, workerType.workerType, wtRunId);
-      var pendingForWorker = pendingTasks[workerType.workerType] || 0;
-      return that.provisionType(wtRunId, workerType, awsState, pricing, pendingForWorker);
+      return that.provisionType(wtRunId, workerType, awsState, pricing);
     }));
   });
 
@@ -357,11 +353,12 @@ Provisioner.prototype.killOrphansInRegion = function(awsRegion, awsRegionState, 
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pricing, pending) {
+Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pricing) {
   var that = this;
 
   var capacity;
   var change;
+  var pending;
   var spotBids;
 
   var p = Promise.all([
@@ -370,6 +367,7 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
       awsState,
       this.allowedAwsRegions,
       ['pending', 'running', 'requestedSpot']),
+    this.Queue.pendingTasks(this.provisionerId, workerType.workerType),
     this.assertKeyPair(workerType.workerType),
   ]);
 
@@ -377,6 +375,7 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
     debug('%s %s has %d existing capacity units and %d pending tasks',
       wtRunId, workerType.workerType, res[0], pending);
     capacity = res[0]; 
+    pending = res[1];
     return res;
   });
 

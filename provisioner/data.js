@@ -97,5 +97,6 @@ WorkerType.remove = function(workerType) {
   });
 };
 
+
 // Export WorkerType
 exports.WorkerType = WorkerType;
