@@ -44,6 +44,9 @@ var data = require('./data');
   31. find cheapest instance per region, then find the cheapest type
   32. testers don't change instance types
   33. api endpoint when the machine comes up to tell us how long it took to turn on
+  34. verify that we use the subset of workerType allowed regions and config allowed
+      regions instead of only one or the other
+  35. Look at Rail's joi patch and figure out why things are breaking with it
   
  */
 
