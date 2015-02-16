@@ -18,7 +18,7 @@ var data = require('./data');
  */
 
 /*
-  TODO:
+  TODO: Things in here
 
    2. sprinkle some uuids on debug messages for sanity's sake
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
@@ -30,25 +30,37 @@ var data = require('./data');
       deleting the workerTypes
   17. provide metrics on how long it takes for spot request to be filled, etc
   22. move data.WorkerType.configure to bin/provisioner... why?
-  23. store the list of known to exist keynames in the program state OR #24 below.
-  24. move the keypair creation and deletion to the create/delete provisioner-api
   25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
   26. move creating launch configuration to the WorkerType object
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
-  29. do ami copy when machine is inserted or updated in the azure table storage
-      http://aws.amazon.com/about-aws/whats-new/2013/03/12/announcing-ami-copy-for-amazon-ec2/
-  30. add influx timing to the multiaws
   31. find cheapest instance per region, then find the cheapest type
   32. testers don't change instance types
-  33. api endpoint when the machine comes up to tell us how long it took to turn on
   34. verify that we use the subset of workerType allowed regions and config allowed
       regions instead of only one or the other
   35. Look at Rail's joi patch and figure out why things are breaking with it
+  36. Create a cache object which stores the expiration date, data and has
+      a .stillValid() method
+
+  TODO: Things in the server API
+
+  23. store the list of known to exist keynames in the program state OR #24 below.
+  24. move the keypair creation and deletion to the create/delete provisioner-api
+  29. do ami copy when machine is inserted or updated in the azure table storage
+      http://aws.amazon.com/about-aws/whats-new/2013/03/12/announcing-ami-copy-for-amazon-ec2/
   36. add the following things:
         - api end point that lists all instances and spot requests in all regions
         - api end point that shuts off all instances managed by this provisioner
         - api end point to kill all instances of a specific type
+        - api end point to show capacity, etc for each workerType
+
+  TODO: Other
+  30. add influx timing to the multiaws
+  33. api endpoint when the machine comes up to tell us how long it took to turn on
+
+  Questions:
+  1. How can I get JSON Schema to say I need a dictionary, i don't care what its
+     key names are, but I care that the key points to an object of a given shape
   
  */
 
@@ -360,7 +372,6 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
   var that = this;
 
   var capacity;
-  var change;
   var pending;
   var spotBids;
 
@@ -375,36 +386,36 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
   ]);
 
   p = p.then(function (res) {
-    debug('%s %s has %d existing capacity units and %d pending tasks',
-      wtRunId, workerType.workerType, res[0], pending);
-    capacity = res[0]; 
     pending = res[1];
+    capacity = res[0]; 
+    debug('%s %s has %d existing capacity units and %d pending tasks',
+      wtRunId, workerType.workerType, capacity, pending);
     return res;
   });
 
   p = p.then(function () {
-    change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
+    var change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
     if (capacity + change > workerType.maxCapacity) {
       debug('%s %s a change of %d would exceed max of %d', wtRunId,
           workerType.workerType, change, workerType.maxCapacity);
-      change = capacity - workerType.maxCapacity;
+      change = workerType.maxCapacity - capacity;
     } else if (capacity + change < workerType.minCapacity) {
       debug('%s %s a change of %d would be less than min of %d', wtRunId,
           workerType.workerType, change, workerType.minCapacity);
       change = workerType.minCapacity - capacity;
     }
-    debug('%s %s submitting request for %d more capacity units',
+    debug('%s %s submitting request for %d capacity units',
         wtRunId, workerType.workerType, change);
     return change;
   });
 
-  p = p.then(function() {
-    return that.determineSpotBids(workerType, awsState, pricing, change);  
+  p = p.then(function(change) {
+    return that.determineSpotBids(workerType, awsState, pricing, change);
   });
 
   p = p.then(function(_spotBids) {
     spotBids = _spotBids;
-    return _spotBids;
+    return spotBids;
   });
 
   p = p.then(function() {
@@ -420,6 +431,10 @@ Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pr
     return Promise.all(spotBids.map(function(spotBid) {
       return that.spawnInstance(wtRunId, workerType, spotBid.region, spotBid.instanceType, spotBid.spotPrice);
     }));
+  });
+
+  p = p.then(function() {
+    return that.killExcess(wtRunId, workerType, awsState);
   });
   
   return p;
@@ -634,52 +649,50 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, inst
  * history multiplied by 1.3 to give a 30% buffer. */
 Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing, change) {
   var that = this;
-  return new Promise(function(resolve, reject) {
+  var spotBids = [];
+  
+  while (change > 0) {
 
-    var spotBids = [];
-    
-    while (change > 0) {
+    // For now, let's randomly pick regions.  The assumption here is that over time
+    // each datacenter will average the same number of nodes.  We should be smarter
+    // and do things like monitor AWS State to see which regions have the most
+    // capacity and assign new nodes to other regions
+    var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
+    var region = that.allowedAwsRegions[randomRegionIdx];
 
-      // For now, let's randomly pick regions.  The assumption here is that over time
-      // each datacenter will average the same number of nodes.  We should be smarter
-      // and do things like monitor AWS State to see which regions have the most
-      // capacity and assign new nodes to other regions
-      var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
-      var region = that.allowedAwsRegions[randomRegionIdx];
+    var ait = workerType.types;
 
-      var ait = workerType.types;
+    var cheapestType;
+    var cheapestPrice;
+    var spotBid;
+    var priceMap = {};
 
-      var cheapestType;
-      var cheapestPrice;
-      var spotBid;
-      var priceMap = {};
+    Object.keys(ait).forEach(function(potentialType) {
+      var potentialSpotBid = that.findPriceForType(pricing, region, potentialType);
+      // Like capacity we assume that if a utility factor is not available
+      // that we consider it to be the base (1)
+      var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
+      if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > workerType.maxSpotBid)) {
+        cheapestPrice = potentialPrice;
+        cheapestType = potentialType;
+        // We bid a little higher because we don't want the machine to end
+        // too soon
+        spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000;
+      }
+    });
 
-      Object.keys(ait).forEach(function(potentialType) {
-        var potentialSpotBid = that.findPriceForType(pricing, region, potentialType);
-        // Like capacity we assume that if a utility factor is not available
-        // that we consider it to be the base (1)
-        var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
-        if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > workerType.maxSpotBid)) {
-          cheapestPrice = potentialPrice;
-          cheapestType = potentialType;
-          // We bid a little higher because we don't want the machine to end
-          // too soon
-          spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000;
-        }
-      });
+    change -= ait[cheapestType].capacity;
 
-      change -= ait[cheapestType].capacity;
+    spotBids.push({
+      region: region,
+      spotPrice: spotBid,
+      instanceType: cheapestType,
+    });
+  }
 
-      spotBids.push({
-        region: region,
-        spotPrice: spotBid,
-        instanceType: cheapestType,
-      });
-    }
+  debugger;
+  return spotBids;
 
-    resolve(spotBids);
-
-  });
 }
 
 /* Given the pricing data, what's the average price for this instance type.
@@ -707,8 +720,8 @@ Provisioner.prototype.findPriceForType = function(pricing, region, type) {
 
 
 /* Kill machines when we have more than the maximum allowed */
-Provisioner.prototype.killExcess = function(workerType, awsState) {
-
+Provisioner.prototype.killExcess = function(wtRunId, workerType, awsState) {
+  var that = this;
   // We only want to kill running or pending instances when we're over capacity
   // because some of the oldest machines might end before spot requests are
   // fulfilled.  In that case, we don't want to cancel a spot request until
@@ -717,45 +730,61 @@ Provisioner.prototype.killExcess = function(workerType, awsState) {
 
   p = p.then(function(capacity) {
     if (capacity < workerType.maxCapacity) {
+      debug('%s %s has no extra capacity', wtRunId, workerType.workerType);
       return 0;
     } else {
-      return capacity - workerType.maxCapacity;
+      capacityToRemove = capacity - workerType.maxCapacity;
+      debug('%s %s needs to kill %s capacity units', wtRunId, workerType.workerType, capacityToRemove);
+      return capacityToRemove;
     }
   });
 
-  p = p.then(function(deaths) {
-    return destroyInstances(workerType, awsState, deaths); 
+  p = p.then(function(capacityToRemove) {
+    // Don't want to pollute the rest of the program's aws state
+    var deathWarrants = [];
+    var state = lodash.clone(awsState);
+
+    // Create data structures
+    that.allowedAwsRegions.forEach(function(region) {
+      deathWarrants[region] = {
+        instances: [],
+        spotRequests: [],
+      };
+    });
+
+    while (capacityToRemove > 0) {
+      // Let's be smarter about this later
+      var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
+      var region = that.allowedAwsRegions[randomRegionIdx];
+
+      if (state[region].requestedSpot.length > 0) {
+        var possibility = state[region].requestedSpot.shift();
+        var instanceType = possibility.LaunchSpecification.InstanceType;
+        var capacity = workerType.types[instanceType].capacity;
+        capacityToRemove -= capacity;
+        deathWarrants[region].spotRequests.push(possibility.SpotInstanceRequestId);
+        debug('%s %s killing a %s in region %s to reduce capacity by %d', wtRunId,
+            workerType.workerType, instanceType, region, capacity);
+      } else {
+        debug('%s %s nothing in %s to kill', region);
+      }
+    }
+
+    return Promise.all(that.allowedAwsRegions.filter(function(region) {
+      return deathWarrants[region].spotRequests.length > 0; 
+    }).map(function(region) {
+      return that.ec2.cancelSpotInstanceRequests.inRegion(region, {
+        SpotInstanceRequestIds: deathWarrants[region].spotRequests,
+      });
+    }));
+
   });
-  
+
+  p = p.then(function(res) {
+    debug('%s %s finished killing excess capacity', wtRunId, workerType.workerType);
+  });
+
   return p;
-}
-
-/* Destroy Machines! */
-Provisioner.prototype.destroyInstances = function(workerType, awsState, capacityToKill) {
-  var promises = [];
-  var srToCancel = 0;
-  if (awsState.requestedSpot && awsState.requestedSpot.length > 0) {
-    srToCancel = capacityToKill - awsState.requestedSpot.length;
-    srToCancel = srToCancel > 0 ? srToCancel : 0;
-  }
-
-  promises.push(this.ec2.CancelSpotInstanceRequests({
-    SpotInstanceRequestId: awsState.requestedSpot.slice(0, srToCancel).map(function(x) {
-      return x.SpotInstanceRequestId
-    })
-  }));
-
-  var instancesToKill = capacityToKill - srToCancel;
-
-  var instancesToKill = [].concat(awsState.pending).concat(awsState.running).slice(0, instancesToKill)
-
-  promises.push(this.ec2.terminateInstances({
-    InstanceIds: instancesToKill.map(function(x) {
-      x.InstanceId;
-    })
-  }));
-
-  return Promise.all(promises);
 }
 
 var validB64Regex = /^[A-Za-z0-9+/=]*$/;
