@@ -742,30 +742,48 @@ Provisioner.prototype.killExcess = function(wtRunId, workerType, awsState) {
   p = p.then(function(capacityToRemove) {
     // Don't want to pollute the rest of the program's aws state
     var deathWarrants = [];
-    var state = lodash.clone(awsState);
+    var state = {};
 
     // Create data structures
     that.allowedAwsRegions.forEach(function(region) {
+      // We want safely mutatable state but only the ID and InstanceType
+      state[region] = {
+        pending: (awsState[region].pending || []).map(function(instance) {
+          return {
+            InstanceType: instance.InstanceType,
+            InstanceId: instance.InstanceId,
+          };
+        }),
+        spotRequests: (awsState[region].requestedSpot || []).map(function(sr) {
+          return {
+            InstanceType: sr.LaunchSpecification.InstanceType,
+            SpotInstanceRequestId: sr.SpotInstanceRequestId,
+          };
+        }),
+      };
+
       deathWarrants[region] = {
         instances: [],
         spotRequests: [],
       };
     });
 
-    while (capacityToRemove > 0) {
+    var emptyRegions = [];
+    while (capacityToRemove > 0 && emptyRegions.length == 0) {
       // Let's be smarter about this later
       var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
       var region = that.allowedAwsRegions[randomRegionIdx];
 
-      if (state[region].requestedSpot.length > 0) {
-        var possibility = state[region].requestedSpot.shift();
-        var instanceType = possibility.LaunchSpecification.InstanceType;
+      if (state[region].spotRequests.length > 0) {
+        var possibility = state[region].spotRequests.shift();
+        var instanceType = possibility.InstanceType;
         var capacity = workerType.types[instanceType].capacity;
         capacityToRemove -= capacity;
         deathWarrants[region].spotRequests.push(possibility.SpotInstanceRequestId);
         debug('%s %s killing a %s in region %s to reduce capacity by %d', wtRunId,
             workerType.workerType, instanceType, region, capacity);
       } else {
+        emptyRegions.push(region);
         debug('%s %s nothing in %s to kill', region);
       }
     }
