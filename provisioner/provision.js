@@ -1,7 +1,9 @@
 'use strict';
 
 var Promise = require('promise');
-var debug = require('debug')('aws-provisioner:provisioner:provision');
+var _debug = require('debug');
+var baseDbgStr = 'aws-provisioner'; 
+var generalDebug = require('debug')(baseDbgStr + ':general');
 var base = require('taskcluster-base');
 var aws = require('multi-region-promised-aws');
 var taskcluster = require('taskcluster-client');
@@ -35,7 +37,7 @@ var data = require('./data');
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
   31. find cheapest instance per region, then find the cheapest type
-  32. testers don't change instance types
+  32. testers don't change instance types!!
   34. verify that we use the subset of workerType allowed regions and config allowed
       regions instead of only one or the other
   35. Look at Rail's joi patch and figure out why things are breaking with it
@@ -150,16 +152,16 @@ Provisioner.prototype.run = function () {
 
   function provisionIteration() {
     that.runAllProvisionersOnce().then(function() {
-      debug('Finished a provision iteration');
+      generalDebug('Finished a provision iteration');
       if (!process.env.PROVISION_ONCE) {
-        debug('Scheduling another provisioning iteration');
+        generalDebug('Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
-        debug('PROVISION_ONCE environment variable is set, ');
+        generalDebug('PROVISION_ONCE environment variable is set, ');
       }
     }).catch(function(err) {
-      debug('Error running a provisioning iteration');
-      debug(err);
+      generalDebug('Error running a provisioning iteration');
+      generalDebug(err);
     }).done();
   }
 
@@ -167,6 +169,7 @@ Provisioner.prototype.run = function () {
 
 };
 
+var __provRunId = 0;
 /* This is the main entry point into the provisioning routines.  It will
  * return an array of promises with the outcome of provisioning */
 Provisioner.prototype.runAllProvisionersOnce = function() {
@@ -174,27 +177,25 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   // method to avoid making a bunch of unneeded API calls
 
   var that = this;
+  var debug = _debug(baseDbgStr + ':all:run_' + ++__provRunId);
 
   var pendingTasks;
   var workerTypes;
   var awsState;
-  var runId = uuid.v4();
   var pricing;
-  var wtRunIds = [];
-
-  debug('%s Beginning provisioning run %s', this.provisionerId, runId);
+  debug('%s Beginning provisioning', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
-    this.fetchAwsState()
+    this.fetchAwsState(debug)
   ]);
 
   p = p.then(function(res) {
     workerTypes = res.shift();
     awsState = res.shift();
 
-    debug('%s AWS has instances of workerTypes: %s', runId, JSON.stringify(Object.keys(awsState)));
+    debug('AWS has instances of workerTypes: %s', JSON.stringify(Object.keys(awsState)));
     // We could probably combine this with the .map of workerTypes below... meh...
-    debug('%s WorkerType Definitions for %s', runId, JSON.stringify(workerTypes.map(function(x) {
+    debug('WorkerType Definitions for %s', JSON.stringify(workerTypes.map(function(x) {
       return x.workerType;
     })));
 
@@ -203,32 +204,26 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   p = p.then(function() {
     return Promise.all([
-        that.fetchSpotPricingHistory(workerTypes),
-        that.killOrphans(awsState, workerTypes),
+        that.fetchSpotPricingHistory(debug, workerTypes),
+        that.killOrphans(debug, awsState, workerTypes),
     ]);
   });
 
   p = p.then(function(res) {
     pricing = res[0];
-    debug('%s Fetched EC2 Pricing data', runId);
-    debug('%s Killed these orphaned instances: %s', runId, res[1]);
+    debug('Killed these orphaned instances: %s', res[1]);
     return; 
   });
 
   p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
-      var wtRunId = uuid.v4();
-      wtRunIds.push(wtRunId);
-      debug('%s[%s] == %s worker', runId, workerType.workerType, wtRunId);
-      return that.provisionType(wtRunId, workerType, awsState, pricing);
+      var wtDebug = _debug(baseDbgStr + ':' + workerType.workerType + ':run_' + __provRunId);
+      return that.provisionType(wtDebug, workerType, awsState, pricing);
     }));
   });
 
   p = p.then(function(res) {
-    workerTypes.forEach(function(workerType, idx) {
-      debug('%s Completed provisioning for worker type %s', wtRunIds[idx], workerType.workerType);
-    });
-    debug('%s Provisioning run completed', runId); 
+    debug('Provisioning run completed'); 
     return res;
   });
 
@@ -246,7 +241,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     workerType2: ...
   }
 */
-Provisioner.prototype.fetchAwsState = function() {
+Provisioner.prototype.fetchAwsState = function(debug) {
   var that = this;
 
   var p = Promise.all([
@@ -314,11 +309,11 @@ Provisioner.prototype.fetchAwsState = function() {
  * don't know anything about, we will kill it.  NOTE: We currently do this as soon
  * as the workerType definition is not found, but we should probably do something
  * like wait for it to be gone for X hours before deleting it. */
-Provisioner.prototype.killOrphans = function(awsState, workerTypes) {
+Provisioner.prototype.killOrphans = function(debug, awsState, workerTypes) {
   var that = this;
 
   var p = Promise.all(this.allowedAwsRegions.map(function(region) {
-    return that.killOrphansInRegion(region, awsState[region], workerTypes);
+    return that.killOrphansInRegion(debug, region, awsState[region], workerTypes);
   }));
   
   return p;
@@ -326,7 +321,7 @@ Provisioner.prototype.killOrphans = function(awsState, workerTypes) {
 }
 
 /* Go through each region's state, find and kill orphans */
-Provisioner.prototype.killOrphansInRegion = function(awsRegion, awsRegionState, workerTypes) {
+Provisioner.prototype.killOrphansInRegion = function(debug, awsRegion, awsRegionState, workerTypes) {
   var that = this;
 
   var extant = Object.keys(awsRegionState);
@@ -368,80 +363,71 @@ Provisioner.prototype.killOrphansInRegion = function(awsRegion, awsRegionState, 
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function(wtRunId, workerType, awsState, pricing) {
+Provisioner.prototype.provisionType = function(debug, workerType, awsState, pricing) {
   var that = this;
 
   var capacity;
   var pending;
-  var spotBids;
 
   var p = Promise.all([
     this.countRunningCapacity(
+      debug,
       workerType,
       awsState,
       this.allowedAwsRegions,
       ['pending', 'running', 'requestedSpot']),
     this.Queue.pendingTasks(this.provisionerId, workerType.workerType),
-    this.assertKeyPair(workerType.workerType),
+    this.assertKeyPair(debug, workerType.workerType),
   ]);
 
   p = p.then(function (res) {
     pending = res[1];
     capacity = res[0]; 
-    debug('%s %s has %d existing capacity units and %d pending tasks',
-      wtRunId, workerType.workerType, capacity, pending);
+    debug('%d existing capacity, %d pending tasks', capacity, pending);
     return res;
   });
 
   p = p.then(function () {
     var change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
     if (capacity + change > workerType.maxCapacity) {
-      debug('%s %s a change of %d would exceed max of %d', wtRunId,
-          workerType.workerType, change, workerType.maxCapacity);
+      debug('computed capacity change of %d which exceeds max of %d', change, workerType.maxCapacity);
       change = workerType.maxCapacity - capacity;
     } else if (capacity + change < workerType.minCapacity) {
-      debug('%s %s a change of %d would be less than min of %d', wtRunId,
-          workerType.workerType, change, workerType.minCapacity);
+      debug('computed capacity change of %d would be lower than min of %d', change, workerType.minCapacity);
       change = workerType.minCapacity - capacity;
+    } else {
+      debug('computed capacity change of %d is within bounds', change);
     }
-    debug('%s %s submitting request for %d capacity units',
-        wtRunId, workerType.workerType, change);
     return change;
   });
 
   p = p.then(function(change) {
-    return that.determineSpotBids(workerType, awsState, pricing, change);
+    return that.determineSpotBids(debug, workerType, awsState, pricing, change);
   });
 
-  p = p.then(function(_spotBids) {
-    spotBids = _spotBids;
-    return spotBids;
-  });
-
-  p = p.then(function() {
+  p = p.then(function(spotBids) {
     if (spotBids.length === 0) {
-      debug('%s %s does not need more capacity', wtRunId, workerType.workerType);
+      debug('no spot bids needed');
     } else {
       spotBids.forEach(function(spotBid) {
-        debug('%s %s submitting spot request at %d for type %s in region %s',
-              wtRunId, workerType.workerType,
-              spotBid.spotPrice, spotBid.instanceType, spotBid.region);
+        var s = spotBid;
+        debug('creating spot bid for %d in %s for $%d', s.spotPrice, s.instanceType, s.region);
       });
     }
     return Promise.all(spotBids.map(function(spotBid) {
-      return that.spawnInstance(wtRunId, workerType, spotBid.region, spotBid.instanceType, spotBid.spotPrice);
+      return that.spawnInstance(debug, workerType, spotBid.region, spotBid.instanceType, spotBid.spotPrice);
     }));
   });
 
   p = p.then(function() {
-    return that.killExcess(wtRunId, workerType, awsState);
+    return that.killExcess(debug, workerType, awsState);
   });
   
   return p;
 }
 
 /* Check that we have a public key and create it if we don't */
-Provisioner.prototype.assertKeyPair = function(workerTypeName) {
+Provisioner.prototype.assertKeyPair = function(debug, workerTypeName) {
   /* This might be better to do in the provisionAll step once the 
      workertypes are loaded, then we can do a single key check per
      provisioning run */
@@ -478,31 +464,26 @@ Provisioner.prototype.assertKeyPair = function(workerTypeName) {
  * only fetch the first page of data, but in the future we will
  * make sure to use the nextToken to read the whole thing in
  */
-Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
+Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
   var that = this;
 
   if (this.__pricingCache) {
     // We want to cache the results of the amazon pricing data
     if (new Date() < this.__pricingCache.expires) {
-      debug('Cached spot pricing history is still good, returning it');
+      debug('Spot pricing history in cache is valid');
       return Promise.resolve(this.__pricingCache.data);
     } else {
-      debug('Have cached spot pricing history, but it has expired');
+      debug('Spot pricing history is cached but expired');
     }
   } else {
-    debug('No cached spot pricing history');
+    debug('Spot pricing history is not yet cached');
     this.__pricingCache = {
       expires: undefined, // These aren't nessecary but a reminder of shape
       data: undefined,
     };
   }
 
-  // We want to cache the results of the amazon pricing data
-  if (new Date() < this.__expiresLastFetchedSpotPricingHistory) {
-    debug('Have cached amazon pricing data, returning it');
-    return Promise.resolve(this.__lastFetchedSpotPricingHistory);
-  }
-
+  // We want to find every type of instanceType that we allow
   var types = [];
   workerTypes.forEach(function(workerType) {
     var newTypes = Object.keys(workerType.types).filter(function(type) {
@@ -511,6 +492,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
     Array.prototype.push.apply(types, newTypes);
   });
 
+  // We'll fetch two hours of pricing data
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
 
@@ -528,6 +510,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
   p = p.then(function(pricing) {
     var regions = Object.keys(pricing);
     var fixed = {};
+
     // Get rid of the key we don't care about
     regions.forEach(function(region) {
       fixed[region] = pricing[region].SpotPriceHistory;
@@ -536,7 +519,6 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
     // Store the pricing data and an expiration time
     var expires = new Date();
     expires.setMinutes((expires.getMinutes() + 15) % 60);
-
     that.__pricingCache.expires = expires;
     that.__pricingCache.data = fixed;
 
@@ -547,79 +529,71 @@ Provisioner.prototype.fetchSpotPricingHistory = function(workerTypes) {
 };
 
 /* Count the amount of capacity that's running or pending */
-Provisioner.prototype.countRunningCapacity = function(workerType, awsState, regions, states) {
-  var that = this;
+Provisioner.prototype.countRunningCapacity = function(debug, workerType, awsState, regions, states) {
   // For now, let's assume that an existing node is occupied
-  return new Promise(function(resolve, reject) {
-    var capacity = 0;
+  var capacity = 0;
+  var capacities = {};
+  var instances = [];
 
-    /* Remember that the workerType.types is like this:
-       { 
-        'instance-type': {
-          'capacity': 3,
-          'utility': 4,
-          'overwrites': {}
-        }
-       } */
-
-    var capacities = {};
-    var instances = [];
-
-    Object.keys(workerType.types).forEach(function(type) {
-      capacities[type] = workerType.types[type].capacity;   
-    });
-
-    that.allowedAwsRegions.forEach(function(region) {
-      if (awsState[region][workerType.workerType]) {
-        var wtsr = awsState[region][workerType.workerType];
-        // We are including pending instances in this loop because we want to make
-        // sure that they aren't ignored and duplicated
-        if (states.indexOf('running') > 0 && wtsr.running) {
-          Array.prototype.push.apply(instances, wtsr.running);
-        }
-        if (states.indexOf('pending') > 0 && awsState[region].pending) {
-          Array.prototype.push.apply(instances, wtsr.pending);
-        }
-        if (states.indexOf('requestedSpot') > 0 && wtsr.requestedSpot) {
-          Array.prototype.push.apply(instances, wtsr.requestedSpot);
-        }
-      }
-    });
-
-    instances.forEach(function(instance, idx, arr) {
-      var potentialCapacity = capacities[instance.InstanceType];
-      if (potentialCapacity) {
-        capacity += capacities[instance.InstanceType];
-      } else {
-        /* Rather than assuming that an unknown instance type has no capacity, we'll
-           assume the basic value (1) and move on.  Giving any other value would be
-           a bad idea, 0 means that we would be scaling indefinately and >1 would be
-           making assumptions which are not knowable */
-        capacity++;
-      }
-    });
-
-    resolve(capacity);
-      
+  // Build mapping between instance type and capacity
+  Object.keys(workerType.types).forEach(function(type) {
+    capacities[type] = workerType.types[type].capacity;   
   });
+
+  // Find all instances which are running in the requested regions
+  this.allowedAwsRegions.forEach(function(region) {
+    if (awsState[region][workerType.workerType]) {
+      var wtsr = awsState[region][workerType.workerType];
+      // We are including pending instances in this loop because we want to make
+      // sure that they aren't ignored and duplicated
+      if (states.indexOf('running') > 0 && wtsr.running) {
+        Array.prototype.push.apply(instances, wtsr.running);
+      }
+      if (states.indexOf('pending') > 0 && wtsr.pending) {
+        Array.prototype.push.apply(instances, wtsr.pending);
+      }
+      if (states.indexOf('requestedSpot') > 0 && wtsr.requestedSpot) {
+        Array.prototype.push.apply(instances, wtsr.requestedSpot);
+      }
+    }
+  });
+
+  debug('found %d instances', instances.length);
+
+  // For each instance we should add its capacity
+  instances.forEach(function(instance, idx, arr) {
+    var potentialCapacity = capacities[instance.InstanceType];
+    if (potentialCapacity) {
+      capacity += capacities[instance.InstanceType];
+    } else {
+      /* Rather than assuming that an unknown instance type has no capacity, we'll
+         assume the basic value (1) and move on.  Giving any other value would be
+         a bad idea, 0 means that we would be scaling indefinately and >1 would be
+         making assumptions which are not knowable */
+      debug('NOTE! instance type %s does not have a stated capacity', instance.InstanceType);
+      capacity++;
+    }
+  });
+
+  return (capacity);
+      
 }
 
 /* Create Machines! */
-Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, instanceType, spotPrice) {
+Provisioner.prototype.spawnInstance = function(debug, workerType, region, instanceType, spotPrice) {
   var that = this;
   var launchSpec;
 
-  var p = that.createLaunchSpec(workerType, region, instanceType);
+  var p = that.createLaunchSpec(debug, workerType, region, instanceType);
 
   p = p.then(function(_launchSpec) {
-    debug('%s %s has a launch specification', wtRunId, workerType.workerType);
-    //debug('Launch Spec: ' + JSON.stringify(_launchSpec));
+    debug('AWS LaunchSpecification generated', workerType.workerType);
     launchSpec = _launchSpec;
     return _launchSpec;
   });
 
   p = p.then(function() {
-    debug('%s %s is creating spot request', wtRunId, workerType.workerType)
+    debug('submitting spot request');
     return that.ec2.requestSpotInstances.inRegion(region, {
       InstanceCount: 1,
       Type: 'one-time',
@@ -631,7 +605,7 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, inst
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
     var sir = spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
-    debug('%s %s spot request %s submitted', wtRunId, workerType.workerType, sir);
+    debug('submitted spot request %s', sir);
     return sir;
   });
 
@@ -647,7 +621,7 @@ Provisioner.prototype.spawnInstance = function(wtRunId, workerType, region, inst
  * are currently hardcoded, but in the future we could do smart things like compare runtimes
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer. */
-Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing, change) {
+Provisioner.prototype.determineSpotBids = function(debug, workerType, awsState, pricing, change) {
   var that = this;
   var spotBids = [];
   
@@ -668,7 +642,7 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
     var priceMap = {};
 
     Object.keys(ait).forEach(function(potentialType) {
-      var potentialSpotBid = that.findPriceForType(pricing, region, potentialType);
+      var potentialSpotBid = that.findPriceForType(debug, pricing, region, potentialType);
       // Like capacity we assume that if a utility factor is not available
       // that we consider it to be the base (1)
       var potentialPrice = (ait[potentialType].utility || 1) * potentialSpotBid;
@@ -690,9 +664,7 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
     });
   }
 
-  debugger;
   return spotBids;
-
 }
 
 /* Given the pricing data, what's the average price for this instance type.
@@ -701,7 +673,7 @@ Provisioner.prototype.determineSpotBids = function(workerType, awsState, pricing
  *    - weight each AZ's price by how long it was the price
  *    - do other smart things
  */
-Provisioner.prototype.findPriceForType = function(pricing, region, type) {
+Provisioner.prototype.findPriceForType = function(debug, pricing, region, type) {
   // This could probably be a single loop
   var onlyThisType = pricing[region].filter(function(x) {
     return x.InstanceType === type;
@@ -720,28 +692,29 @@ Provisioner.prototype.findPriceForType = function(pricing, region, type) {
 
 
 /* Kill machines when we have more than the maximum allowed */
-Provisioner.prototype.killExcess = function(wtRunId, workerType, awsState) {
+Provisioner.prototype.killExcess = function(debug, workerType, awsState) {
   var that = this;
   // We only want to kill running or pending instances when we're over capacity
   // because some of the oldest machines might end before spot requests are
   // fulfilled.  In that case, we don't want to cancel a spot request until
   // it's actually converted into an instance and is costing money
-  var p = this.countRunningCapacity(workerType, awsState, this.allowedAwsRegions, ['running', 'pending']);
+  // NOTE: This promise should be removed... it's not needed
+  var p = Promise.resolve(this.countRunningCapacity(debug, workerType, awsState, this.allowedAwsRegions, ['running', 'pending']));
 
   p = p.then(function(capacity) {
     if (capacity < workerType.maxCapacity) {
-      debug('%s %s has no extra capacity', wtRunId, workerType.workerType);
+      debug('no excess capacity');
       return 0;
     } else {
       capacityToRemove = capacity - workerType.maxCapacity;
-      debug('%s %s needs to kill %s capacity units', wtRunId, workerType.workerType, capacityToRemove);
+      debug('%d too many capacity units', capacityToRemove);
       return capacityToRemove;
     }
   });
 
   p = p.then(function(capacityToRemove) {
     // Don't want to pollute the rest of the program's aws state
-    var deathWarrants = [];
+    var deathWarrants = {};
     var state = {};
 
     // Create data structures
@@ -780,11 +753,10 @@ Provisioner.prototype.killExcess = function(wtRunId, workerType, awsState) {
         var capacity = workerType.types[instanceType].capacity;
         capacityToRemove -= capacity;
         deathWarrants[region].spotRequests.push(possibility.SpotInstanceRequestId);
-        debug('%s %s killing a %s in region %s to reduce capacity by %d', wtRunId,
-            workerType.workerType, instanceType, region, capacity);
+        debug('killing %s in %s to reduce %d capacity', instanceType, region, capacity);
       } else {
         emptyRegions.push(region);
-        debug('%s %s nothing in %s to kill', region);
+        debug('nothing to kill in %s', region);
       }
     }
 
@@ -799,7 +771,7 @@ Provisioner.prototype.killExcess = function(wtRunId, workerType, awsState) {
   });
 
   p = p.then(function(res) {
-    debug('%s %s finished killing excess capacity', wtRunId, workerType.workerType);
+    debug('finished killing extra spot requests');
   });
 
   return p;
@@ -810,31 +782,28 @@ var validB64Regex = /^[A-Za-z0-9+/=]*$/;
 /* Create a launch spec with values overwritten for a given aws instance type.
    the instanceTypeParam is the overwrites object from the allowedInstances
    workerType field */
-Provisioner.prototype.createLaunchSpec = function(workerType, region, instanceType) {
+Provisioner.prototype.createLaunchSpec = function(debug, workerType, region, instanceType) {
   // These are the keys which are only applicable to a given region.
   // We're going to make sure that none are set in the generic launchSpec
   var regionSpecificKeys = ['ImageId'];
   var that = this;
-  return new Promise(function(resolve, reject) {
-    if (!workerType.types[instanceType]) {
-      reject(new Error(util.format('%s only allows [%s] instances, not %s',
-            workerType.workerType,
-            Object.keys(workerType.types).join(', '),
-            instanceType)));
-    }
-    var actual = lodash.clone(workerType.types[instanceType].overwrites);
-    var newSpec = lodash.defaults(actual, workerType.launchSpecification);
-    if (!validB64Regex.exec(newSpec.UserData)) {
-      reject(new Error(util.format('Launch specification does not contain Base64: %s', newSpec.UserData)));
-    }
-    newSpec.KeyName = that.awsKeyPrefix + workerType.workerType;
-    newSpec.InstanceType = instanceType;
-    regionSpecificKeys.forEach(function(key) {
-      newSpec[key] = workerType.regions[region].overwrites[key];
-    });
+  if (!workerType.types[instanceType]) {
+    var e = workerType.workerType + 'does not allow instance type ' + instanceType;
+    throw new Error(e);
+  }
 
-    resolve(newSpec);
+  var actual = lodash.clone(workerType.types[instanceType].overwrites);
+  var newSpec = lodash.defaults(actual, workerType.launchSpecification);
+  if (!validB64Regex.exec(newSpec.UserData)) {
+    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
+  }
+  newSpec.KeyName = that.awsKeyPrefix + workerType.workerType;
+  newSpec.InstanceType = instanceType;
+  regionSpecificKeys.forEach(function(key) {
+    newSpec[key] = workerType.regions[region].overwrites[key];
   });
+
+  return newSpec;
 }
 
 /* Figure out how many capacity units need to be created.  This number is
