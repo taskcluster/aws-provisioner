@@ -11,6 +11,7 @@ var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
+var Cache = require('../cache');
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -142,34 +143,55 @@ function Provisioner(cfg) {
   }
 
   this.ec2 = new aws('EC2', cfg.aws, this.allowedAwsRegions);
+
+  this.__provRunId = 0;
 }
 
 module.exports.Provisioner = Provisioner;
 
 
+/**
+ * Start running a provisioner.
+ */
 Provisioner.prototype.run = function () {
   var that = this;
+  this.__keepRunning = true;
 
   function provisionIteration() {
-    that.runAllProvisionersOnce().then(function() {
+    var p = that.runAllProvisionersOnce();
+    p = p.then(function() {
       generalDebug('Finished a provision iteration');
-      if (!process.env.PROVISION_ONCE) {
+      if (that.__keepRunning && !process.env.PROVISION_ONCE) {
         generalDebug('Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
         generalDebug('PROVISION_ONCE environment variable is set, ');
       }
-    }).catch(function(err) {
+    });
+    p = p.catch(function(err) {
       generalDebug('Error running a provisioning iteration');
       generalDebug(err);
-    }).done();
+    });
+    
+    // Hmm, do I really need this?
+    try {
+      p.done();
+    } catch(e) {
+      console.error('Error during provisioning iteration', e, e.stack);
+    }
   }
 
   provisionIteration();
 
 };
 
-var __provRunId = 0;
+/**
+ * Stop launching new provisioner iterations
+ */
+Provisioner.prototype.stop = function () {
+  this.__keepRunning = false;
+};
+
 /* This is the main entry point into the provisioning routines.  It will
  * return an array of promises with the outcome of provisioning */
 Provisioner.prototype.runAllProvisionersOnce = function() {
@@ -177,9 +199,8 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   // method to avoid making a bunch of unneeded API calls
 
   var that = this;
-  var debug = _debug(baseDbgStr + ':all:run_' + ++__provRunId);
+  var debug = _debug(baseDbgStr + ':all:run_' + ++this.__provRunId);
 
-  var pendingTasks;
   var workerTypes;
   var awsState;
   var pricing;
@@ -217,7 +238,8 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   p = p.then(function() {
     return Promise.all(workerTypes.map(function(workerType) {
-      var wtDebug = _debug(baseDbgStr + ':' + workerType.workerType + ':run_' + __provRunId);
+      var wtDebug = 
+        _debug(baseDbgStr + ':' + workerType.workerType + ':run_' + that.__provRunId);
       return that.provisionType(wtDebug, workerType, awsState, pricing);
     }));
   });
@@ -230,17 +252,9 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   return p;
 }
 
-/* Figure out what the current state is for AWS ec2 for
-   managed image types.  This returns an object in the form:
-  {
-    workerType1: {
-      running: [<instance>, <instance>],
-      pending: [<instance>],
-      requested: [<spotrequeset>],
-    }
-    workerType2: ...
-  }
-*/
+/**
+ * Fetch the state of all machines running in AWS
+ */
 Provisioner.prototype.fetchAwsState = function(debug) {
   var that = this;
 
@@ -266,10 +280,22 @@ Provisioner.prototype.fetchAwsState = function(debug) {
   ]);
 
   p = p.then(function(res) {
-    var allState = {};
-    that.allowedAwsRegions.forEach(function(region) {
+    return that._classifyAwsState(debug, res[0], res[1]);
+  });
+
+  return p;
+}
+
+/**
+ * For easier testing, the logic to sort the AwsState into buckets
+ * is in its own function
+ */
+Provisioner.prototype._classifyAwsState = function(debug, instanceState, spotRequestState) {
+  var that = this;
+  var allState = {};
+  this.allowedAwsRegions.forEach(function(region) {
       allState[region] = {};
-      res[0][region].Reservations.forEach(function(reservation) {
+      instanceState[region].Reservations.forEach(function(reservation) {
         reservation.Instances.forEach(function(instance) {
           var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
           var instanceState = instance.State.Name;
@@ -285,7 +311,7 @@ Provisioner.prototype.fetchAwsState = function(debug) {
         });
       });
 
-      res[1][region].SpotInstanceRequests.forEach(function(request) {
+      spotRequestState[region].SpotInstanceRequests.forEach(function(request) {
         var workerType = request.LaunchSpecification.KeyName.substr(that.awsKeyPrefix.length);
 
         if (!allState[region][workerType]) {
@@ -300,9 +326,6 @@ Provisioner.prototype.fetchAwsState = function(debug) {
     });
 
     return allState;
-  });
-
-  return p;
 }
 
 /* When we find an EC2 instance or spot request that is for a workerType that we
@@ -382,6 +405,10 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
 
   p = p.then(function (res) {
     pending = res[1];
+    if (typeof pending !== 'number') {
+      pending = 0;
+      debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
+    }
     capacity = res[0]; 
     debug('%d existing capacity, %d pending tasks', capacity, pending);
     return res;
@@ -390,10 +417,10 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
   p = p.then(function () {
     var change = determineCapacityChange(workerType.scalingRatio, capacity, pending);
     if (capacity + change > workerType.maxCapacity) {
-      debug('computed capacity change of %d which exceeds max of %d', change, workerType.maxCapacity);
+      debug('computed capacity change of %d exceeds max of %d', change, workerType.maxCapacity);
       change = workerType.maxCapacity - capacity;
     } else if (capacity + change < workerType.minCapacity) {
-      debug('computed capacity change of %d would be lower than min of %d', change, workerType.minCapacity);
+      debug('computed capacity change of %d lower than min of %d', change, workerType.minCapacity);
       change = workerType.minCapacity - capacity;
     } else {
       debug('computed capacity change of %d is within bounds', change);
@@ -467,20 +494,25 @@ Provisioner.prototype.assertKeyPair = function(debug, workerTypeName) {
 Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
   var that = this;
 
-  if (this.__pricingCache) {
-    // We want to cache the results of the amazon pricing data
-    if (new Date() < this.__pricingCache.expires) {
-      debug('Spot pricing history in cache is valid');
-      return Promise.resolve(this.__pricingCache.data);
-    } else {
-      debug('Spot pricing history is cached but expired');
+  // We wrap this instead of the raw ec2 method in a cache
+  // because we need the start date to be updated
+  function fetchSpotPricingHistory() {
+    debug('fetching new cached value');
+    var startDate = new Date();
+    startDate.setHours(startDate.getHours() - 2);
+    var requestObj = {
+      StartTime: startDate,
+      Filters: [{
+        Name: 'product-description',
+        Values: ['Linux/UNIX'],
+      }],
+      InstanceTypes: types,
     }
-  } else {
-    debug('Spot pricing history is not yet cached');
-    this.__pricingCache = {
-      expires: undefined, // These aren't nessecary but a reminder of shape
-      data: undefined,
-    };
+    return that.ec2.describeSpotPriceHistory(requestObj);
+  }
+
+  if (!this.pricingCache) {
+    this.pricingCache = new Cache(20, fetchSpotPricingHistory); 
   }
 
   // We want to find every type of instanceType that we allow
@@ -492,20 +524,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
     Array.prototype.push.apply(types, newTypes);
   });
 
-  // We'll fetch two hours of pricing data
-  var startDate = new Date();
-  startDate.setHours(startDate.getHours() - 2);
-
-  var requestObj = {
-    StartTime: startDate,
-    Filters: [{
-      Name: 'product-description',
-      Values: ['Linux/UNIX'],
-    }],
-    InstanceTypes: types,
-  }
-
-  var p = this.ec2.describeSpotPriceHistory(requestObj); 
+  var p = this.pricingCache.get();
 
   p = p.then(function(pricing) {
     var regions = Object.keys(pricing);
@@ -515,12 +534,6 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
     regions.forEach(function(region) {
       fixed[region] = pricing[region].SpotPriceHistory;
     });
-
-    // Store the pricing data and an expiration time
-    var expires = new Date();
-    expires.setMinutes((expires.getMinutes() + 15) % 60);
-    that.__pricingCache.expires = expires;
-    that.__pricingCache.data = fixed;
 
     return fixed;
   })
@@ -562,15 +575,28 @@ Provisioner.prototype.countRunningCapacity = function(debug, workerType, awsStat
 
   // For each instance we should add its capacity
   instances.forEach(function(instance, idx, arr) {
-    var potentialCapacity = capacities[instance.InstanceType];
+    var instanceType;
+
+    // Instance type is stored differently for spot requests
+    // and instances.  We should instead
+    if (instance.InstanceType) {
+      instanceType = instance.InstanceType;
+    } else if (instance.LaunchSpecification) {
+      instanceType = instance.LaunchSpecification.InstanceType;
+    } else {
+      throw new Error('Received something that is not a spot request or instance');
+    }
+
+    var potentialCapacity = capacities[instanceType];
     if (potentialCapacity) {
-      capacity += capacities[instance.InstanceType];
+      capacity += capacities[instanceType];
     } else {
       /* Rather than assuming that an unknown instance type has no capacity, we'll
          assume the basic value (1) and move on.  Giving any other value would be
          a bad idea, 0 means that we would be scaling indefinately and >1 would be
          making assumptions which are not knowable */
-      debug('NOTE! instance type %s does not have a stated capacity', instance.InstanceType);
+      debug('NOTE! instance type %s does not have a stated capacity', instanceType);
+      debugger;
       capacity++;
     }
   });
@@ -582,28 +608,20 @@ Provisioner.prototype.countRunningCapacity = function(debug, workerType, awsStat
 /* Create Machines! */
 Provisioner.prototype.spawnInstance = function(debug, workerType, region, instanceType, spotPrice) {
   var that = this;
-  var launchSpec;
+  var launchSpec = that.createLaunchSpec(debug, workerType, region, instanceType);
 
-  var p = that.createLaunchSpec(debug, workerType, region, instanceType);
+  debug('submitting spot request');
 
-  p = p.then(function(_launchSpec) {
-    debug('AWS LaunchSpecification generated', workerType.workerType);
-    launchSpec = _launchSpec;
-    return _launchSpec;
-  });
-
-  p = p.then(function() {
-    debug('submitting spot request');
-    return that.ec2.requestSpotInstances.inRegion(region, {
-      InstanceCount: 1,
-      Type: 'one-time',
-      LaunchSpecification: launchSpec,
-      SpotPrice: String(spotPrice).toString(),
-    });
+  var p = that.ec2.requestSpotInstances.inRegion(region, {
+    InstanceCount: 1,
+    Type: 'one-time',
+    LaunchSpecification: launchSpec,
+    SpotPrice: String(spotPrice).toString(),
   });
 
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
+    debugger;
     var sir = spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
     debug('submitted spot request %s', sir);
     return sir;
