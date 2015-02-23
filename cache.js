@@ -16,10 +16,22 @@ var debug = require('debug')('cache');
  * that you should be using.
  */
 function Cache(maxAgeMinutes, that, func) {
-  this.that = that;
+  var sliceFrom;
+  if (typeof that === 'object') {
+    this.that = that;
+    if (typeof func === 'string') {
+      this.func = that[func];
+    } else {
+      this.func = func;
+    }
+    sliceFrom = 3;
+  } else if (typeof that === 'function') {
+    this.that = undefined;
+    this.func = that;
+    sliceFrom = 2;
+  }
   this.maxAgeMinutes = maxAgeMinutes;
-  this.func = func;
-  this.args = Array.prototype.slice.call(arguments, 3);
+  this.args = Array.prototype.slice.call(arguments, sliceFrom);
 }
 
 /**
@@ -46,7 +58,7 @@ Cache.prototype.get = function() {
   if (!this.isValid()) {
     this.expiration = new Date();
     this.expiration.setMinutes(this.expiration.getMinutes() + this.maxAgeMinutes);
-    this.data = this.func.apply(this.thisVal, this.args); 
+    this.data = this.func.apply(this.that, this.args); 
     debug('cache was expired, got new value');
   }
   return this.data;

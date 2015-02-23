@@ -86,3 +86,110 @@ describe('basic cache functionality', function() {
   });
 
 });
+
+describe('cache function calling behaviour', function () {
+  var clock;
+  var sandbox;
+
+  beforeEach(function() {
+    clock = sinon.useFakeTimers();
+    sandbox = new sinon.sandbox.create();
+  });
+
+  afterEach(function() {
+    clock.restore();
+    sandbox.restore();
+  });
+
+  it('should call a lone paramless func', function() {
+    var a = new Date();
+    var callCount = 0;
+    var func = function() {
+      callCount++;
+      return a
+    }; 
+    var cache = new subject(20, func);
+    cache.get().should.equal(a);
+    callCount.should.eql(1);
+  });
+
+  it('should call a lone paramful func', function() {
+    var a = new Date();
+    var callCount = 0;
+    var valuePassedToX;
+    var func = function(x) {
+      callCount++;
+      valuePassedToX = x;
+      return a
+    }; 
+    var cache = new subject(20, func, 'johnissupercool');
+    cache.get().should.equal(a);
+    callCount.should.eql(1);  
+    valuePassedToX.should.eql('johnissupercool');
+  });
+
+  it('should call a paramless func on object', function() {
+    var a = new Date();
+
+    function B(val) {
+      this.val = val;
+      this.callCount = 0;
+    }
+
+    B.prototype.func = function() {
+      this.callCount++;
+      return this.val;
+    };
+    var inst = new B(a);
+    var cache = new subject(20, inst, inst.func, 'johnissupercool');
+
+    cache.get().should.equal(a);
+    inst.callCount.should.eql(1);  
+  });
+
+  it('should call a paramful func on object', function() {
+    var a = new Date();
+
+    function C(val) {
+      this.val = val;
+      this.callCount = 0;
+    }
+
+    C.prototype.func = function(x) {
+      this.callCount++;
+      this.valuePassedToX = x;
+      return this.val;
+    };
+    var inst = new C(a);
+    var cache = new subject(20, inst, inst.func, 'johnissupercool');
+
+    cache.get().should.equal(a);
+    inst.callCount.should.eql(1);  
+    inst.valuePassedToX.should.eql('johnissupercool');
+  });
+
+  it('should call a paramful func on object using string name', function() {
+    var a = new Date();
+
+    function D(val) {
+      this.val = val;
+      this.callCount = 0;
+    }
+
+    D.prototype.func = function(x) {
+      this.callCount++;
+      this.valuePassedToX = x;
+      return this.val;
+    };
+
+    var inst = new D(a);
+    var cache = new subject(20, inst, 'func', 'johnissupercool');
+
+    cache.get().should.equal(a);
+    inst.callCount.should.eql(1);  
+    inst.valuePassedToX.should.eql('johnissupercool');
+  });
+});
+
+
+
