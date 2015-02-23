@@ -113,12 +113,11 @@ function(req, res) {
   });
 
   p = p.then(function() {
-    return worker.createKeyPair(ctx.ec2, ctx.keyPrefix, ctx.pubKey);
+    return worker.createKeyPair();
   });
 
   p = p.then(function(result) {
     debug('Finished creating AWS KeyPair');
-    console.dir(result);
   });
 
   p = p.then(function() {
@@ -175,6 +174,14 @@ api.declare({
         worker[key] = input[key];
       });
     });
+  });
+
+  p = p.then(function() {
+    return worker.createKeyPair();
+  });
+
+  p = p.then(function(result) {
+    debug('Finished creating AWS KeyPair');
   });
 
   p = p.then(function() {
@@ -262,8 +269,22 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.remove(workerType)
-    
+  var worker;
+  var p = ctx.WorkerType.load(workerType)
+
+  p = p.then(function(worker_) {
+    worker = worker_;
+    return worker.deleteKeyPair(ctx.ec2, ctx.keyPrefix, ctx.pubKey);
+  });
+
+  p = p.then(function() {
+    return worker.remove();
+  });
+
+  p = p.then(function(result) {
+    debug('Finished deleting worker type');
+  });
+
   p = p.then(function(worker) {
     return res.reply({});
   });

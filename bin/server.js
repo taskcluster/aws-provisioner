@@ -47,7 +47,7 @@ var launch = function(profile) {
   var ec2 = new aws('EC2', cfg.get('aws'), [
     'us-east-1', 'us-west-1', 'us-west-2',
     'eu-west-1', 'eu-central-1',
-    'ap-southeast-1', 'ap-souteast-2', 'ap-northeast-1',
+    'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
     'sa-east-1'
   ]);
 
