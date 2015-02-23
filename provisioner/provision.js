@@ -150,26 +150,46 @@ function Provisioner(cfg) {
 module.exports.Provisioner = Provisioner;
 
 
+/**
+ * Start running a provisioner.
+ */
 Provisioner.prototype.run = function () {
   var that = this;
+  this.__keepRunning = true;
 
   function provisionIteration() {
-    that.runAllProvisionersOnce().then(function() {
+    var p = that.runAllProvisionersOnce();
+    p = p.then(function() {
       generalDebug('Finished a provision iteration');
-      if (!process.env.PROVISION_ONCE) {
+      if (that.__keepRunning && !process.env.PROVISION_ONCE) {
         generalDebug('Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
         generalDebug('PROVISION_ONCE environment variable is set, ');
       }
-    }).catch(function(err) {
+    });
+    p = p.catch(function(err) {
       generalDebug('Error running a provisioning iteration');
       generalDebug(err);
-    }).done();
+    });
+    
+    // Hmm, do I really need this?
+    try {
+      p.done();
+    } catch(e) {
+      console.error('Error during provisioning iteration', e, e.stack);
+    }
   }
 
   provisionIteration();
 
+};
+
+/**
+ * Stop launching new provisioner iterations
+ */
+Provisioner.prototype.stop = function () {
+  this.__keepRunning = false;
 };
 
 /* This is the main entry point into the provisioning routines.  It will
@@ -515,7 +535,6 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
       fixed[region] = pricing[region].SpotPriceHistory;
     });
 
-    debugger;
     return fixed;
   })
 
@@ -558,7 +577,6 @@ Provisioner.prototype.countRunningCapacity = function(debug, workerType, awsStat
   instances.forEach(function(instance, idx, arr) {
     var instanceType;
 
-    debugger
     // Instance type is stored differently for spot requests
     // and instances.  We should instead
     if (instance.InstanceType) {
@@ -603,6 +621,7 @@ Provisioner.prototype.spawnInstance = function(debug, workerType, region, instan
 
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
+    debugger;
     var sir = spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
     debug('submitted spot request %s', sir);
     return sir;
