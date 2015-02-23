@@ -142,7 +142,8 @@ WorkerType.prototype.deleteKeyPair = function() {
 };
 
 /**
- * Shutdown all instances of this workerType
+ * Shutdown all instances of this workerType, cancel
+ * any open spot requests.
  */
 WorkerType.prototype.killall = function() {
   var that = this;
@@ -214,8 +215,9 @@ WorkerType.prototype.killall = function() {
 
 }
 
-/** Load all workerTypes.  This won't scale perfectly, but
- *  we don't see there being a huge number of these upfront
+/**
+ * Load all workerTypes.  This won't scale perfectly, but
+ * we don't see there being a huge number of these upfront
  */
 WorkerType.loadAllNames = function() {
   var names = [];
@@ -233,13 +235,4 @@ WorkerType.loadAllNames = function() {
   return p;
 };
 
-/** Remove worker type with given workertype */
-/*WorkerType.remove = function(workerType) {
-  return base.Entity.remove.call(this, {
-    workerType: workerType
-  });
-};*/
-
-
-// Export WorkerType
 exports.WorkerType = WorkerType;

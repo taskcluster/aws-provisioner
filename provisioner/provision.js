@@ -23,7 +23,6 @@ var assert = require('assert');
 /*
   TODO: Things in here
 
-   2. sprinkle some uuids on debug messages for sanity's sake
    5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
   12. pricing history should use the nextToken if present to
   13. store requests and instance data independently from AWS so that we don't have issues
