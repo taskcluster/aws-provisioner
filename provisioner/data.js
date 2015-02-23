@@ -145,10 +145,73 @@ WorkerType.prototype.deleteKeyPair = function() {
  * Shutdown all instances of this workerType
  */
 WorkerType.prototype.killall = function() {
-  var perRegionIntances = {};
-  var perRegionSpotReq = {};
+  var that = this;
+  var regionDeaths = {};
 
-  this.listRegions();
+  var p = Promise.all([
+    this.ec2.describeInstances({
+      Filters: [{
+        Name: 'key-name',
+        Values: [this.awsKeyPrefix + this.workerType]
+      },{
+        Name: 'instance-state-name',
+        Values: ['running', 'pending']
+      }
+    ]}),
+    this.ec2.describeSpotInstanceRequests({
+      Filters: [{
+        Name: 'launch.key-name',
+        Values: [this.awsKeyPrefix + this.workerType]
+      }, {
+        Name: 'state',
+        Values: ['open']
+      }]
+    }),
+  ]);
+
+  p = p.then(function(res) {
+    var killinators = [];
+    that.listRegions().forEach(function(region) {
+      var instances = [];
+      var spotreqs = [];
+
+      res[0][region].Reservations.forEach(function(reservation) {
+        reservation.Instances.forEach(function(instance) {
+          instances.push(instance.InstanceId);
+          debug('Killing %s instance %s in %s',
+            that.workerType, instance.InstanceId, region);
+        });
+      });
+
+      res[1][region].SpotInstanceRequests.forEach(function(request) {
+        spotreqs.push(request.SpotInstanceRequestId);
+        debug('Cancelling %s spot request %s in %s',
+          that.workerType, request.SpotInstanceRequestId, region);
+      });
+
+      if (instances.length > 0) {
+        promises.push(that.terminateInstances.inRegion(region, {
+          InstanceIds: instances,
+        }));
+      }
+
+      if (spotreqs.length > 0) {
+        killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
+          SpotInstanceRequestIds: spotreqs,
+        }));
+      }
+
+    });
+    return Promise.all(killinators);
+  });
+
+  p = p.then(function() {
+    debug('Submitted kill/cancel requests for %s', that.workerType);
+    return that.deleteKeyPair();
+  });
+
+  return p;
+
 }
 
 /** Load all workerTypes.  This won't scale perfectly, but
