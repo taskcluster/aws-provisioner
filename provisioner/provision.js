@@ -260,10 +260,22 @@ Provisioner.prototype.fetchAwsState = function(debug) {
   ]);
 
   p = p.then(function(res) {
-    var allState = {};
-    that.allowedAwsRegions.forEach(function(region) {
+    return that._classifyAwsState(debug, res[0], res[1]);
+  });
+
+  return p;
+}
+
+/**
+ * For easier testing, the logic to sort the AwsState into buckets
+ * is in its own function
+ */
+Provisioner.prototype._classifyAwsState = function(debug, instanceState, spotRequestState) {
+  var that = this;
+  var allState = {};
+  this.allowedAwsRegions.forEach(function(region) {
       allState[region] = {};
-      res[0][region].Reservations.forEach(function(reservation) {
+      instanceState[region].Reservations.forEach(function(reservation) {
         reservation.Instances.forEach(function(instance) {
           var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
           var instanceState = instance.State.Name;
@@ -279,7 +291,7 @@ Provisioner.prototype.fetchAwsState = function(debug) {
         });
       });
 
-      res[1][region].SpotInstanceRequests.forEach(function(request) {
+      spotRequestState[region].SpotInstanceRequests.forEach(function(request) {
         var workerType = request.LaunchSpecification.KeyName.substr(that.awsKeyPrefix.length);
 
         if (!allState[region][workerType]) {
@@ -294,9 +306,6 @@ Provisioner.prototype.fetchAwsState = function(debug) {
     });
 
     return allState;
-  });
-
-  return p;
 }
 
 /* When we find an EC2 instance or spot request that is for a workerType that we
