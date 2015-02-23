@@ -274,7 +274,7 @@ api.declare({
 
   p = p.then(function(worker_) {
     worker = worker_;
-    return worker.deleteKeyPair(ctx.ec2, ctx.keyPrefix, ctx.pubKey);
+    return worker.killall();
   });
 
   p = p.then(function() {

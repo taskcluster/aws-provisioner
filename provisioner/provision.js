@@ -191,7 +191,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   var workerTypes;
   var awsState;
-  var pricing;
+
   debug('%s Beginning provisioning', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
@@ -212,19 +212,10 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   p = p.then(function() {
-    return Promise.all([
-        that.fetchSpotPricingHistory(debug, workerTypes),
-        that.killOrphans(debug, awsState, workerTypes),
-    ]);
+    return that.fetchSpotPricingHistory(debug, workerTypes);
   });
 
-  p = p.then(function(res) {
-    pricing = res[0];
-    debug('Killed these orphaned instances: %s', res[1]);
-    return; 
-  });
-
-  p = p.then(function() {
+  p = p.then(function(pricing) {
     return Promise.all(workerTypes.map(function(workerType) {
       var wtDebug = 
         _debug(baseDbgStr + ':' + workerType.workerType + ':run_' + that.__provRunId);
@@ -315,59 +306,6 @@ Provisioner.prototype._classifyAwsState = function(debug, instanceState, spotReq
 
     return allState;
 }
-
-/* When we find an EC2 instance or spot request that is for a workerType that we
- * don't know anything about, we will kill it.  NOTE: We currently do this as soon
- * as the workerType definition is not found, but we should probably do something
- * like wait for it to be gone for X hours before deleting it. */
-Provisioner.prototype.killOrphans = function(debug, awsState, workerTypes) {
-  var that = this;
-
-  var p = Promise.all(this.allowedAwsRegions.map(function(region) {
-    return that.killOrphansInRegion(debug, region, awsState[region], workerTypes);
-  }));
-  
-  return p;
-
-}
-
-/* Go through each region's state, find and kill orphans */
-Provisioner.prototype.killOrphansInRegion = function(debug, awsRegion, awsRegionState, workerTypes) {
-  var that = this;
-
-  var extant = Object.keys(awsRegionState);
-  var known = workerTypes.map(function(x) { return x.workerType });
-  var orphans = extant.filter(function(x) { return known.indexOf(x) > 0 });
-  var instances = [];
-  var srs = [];
-
-  orphans.forEach(function(name) {
-    Array.prototype.push.apply(instances, awsRegionState[name].running.map(function(x) { return x.InstanceId; }));
-    Array.prototype.push.apply(instances, awsRegionState[name].pending.map(function(x) { return x.InstanceId; }));
-    Array.prototype.push.apply(srs, awsRegionState[name].requestedSpot.map(function(x) { return x.SpotInstanceRequestId; }));
-  });
-
-  var killinators = [];
- 
-  if (instances.length > 0) {
-    killinators.push(this.ec2.terminateInstances.inRegion(awsRegion, {
-      InstanceIds: instances,
-    }));
-  } 
-
-  if (srs.length > 0) {
-    killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
-      SpotInstanceRequestIds: srs,
-    }));
-  }
-
-  return Promise.all(killinators).then(function(res) {
-    return orphans; 
-  });
-  
-}
-
-
 
 /* Provision a specific workerType.  This promise will have a value of true if
  * everything worked.  Another option is resolving to the name of the worker to
