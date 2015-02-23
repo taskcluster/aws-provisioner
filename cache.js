@@ -60,6 +60,8 @@ Cache.prototype.get = function() {
     this.expiration.setMinutes(this.expiration.getMinutes() + this.maxAgeMinutes);
     this.data = this.func.apply(this.that, this.args); 
     debug('cache was expired, got new value');
+  } else {
+    debug('cache is value, returning cached data');
   }
   return this.data;
 

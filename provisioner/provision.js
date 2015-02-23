@@ -143,6 +143,7 @@ function Provisioner(cfg) {
   }
 
   this.ec2 = new aws('EC2', cfg.aws, this.allowedAwsRegions);
+
   this.__provRunId = 0;
 }
 
@@ -231,17 +232,9 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   return p;
 }
 
-/* Figure out what the current state is for AWS ec2 for
-   managed image types.  This returns an object in the form:
-  {
-    workerType1: {
-      running: [<instance>, <instance>],
-      pending: [<instance>],
-      requested: [<spotrequeset>],
-    }
-    workerType2: ...
-  }
-*/
+/**
+ * Fetch the state of all machines running in AWS
+ */
 Provisioner.prototype.fetchAwsState = function(debug) {
   var that = this;
 
@@ -475,7 +468,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
   // We wrap this instead of the raw ec2 method in a cache
   // because we need the start date to be updated
   function fetchSpotPricingHistory() {
-    debug('fetching spot price history for real');
+    debug('fetching new cached value');
     var startDate = new Date();
     startDate.setHours(startDate.getHours() - 2);
     var requestObj = {

@@ -28,7 +28,6 @@ var WorkerType = base.Entity.configure({
 
 /** Create a worker type */
 WorkerType.create = function(workerType, properties) {
-  //properties.RowKey = KEY_CONST;
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
