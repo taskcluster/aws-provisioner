@@ -41,7 +41,7 @@ var launch = function(profile) {
     maxPendingPoints:   cfg.get('influx:maxPendingPoints')
   });
 
-  // Configure me an EC2 instance.  This one should be able
+  // Configure me an EC2 API instance.  This one should be able
   // to run in any region, which we'll limit by the ones
   // store in the worker definition
   var ec2 = new aws('EC2', cfg.get('aws'), [
