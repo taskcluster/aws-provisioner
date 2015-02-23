@@ -65,6 +65,33 @@ WorkerType.loadAll = function() {
 };
 
 /**
+ * Create an AWS LaunchSpecification for this workerType
+ */
+WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
+  // These are the keys which are only applicable to a given region.
+  // We're going to make sure that none are set in the generic launchSpec
+  var that = this;
+  if (!this.types[instanceType]) {
+    var e = workerType.workerType + 'does not allow instance type ' + instanceType;
+    throw new Error(e);
+  }
+
+  var actual = lodash.clone(this.types[instanceType].overwrites);
+  var newSpec = lodash.defaults(actual, this.launchSpecification);
+  if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
+    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
+  }
+  newSpec.KeyName = this.awsKeyPrefix + this.workerType;
+  newSpec.InstanceType = instanceType;
+  regionSpecificKeys.forEach(function(key) {
+    newSpec[key] = this.regions[region].overwrites[key];
+  });
+
+  return newSpec;
+    
+};
+
+/**
  * Return the list of regions that this WorkerType
  * is configured to provision in
  */

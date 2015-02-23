@@ -473,7 +473,7 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
 /* Create Machines! */
 Provisioner.prototype.spawnInstance = function(debug, workerType, region, instanceType, spotPrice) {
   var that = this;
-  var launchSpec = that.createLaunchSpec(debug, workerType, region, instanceType);
+  var launchSpec = workerType.createLaunchSpec(region, instanceType);
 
   debug('submitting spot request');
 
@@ -661,33 +661,6 @@ Provisioner.prototype.killExcess = function(debug, workerType, awsState) {
 }
 
 var validB64Regex = /^[A-Za-z0-9+/=]*$/;
-
-/* Create a launch spec with values overwritten for a given aws instance type.
-   the instanceTypeParam is the overwrites object from the allowedInstances
-   workerType field */
-Provisioner.prototype.createLaunchSpec = function(debug, workerType, region, instanceType) {
-  // These are the keys which are only applicable to a given region.
-  // We're going to make sure that none are set in the generic launchSpec
-  var regionSpecificKeys = ['ImageId'];
-  var that = this;
-  if (!workerType.types[instanceType]) {
-    var e = workerType.workerType + 'does not allow instance type ' + instanceType;
-    throw new Error(e);
-  }
-
-  var actual = lodash.clone(workerType.types[instanceType].overwrites);
-  var newSpec = lodash.defaults(actual, workerType.launchSpecification);
-  if (!validB64Regex.exec(newSpec.UserData)) {
-    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
-  }
-  newSpec.KeyName = that.awsKeyPrefix + workerType.workerType;
-  newSpec.InstanceType = instanceType;
-  regionSpecificKeys.forEach(function(key) {
-    newSpec[key] = workerType.regions[region].overwrites[key];
-  });
-
-  return newSpec;
-}
 
 /* Figure out how many capacity units need to be created.  This number is
  * determined by calculating how much capacity is needed to maintain a given
