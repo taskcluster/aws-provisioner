@@ -30,23 +30,15 @@ var assert = require('assert');
       with the eventual consistency system.  This will also let us track when
       a spot request is rejected
   17. provide metrics on how long it takes for spot request to be filled, etc
-  22. move data.WorkerType.configure to bin/provisioner... why?
   25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
   26. move creating launch configuration to the WorkerType object
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
   31. find cheapest instance per region, then find the cheapest type
-  32. testers don't change instance types!!
-  34. verify that we use the subset of workerType allowed regions and config allowed
-      regions instead of only one or the other
   35. Look at Rail's joi patch and figure out why things are breaking with it
-  36. Create a cache object which stores the expiration date, data and has
-      a .stillValid() method
 
   TODO: Things in the server API
 
-  23. store the list of known to exist keynames in the program state OR #24 below.
-  24. move the keypair creation and deletion to the create/delete provisioner-api
   29. do ami copy when machine is inserted or updated in the azure table storage
       http://aws.amazon.com/about-aws/whats-new/2013/03/12/announcing-ami-copy-for-amazon-ec2/
   36. add the following things:
