@@ -1,7 +1,7 @@
 var base        = require('taskcluster-base');
 var assert      = require('assert');
 var Promise     = require('promise');
-var _           = require('lodash');
+var lodash      = require('lodash');
 var debug = require('debug')('aws-provisioner:provisioner:data');
 
 var KEY_CONST = 'worker-type';
@@ -42,7 +42,7 @@ WorkerType.load = function(workerType) {
 
 /** Give a JSON version of a worker type */
 WorkerType.prototype.json = function() {
-  return _.clone(this.__properties);
+  return lodash.clone(this.__properties);
 };
 
 /** Load all worker types.  Note that this
@@ -53,7 +53,7 @@ WorkerType.loadAll = function() {
 
   var p = base.Entity.scan.call(this, {}, {
     handler: function (item) {
-      workers.push(item.__properties);
+      workers.push(item);
     }
   });
 
@@ -62,6 +62,36 @@ WorkerType.loadAll = function() {
   });
 
   return p;
+};
+
+/**
+ * Create an AWS LaunchSpecification for this workerType
+ */
+WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
+  // These are the keys which are only applicable to a given region.
+  
+  regionSpecificKeys = ['ImageId'];
+
+  // We're going to make sure that none are set in the generic launchSpec
+  var that = this;
+  if (!this.types[instanceType]) {
+    var e = workerType.workerType + 'does not allow instance type ' + instanceType;
+    throw new Error(e);
+  }
+
+  var actual = lodash.clone(this.types[instanceType].overwrites);
+  var newSpec = lodash.defaults(actual, this.launchSpecification);
+  if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
+    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
+  }
+  newSpec.KeyName = this.keyPrefix + this.workerType;
+  newSpec.InstanceType = instanceType;
+  regionSpecificKeys.forEach(function(key) {
+    newSpec[key] = that.regions[region].overwrites[key];
+  });
+
+  return newSpec;
+    
 };
 
 /**
@@ -142,7 +172,8 @@ WorkerType.prototype.deleteKeyPair = function() {
 };
 
 /**
- * Shutdown all instances of this workerType
+ * Shutdown all instances of this workerType, cancel
+ * any open spot requests.
  */
 WorkerType.prototype.killall = function() {
   var that = this;
@@ -152,7 +183,7 @@ WorkerType.prototype.killall = function() {
     this.ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
-        Values: [this.awsKeyPrefix + this.workerType]
+        Values: [this.keyPrefix + this.workerType]
       },{
         Name: 'instance-state-name',
         Values: ['running', 'pending']
@@ -161,7 +192,7 @@ WorkerType.prototype.killall = function() {
     this.ec2.describeSpotInstanceRequests({
       Filters: [{
         Name: 'launch.key-name',
-        Values: [this.awsKeyPrefix + this.workerType]
+        Values: [this.keyPrefix + this.workerType]
       }, {
         Name: 'state',
         Values: ['open']
@@ -190,13 +221,15 @@ WorkerType.prototype.killall = function() {
       });
 
       if (instances.length > 0) {
-        promises.push(that.terminateInstances.inRegion(region, {
+        debug('Killing %d instances in %s', instances.length, region);
+        killinators.push(that.ec2.terminateInstances.inRegion(region, {
           InstanceIds: instances,
         }));
       }
 
       if (spotreqs.length > 0) {
-        killinators.push(this.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
+        debug('Cancelling %d spot requests in %s', spotreqs.length, region);
+        killinators.push(that.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
           SpotInstanceRequestIds: spotreqs,
         }));
       }
@@ -205,7 +238,8 @@ WorkerType.prototype.killall = function() {
     return Promise.all(killinators);
   });
 
-  p = p.then(function() {
+  p = p.then(function(res) {
+    debug(res);
     debug('Submitted kill/cancel requests for %s', that.workerType);
     return that.deleteKeyPair();
   });
@@ -214,8 +248,9 @@ WorkerType.prototype.killall = function() {
 
 }
 
-/** Load all workerTypes.  This won't scale perfectly, but
- *  we don't see there being a huge number of these upfront
+/**
+ * Load all workerTypes.  This won't scale perfectly, but
+ * we don't see there being a huge number of these upfront
  */
 WorkerType.loadAllNames = function() {
   var names = [];
@@ -233,13 +268,4 @@ WorkerType.loadAllNames = function() {
   return p;
 };
 
-/** Remove worker type with given workertype */
-/*WorkerType.remove = function(workerType) {
-  return base.Entity.remove.call(this, {
-    workerType: workerType
-  });
-};*/
-
-
-// Export WorkerType
 exports.WorkerType = WorkerType;
