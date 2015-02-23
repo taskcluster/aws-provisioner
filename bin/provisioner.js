@@ -15,6 +15,8 @@ var cfg = base.config({
   filename: 'taskcluster-aws-provisioner',
   envs: [
       'provisioner_publishMetaData',
+      'provisioner_awsInstancePubkey',
+      'provisioner_awsKeyPrefix',
       'taskcluster_queueBaseUrl',
       'taskcluster_authBaseUrl',
       'taskcluster_credentials_clientId',
