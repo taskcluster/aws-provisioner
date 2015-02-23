@@ -30,7 +30,6 @@ var assert = require('assert');
       a spot request is rejected
   17. provide metrics on how long it takes for spot request to be filled, etc
   25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
-  26. move creating launch configuration to the WorkerType object
   28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
       state of pending jobs
   31. find cheapest instance per region, then find the cheapest type
@@ -102,6 +101,7 @@ function Provisioner(cfg) {
   this.ec2 = cfg.ec2;
 
   this.__provRunId = 0;
+  debugger;
 }
 
 module.exports.Provisioner = Provisioner;
@@ -128,13 +128,6 @@ Provisioner.prototype.run = function () {
       generalDebug('Error running a provisioning iteration');
       generalDebug(err);
     });
-    
-    // Hmm, do I really need this?
-    try {
-      p.done();
-    } catch(e) {
-      console.error('Error during provisioning iteration', e, e.stack);
-    }
   }
 
   provisionIteration();
