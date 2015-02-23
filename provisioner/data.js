@@ -23,7 +23,8 @@ var WorkerType = base.Entity.configure({
     canUseSpot: base.Entity.types.JSON,
     types: base.Entity.types.JSON,
     regions: base.Entity.types.JSON,
-  }
+  },
+  context: ['ec2', 'keyPrefix', 'pubKey'],
 });
 
 /** Create a worker type */
@@ -61,6 +62,49 @@ WorkerType.loadAll = function() {
   });
 
   return p;
+};
+
+/**
+ * Return the list of regions that this WorkerType
+ * is configured to provision in
+ */
+WorkerType.prototype.listRegions = function() {
+  return Object.keys(this.regions);
+}
+
+/**
+ * Create a key pair in all AWS Regions known to this worker
+ * type
+ */
+WorkerType.prototype.createKeyPair = function() {
+  var that = this;
+
+  var keyName = this.keyPrefix + this.workerType;
+
+  var p = this.ec2.describeKeyPairs.inRegions(this.listRegions(), {
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }] 
+  });
+
+  p = p.then(function(res) {
+    var toCreate = [];
+
+    that.listRegions().forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (!matchingKey) {
+        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
+          KeyName: keyName,
+          PublicKeyMaterial: that.pubKey,
+        }));
+      } 
+    });
+    return Promise.all(toCreate);
+  });
+
+  return p;
+
 };
 
 /** Load all workerTypes.  This won't scale perfectly, but

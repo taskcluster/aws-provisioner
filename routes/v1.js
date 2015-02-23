@@ -110,6 +110,18 @@ function(req, res) {
   
   p = p.then(function(worker_) {
     worker = worker_;
+  });
+
+  p = p.then(function() {
+    return worker.createKeyPair(ctx.ec2, ctx.keyPrefix, ctx.pubKey);
+  });
+
+  p = p.then(function(result) {
+    debug('Finished creating AWS KeyPair');
+    console.dir(result);
+  });
+
+  p = p.then(function() {
     return ctx.publisher.workerTypeCreated({
       workerType: workerType,
     })

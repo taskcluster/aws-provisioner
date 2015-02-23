@@ -7,6 +7,7 @@ var taskcluster = require('taskcluster-client');
 var data        = require('../provisioner/data');
 var exchanges   = require('../provisioner/exchanges');
 var v1          = require('../routes/v1');
+var aws         = require('multi-region-promised-aws');
 
 /** Launch server */
 var launch = function(profile) {
@@ -16,6 +17,8 @@ var launch = function(profile) {
     profile:      require('../config/' + profile),
     envs: [
       'provisioner_publishMetaData',
+      'provisioner_awsInstancePubkey',
+      'provisioner_awsKeyPrefix',
       'taskcluster_queueBaseUrl',
       'taskcluster_authBaseUrl',
       'taskcluster_credentials_clientId',
@@ -38,6 +41,16 @@ var launch = function(profile) {
     maxPendingPoints:   cfg.get('influx:maxPendingPoints')
   });
 
+  // Configure me an EC2 instance.  This one should be able
+  // to run in any region, which we'll limit by the ones
+  // store in the worker definition
+  var ec2 = new aws('EC2', cfg.get('aws'), [
+    'us-east-1', 'us-west-1', 'us-west-2',
+    'eu-west-1', 'eu-central-1',
+    'ap-southeast-1', 'ap-souteast-2', 'ap-northeast-1',
+    'sa-east-1'
+  ]);
+
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
     drain:      influx,
@@ -49,6 +62,11 @@ var launch = function(profile) {
   var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
+    context: {
+      ec2:            ec2,
+      keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
+      pubKey:         cfg.get('provisioner:awsInstancePubkey'),
+    }
     //account: cfg.get('azure:accountName'),
     //credentials: cfg.get('taskcluster:credentials'),
     //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
@@ -96,7 +114,7 @@ var launch = function(profile) {
     return v1.setup({
       context: {
         WorkerType:     WorkerType,
-        publisher:      publisher
+        publisher:      publisher,
       },
       validator:        validator,
       authBaseUrl:      cfg.get('taskcluster:authBaseUrl'),

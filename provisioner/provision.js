@@ -74,7 +74,6 @@ var Cache = require('../cache');
       provisionerId: 'aws-provisioner2-dev',
       workerTypeTableName: 'AWSWorkerTypesDev',
       awsKeyPrefix: 'aws-provisioner2-dev:',
-      awsInstancePubKey: 'ssh-rsa .....',
       taskcluster: { <taskcluster client library config object>},
       aws: { <aws config object> },
       azure: { <azure config object> },
@@ -95,13 +94,6 @@ function Provisioner(cfg) {
   this.awsKeyPrefix = cfg.awsKeyPrefix;
   if (!this.awsKeyPrefix || typeof this.awsKeyPrefix !== 'string') {
     throw new Error('AWS Key prefix is missing or invalid');
-  }
-
-  // For new types of workers, we need to know what public key data
-  // to pass to the instance as the key data
-  this.awsInstancePubKey = cfg.awsInstancePubKey;
-  if (!this.awsInstancePubKey || typeof this.awsInstancePubKey !== 'string') {
-    throw new Error('AWS Instance key is missing or invalid');
   }
 
   // This is the number of milliseconds to wait between completed provisioning runs
@@ -133,16 +125,12 @@ function Provisioner(cfg) {
     credentials: cfg.azure,
   });
   
-
-  if (!cfg.aws || typeof cfg.aws !== 'object') {
-    throw new Error('Missing or invalid AWS configuration object');
-  }
   this.allowedAwsRegions = cfg.allowedAwsRegions;
   if (!this.allowedAwsRegions) {
     throw new Error('For now, you need to configure a specific AWS region.  hint: us-west-2');
   }
 
-  this.ec2 = new aws('EC2', cfg.aws, this.allowedAwsRegions);
+  this.ec2 = cfg.ec2;
 
   this.__provRunId = 0;
 }
@@ -400,7 +388,6 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
       this.allowedAwsRegions,
       ['pending', 'running', 'requestedSpot']),
     this.Queue.pendingTasks(this.provisionerId, workerType.workerType),
-    this.assertKeyPair(debug, workerType.workerType),
   ]);
 
   p = p.then(function (res) {
@@ -453,41 +440,8 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
   return p;
 }
 
-/* Check that we have a public key and create it if we don't */
-Provisioner.prototype.assertKeyPair = function(debug, workerTypeName) {
-  /* This might be better to do in the provisionAll step once the 
-     workertypes are loaded, then we can do a single key check per
-     provisioning run */
-  var that = this;
-  var keyName = this.awsKeyPrefix + workerTypeName;
-
-  var p = this.ec2.describeKeyPairs({
-    Filters: [{
-      Name: 'key-name',
-      Values: [keyName]
-    }] 
-  });
-
-  p = p.then(function(res) {
-    var toCreate = [];
-
-    that.allowedAwsRegions.forEach(function(region) {
-      var matchingKey = res[region].KeyPairs[0];
-      if (!matchingKey) {
-        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
-          KeyName: keyName,
-          PublicKeyMaterial: that.awsInstancePubKey,
-        }));
-      } 
-    });
-    return Promise.all(toCreate);
-  });
-
-  return p;
-}
-
-
-/* Fetch the last hour of EC2 pricing data.  For now, we'll
+/**
+ * Fetch the last hour of EC2 pricing data.  For now, we'll
  * only fetch the first page of data, but in the future we will
  * make sure to use the nextToken to read the whole thing in
  */
