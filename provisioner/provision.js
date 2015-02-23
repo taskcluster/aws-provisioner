@@ -5,13 +5,13 @@ var _debug = require('debug');
 var baseDbgStr = 'aws-provisioner'; 
 var generalDebug = require('debug')(baseDbgStr + ':general');
 var base = require('taskcluster-base');
-var aws = require('multi-region-promised-aws');
 var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
 var Cache = require('../cache');
+var assert = require('assert');
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -29,8 +29,6 @@ var Cache = require('../cache');
   13. store requests and instance data independently from AWS so that we don't have issues
       with the eventual consistency system.  This will also let us track when
       a spot request is rejected
-  14. We should only kill orphans which have been orphaned for X hours in case of accidentally
-      deleting the workerTypes
   17. provide metrics on how long it takes for spot request to be filled, etc
   22. move data.WorkerType.configure to bin/provisioner... why?
   25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
@@ -83,60 +81,47 @@ var Cache = require('../cache');
 function Provisioner(cfg) {
   // This is the ID of the provisioner.  It is used to interogate the queue
   // for pending tasks
+  assert(cfg.provisionerId);
+  assert(typeof cfg.provisionerId === 'string');
   this.provisionerId = cfg.provisionerId;
-  if (!this.provisionerId || typeof this.provisionerId !== 'string') {
-    throw new Error('Missing or invalid provisioner id');
-  }
 
   // This is a prefix which we use in AWS to determine ownership
   // of a given instance.  If we could tag instances while they were
   // still spot requests, we wouldn't need to do this.
+  assert(cfg.awsKeyPrefix);
+  assert(typeof cfg.awsKeyPrefix === 'string');
   this.awsKeyPrefix = cfg.awsKeyPrefix;
-  if (!this.awsKeyPrefix || typeof this.awsKeyPrefix !== 'string') {
-    throw new Error('AWS Key prefix is missing or invalid');
-  }
 
   // This is the number of milliseconds to wait between completed provisioning runs
+  assert(cfg.provisionIterationInterval);
+  assert(typeof cfg.provisionIterationInterval === 'number')
+  assert(!isNaN(cfg.provisionIterationInterval));
   this.provisionIterationInterval = cfg.provisionIterationInterval;
-  if (!this.provisionIterationInterval || typeof this.provisionIterationInterval !== 'number' || isNaN(this.provisionIterationInterval)) {
-    // I remember there being something funky about using isNaN in JS...
-    throw new Error('Provision Iteration Interval is missing or not a number');
-  }
 
   // This is the Queue object which we use for things like retreiving
   // the pending jobs.
-  if (!cfg.taskcluster || typeof cfg.taskcluster !== 'object') {
-    throw new Error('Taskcluster client configuration is invalid');
-  }
-  if (!cfg.taskcluster.credentials || typeof cfg.taskcluster.credentials !== 'object') {
-    throw new Error('Taskcluster client credentials are misformed');
-  }
+  assert(cfg.taskcluster);
+  assert(cfg.taskcluster.credentials)
+
   // We only grab the credentials for now, no need to store them in this object
   this.Queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
-  if (!cfg.workerTypeTableName || typeof cfg.workerTypeTableName !== 'string') {
-    throw new Error('Missing or invalid workerType table name');
-  }
-  if (!cfg.azure || typeof cfg.azure !== 'object') {
-    throw new Error('Missing or invalid Azure configuration');
-  }
-  this.WorkerType = data.WorkerType.setup({
-    table: cfg.workerTypeTableName,
-    credentials: cfg.azure,
-  });
+  // We need a set up WorkerType reference
+  assert(cfg.WorkerType);
+  this.WorkerType = cfg.WorkerType;
   
+  // We want the subset of AWS regions to use
+  assert(cfg.allowedAwsRegions);
   this.allowedAwsRegions = cfg.allowedAwsRegions;
-  if (!this.allowedAwsRegions) {
-    throw new Error('For now, you need to configure a specific AWS region.  hint: us-west-2');
-  }
 
+  // We need a configured EC2 instance
+  assert(cfg.ec2);
   this.ec2 = cfg.ec2;
 
   this.__provRunId = 0;
 }
 
 module.exports.Provisioner = Provisioner;
-
 
 /**
  * Start running a provisioner.
