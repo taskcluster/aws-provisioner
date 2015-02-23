@@ -152,7 +152,7 @@ WorkerType.prototype.killall = function() {
     this.ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
-        Values: [this.awsKeyPrefix + '*']
+        Values: [this.awsKeyPrefix + this.workerType]
       },{
         Name: 'instance-state-name',
         Values: ['running', 'pending']
@@ -161,7 +161,7 @@ WorkerType.prototype.killall = function() {
     this.ec2.describeSpotInstanceRequests({
       Filters: [{
         Name: 'launch.key-name',
-        Values: [this.awsKeyPrefix + '*']
+        Values: [this.awsKeyPrefix + this.workerType]
       }, {
         Name: 'state',
         Values: ['open']
@@ -179,14 +179,14 @@ WorkerType.prototype.killall = function() {
         reservation.Instances.forEach(function(instance) {
           instances.push(instance.InstanceId);
           debug('Killing %s instance %s in %s',
-            this.workerType, instance.InstanceId, region);
+            that.workerType, instance.InstanceId, region);
         });
       });
 
       res[1][region].SpotInstanceRequests.forEach(function(request) {
         spotreqs.push(request.SpotInstanceRequestId);
         debug('Cancelling %s spot request %s in %s',
-          this.workerType, request.SpotInstanceRequestId, region);
+          that.workerType, request.SpotInstanceRequestId, region);
       });
 
       if (instances.length > 0) {
@@ -206,7 +206,7 @@ WorkerType.prototype.killall = function() {
   });
 
   p = p.then(function() {
-    debug('Submitted kill/cancel requests for %s', this.workerType);
+    debug('Submitted kill/cancel requests for %s', that.workerType);
     return that.deleteKeyPair();
   });
 
