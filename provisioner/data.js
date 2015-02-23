@@ -23,7 +23,8 @@ var WorkerType = base.Entity.configure({
     canUseSpot: base.Entity.types.JSON,
     types: base.Entity.types.JSON,
     regions: base.Entity.types.JSON,
-  }
+  },
+  context: ['ec2', 'keyPrefix', 'pubKey'],
 });
 
 /** Create a worker type */
@@ -63,8 +64,96 @@ WorkerType.loadAll = function() {
   return p;
 };
 
+/**
+ * Return the list of regions that this WorkerType
+ * is configured to provision in
+ */
+WorkerType.prototype.listRegions = function() {
+  return Object.keys(this.regions);
+}
+
+/**
+ * Create a key pair in all AWS Regions known to this worker
+ * type
+ */
+WorkerType.prototype.createKeyPair = function() {
+  var that = this;
+
+  var keyName = this.keyPrefix + this.workerType;
+
+  var p = this.ec2.describeKeyPairs.inRegions(this.listRegions(), {
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }] 
+  });
+
+  p = p.then(function(res) {
+    var toCreate = [];
+
+    that.listRegions().forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (!matchingKey) {
+        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
+          KeyName: keyName,
+          PublicKeyMaterial: that.pubKey,
+        }));
+      } 
+    });
+    return Promise.all(toCreate);
+  });
+
+  return p;
+
+};
+
+/**
+ * Delete a KeyPair when it is no longer needed
+ * NOTE: This does not shutdown any instances!
+ */
+WorkerType.prototype.deleteKeyPair = function() {
+  var that = this;
+
+  var keyName = this.keyPrefix + this.workerType;
+
+  var p = this.ec2.describeKeyPairs({
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }] 
+  });
+
+  p = p.then(function(res) {
+    var toDelete = [];
+
+    that.listRegions().forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (matchingKey) {
+        toDelete.push(that.ec2.deleteKeyPair.inRegion(region, {
+          KeyName: keyName,
+        }));
+      } 
+    });
+    return Promise.all(toDelete);
+  });
+
+  return p;
+
+};
+
+/**
+ * Shutdown all instances of this workerType
+ */
+WorkerType.prototype.killall = function() {
+  var perRegionIntances = {};
+  var perRegionSpotReq = {};
+
+  this.listRegions();
+}
+
 /** Load all workerTypes.  This won't scale perfectly, but
- *  we don't see there being a huge number of these upfront */
+ *  we don't see there being a huge number of these upfront
+ */
 WorkerType.loadAllNames = function() {
   var names = [];
 
@@ -82,11 +171,11 @@ WorkerType.loadAllNames = function() {
 };
 
 /** Remove worker type with given workertype */
-WorkerType.remove = function(workerType) {
+/*WorkerType.remove = function(workerType) {
   return base.Entity.remove.call(this, {
     workerType: workerType
   });
-};
+};*/
 
 
 // Export WorkerType

@@ -28,16 +28,20 @@ var cfg = base.config({
   ]
 });
 
+var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
+
+var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
+
 var config = {
   provisionerId: cfg.get('provisioner:id'),
   workerTypeTableName: cfg.get('provisioner:workerTypeTableName'),
   awsKeyPrefix: cfg.get('provisioner:awsKeyPrefix'),
   awsInstancePubKey: cfg.get('provisioner:awsInstancePubkey'),
   taskcluster: cfg.get('taskcluster'),
-  aws: cfg.get('aws'),
+  ec2: cfg.get('aws'),
   azure: cfg.get('azure'),
   provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
-  allowedAwsRegions: cfg.get('provisioner:allowedRegions').split(','),
+  allowedAwsRegions: allowedRegions,
 }
 
 var provisioner = new provision.Provisioner(config);
