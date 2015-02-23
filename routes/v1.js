@@ -38,31 +38,27 @@ var api = new base.API({
 
 
 function errorHandler(err, res, workerType) {
+  debug('%s error %s %s', workerType, err, err.stack || JSON.stringify(err));
   switch(err.code) {
     case 'ResourceNotFound':
-      debug('WorkerType.loadForReply failed: %s %s',
-            JSON.stringify(err));
       return res.status(404).json({
-        message: "%s inserted but couldn't be found when trying " +
-                 "to retreive it for display.",
+        message: workerType + ': ' +err.body.message.value,
         error: {
           workerType: workerType,
-          reason: 'resource-not-found'
+          reason: err.code,
         }
       });
       break; // I guess I don't need this because of the return...
     case 'EntityAlreadyExists':
-      debug('%s already exists', workerType);
       return res.status(409).json({
-        message:          "Conflict: workerType already exists!",
+        message: workerType + ': ' +err.body.message.value,
         error: {
-          workerType:     workerType,
-          reason:         'already-exists'
+          workerType: workerType,
+          reason: err.code,
         }
       });
       break;
     default:
-      debug('Unknown error! %s %s', JSON.stringify(err), err.stack);
       throw err;
   }
 }
@@ -109,21 +105,18 @@ function(req, res) {
 
   // Create workerType
 
+  var worker;
   var p = ctx.WorkerType.create(workerType, input)
   
-  p = p.then(function() {
+  p = p.then(function(worker_) {
+    worker = worker_;
     return ctx.publisher.workerTypeCreated({
       workerType: workerType,
     })
   });
 
   p = p.then(function() {
-    // Send a reply (always use res.reply), only use
-    return ctx.WorkerType.loadForReply(workerType)
-  });
-    
-  p = p.then(function(worker) {
-    return res.reply(worker);
+    return res.reply(worker.json());
   });
     
   p = p.catch(function(err) {
@@ -159,10 +152,11 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
+  var worker;
   var p = ctx.WorkerType.load(workerType)
     
-  p = p.then(function(worker) {
-    debugger;
+  p = p.then(function(worker_) {
+    worker = worker_;
     return worker.modify(function(worker) {
       // We know that data that gets to here is valid per-schema
       Object.keys(input).forEach(function(key) {
@@ -178,13 +172,7 @@ api.declare({
   });
 
   p = p.then(function() {
-    // Send a reply (always use res.reply), only use
-    return ctx.WorkerType.loadForReply(workerType);
-  });
-  
-  p = p.then(function(worker) {
-    debugger;
-    return res.reply(worker);
+    return res.reply(worker.json());
   })
 
   p = p.catch(function(err) {
@@ -220,11 +208,10 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.loadForReply(workerType);
-
+  var p = ctx.WorkerType.load(workerType);
   
   p = p.then(function(worker) {
-    return res.reply(worker);
+    return res.reply(worker.json());
   });
 
   p = p.catch(function(err) {

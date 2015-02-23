@@ -39,17 +39,9 @@ WorkerType.load = function(workerType) {
   });
 };
 
-/** Prepare a workerType for display */
-WorkerType.loadForReply = function(workerType) {
-  var p = this.load(workerType);
-
-  p = p.then(function(worker) {
-    var forReply = _.clone(worker.__properties);
-    forReply.workerType = workerType;
-    return forReply
-  });
-
-  return p;
+/** Give a JSON version of a worker type */
+WorkerType.prototype.json = function() {
+  return _.clone(this.__properties);
 };
 
 /** Load all worker types.  Note that this
