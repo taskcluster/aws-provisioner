@@ -2,16 +2,11 @@
 
 var Promise = require('promise');
 var _debug = require('debug');
-var baseDbgStr = 'aws-provisioner'; 
+var baseDbgStr = 'aws-provisioner';
 var generalDebug = require('debug')(baseDbgStr + ':general');
-var base = require('taskcluster-base');
 var taskcluster = require('taskcluster-client');
-var lodash = require('lodash');
-var uuid = require('node-uuid');
-var util = require('util');
-var data = require('./data');
+var Joi = require('joi');
 var Cache = require('../cache');
-var assert = require('assert');
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -61,43 +56,43 @@ var assert = require('assert');
  * AWS Instances.  The config object should be structured like this:
  */
 function Provisioner(cfg) {
+  var schema = Joi.object().keys({
+    provisionerId: Joi.string().required(),
+    awsKeyPrefix: Joi.string().required(),
+    provisionIterationInterval: Joi.number().required(),
+    taskcluster: Joi.object().keys({
+      credentials: Joi.object().required()
+    }).required(),
+    WorkerType: Joi.any().required(),
+    allowedAwsRegions: Joi.any().required(),
+    ec2: Joi.any().required(),
+
+  });
+  Joi.validate(cfg, schema, function(err){
+    if (err) {
+      console.log("Configuration validation error");
+      process.exit(1);
+    }
+  });
+
   // This is the ID of the provisioner.  It is used to interogate the queue
   // for pending tasks
-  assert(cfg.provisionerId);
-  assert(typeof cfg.provisionerId === 'string');
   this.provisionerId = cfg.provisionerId;
-
   // This is a prefix which we use in AWS to determine ownership
   // of a given instance.  If we could tag instances while they were
   // still spot requests, we wouldn't need to do this.
-  assert(cfg.awsKeyPrefix);
-  assert(typeof cfg.awsKeyPrefix === 'string');
   this.awsKeyPrefix = cfg.awsKeyPrefix;
-
   // This is the number of milliseconds to wait between completed provisioning runs
-  assert(cfg.provisionIterationInterval);
-  assert(typeof cfg.provisionIterationInterval === 'number')
-  assert(!isNaN(cfg.provisionIterationInterval));
   this.provisionIterationInterval = cfg.provisionIterationInterval;
-
   // This is the Queue object which we use for things like retreiving
   // the pending jobs.
-  assert(cfg.taskcluster);
-  assert(cfg.taskcluster.credentials)
-
   // We only grab the credentials for now, no need to store them in this object
   this.Queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
-
   // We need a set up WorkerType reference
-  assert(cfg.WorkerType);
   this.WorkerType = cfg.WorkerType;
-  
   // We want the subset of AWS regions to use
-  assert(cfg.allowedAwsRegions);
   this.allowedAwsRegions = cfg.allowedAwsRegions;
-
   // We need a configured EC2 instance
-  assert(cfg.ec2);
   this.ec2 = cfg.ec2;
 
   this.__provRunId = 0;
@@ -173,7 +168,7 @@ Provisioner.prototype.fetchAwsState = function(debug) {
   });
 
   return p;
-}
+};
 
 /**
  * For easier testing, the logic to sort the AwsState into buckets
@@ -188,7 +183,7 @@ Provisioner.prototype._classifyAwsState = function(debug, instanceState, spotReq
         reservation.Instances.forEach(function(instance) {
           var workerType = instance.KeyName.substr(that.awsKeyPrefix.length);
           var instanceState = instance.State.Name;
-          
+
           if (!allState[region][workerType]) {
             allState[region][workerType] = {};
           }
@@ -215,7 +210,7 @@ Provisioner.prototype._classifyAwsState = function(debug, instanceState, spotReq
     });
 
     return allState;
-}
+};
 
 /**
  * Count the amount of capacity that's running or pending
@@ -280,8 +275,8 @@ Provisioner.prototype.countRunningCapacity = function(debug, workerType, awsStat
   });
 
   return (capacity);
-      
-}
+
+};
 
 /**
  * Fetch the last hour of EC2 pricing data.  For now, we'll
@@ -304,12 +299,12 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
         Values: ['Linux/UNIX'],
       }],
       InstanceTypes: types,
-    }
+    };
     return that.ec2.describeSpotPriceHistory(requestObj);
   }
 
   if (!this.pricingCache) {
-    this.pricingCache = new Cache(20, fetchSpotPricingHistory); 
+    this.pricingCache = new Cache(20, fetchSpotPricingHistory);
   }
 
   // We want to find every type of instanceType that we allow
@@ -333,7 +328,7 @@ Provisioner.prototype.fetchSpotPricingHistory = function(debug, workerTypes) {
     });
 
     return fixed;
-  })
+  });
 
   return p;
 };
@@ -388,7 +383,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   return p;
-}
+};
 
 /**
  * Provision a specific workerType.  This promise will have a value of true if
@@ -460,7 +455,7 @@ Provisioner.prototype.provisionType = function(debug, workerType, awsState, pric
   });
   
   return p;
-}
+};
 
 
 /* Create Machines! */
@@ -486,7 +481,7 @@ Provisioner.prototype.spawnInstance = function(debug, workerType, region, instan
   });
 
   return p;
-}
+};
 
 /* Select region, instance type and spot bids based on the amount of capacity units needed.
  * The region is picked randomly to distribute load but in future we could do smart things
@@ -515,7 +510,6 @@ Provisioner.prototype.determineSpotBids = function(debug, workerType, awsState, 
     var cheapestType;
     var cheapestPrice;
     var spotBid;
-    var priceMap = {};
 
     Object.keys(ait).forEach(function(potentialType) {
       var potentialSpotBid = that.findPriceForType(debug, pricing, region, potentialType);
@@ -541,7 +535,7 @@ Provisioner.prototype.determineSpotBids = function(debug, workerType, awsState, 
   }
 
   return spotBids;
-}
+};
 
 /* Given the pricing data, what's the average price for this instance type.
  * For now, we'll just pick the average of the most recent for each availability
@@ -564,7 +558,7 @@ Provisioner.prototype.findPriceForType = function(debug, pricing, region, type) 
   });
 
   return sum / azsSeen.length;
-}
+};
 
 
 /* Kill machines when we have more than the maximum allowed */
@@ -582,7 +576,7 @@ Provisioner.prototype.killExcess = function(debug, workerType, awsState) {
       debug('no excess capacity');
       return 0;
     } else {
-      capacityToRemove = capacity - workerType.maxCapacity;
+      var capacityToRemove = capacity - workerType.maxCapacity;
       debug('%d too many capacity units', capacityToRemove);
       return capacityToRemove;
     }
@@ -618,7 +612,7 @@ Provisioner.prototype.killExcess = function(debug, workerType, awsState) {
     });
 
     var emptyRegions = [];
-    while (capacityToRemove > 0 && emptyRegions.length == 0) {
+    while (capacityToRemove > 0 && emptyRegions.length === 0) {
       // Let's be smarter about this later
       var randomRegionIdx = Math.floor(Math.random() * that.allowedAwsRegions.length);
       var region = that.allowedAwsRegions[randomRegionIdx];
@@ -651,9 +645,7 @@ Provisioner.prototype.killExcess = function(debug, workerType, awsState) {
   });
 
   return p;
-}
-
-var validB64Regex = /^[A-Za-z0-9+/=]*$/;
+};
 
 /* Figure out how many capacity units need to be created.  This number is
  * determined by calculating how much capacity is needed to maintain a given
@@ -674,7 +666,7 @@ function determineCapacityChange(scalingRatio, capacity, pending) {
     // But when we do, let's submit enough requests that
     // we end up in an ideal state if all are fulfilled
     var ideal = (capacity + pending) / scalingRatio;
-    var change = ideal - capacity;
+    change = ideal - capacity;
   }
 
   return Math.round(change);

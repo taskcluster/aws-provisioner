@@ -1,3 +1,4 @@
 /taskcluster-aws-provisioner.conf.json
 /node_modules/
 provisioner-test-*.pem
+npm-debug.log
