@@ -4,6 +4,7 @@ var debug = require('debug')('aws-provisioner:bin:provisioner');
 var Promise = require('promise');
 var base = require('taskcluster-base');
 var provision = require('../provisioner/provision');
+var aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
 
 var profile = process.argv[2];
@@ -14,6 +15,8 @@ var cfg = base.config({
   filename: 'taskcluster-aws-provisioner',
   envs: [
       'provisioner_publishMetaData',
+      'provisioner_awsInstancePubkey',
+      'provisioner_awsKeyPrefix',
       'taskcluster_queueBaseUrl',
       'taskcluster_authBaseUrl',
       'taskcluster_credentials_clientId',
@@ -28,16 +31,30 @@ var cfg = base.config({
   ]
 });
 
+var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
+
+var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
+
+var WorkerType = data.WorkerType.setup({
+    table: cfg.get('provisioner:workerTypeTableName'),
+    credentials: cfg.get('azure'),
+    context: {
+      ec2:            ec2,
+      keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
+      pubKey:         cfg.get('provisioner:awsInstancePubkey'),
+    },
+  });
+
+
 var config = {
+  WorkerType: WorkerType,
   provisionerId: cfg.get('provisioner:id'),
-  workerTypeTableName: cfg.get('provisioner:workerTypeTableName'),
   awsKeyPrefix: cfg.get('provisioner:awsKeyPrefix'),
   awsInstancePubKey: cfg.get('provisioner:awsInstancePubkey'),
   taskcluster: cfg.get('taskcluster'),
-  aws: cfg.get('aws'),
-  azure: cfg.get('azure'),
-  pulseRate: cfg.get('provisioner:pulseRate'),
-  allowedAwsRegions: cfg.get('provisioner:allowedRegions').split(','),
+  ec2: ec2,
+  provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
+  allowedAwsRegions: allowedRegions,
 }
 
 var provisioner = new provision.Provisioner(config);
