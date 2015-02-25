@@ -1,3 +1,4 @@
+'use strict';
 var base        = require('taskcluster-base');
 var assert      = require('assert');
 var Promise     = require('promise');
@@ -5,48 +6,91 @@ var lodash      = require('lodash');
 
 var KEY_CONST = 'worker-type';
 
-/** Entities for persisting WorkerType */
+
+/**
+ * This WorkerType class is used to store and manipulate the definitions
+ * of worker types.  A WorkerType contains the information needed by
+ * the provisioner to create workers.  This class also contains methods
+ * which know how to create, alter and delete instances of these
+ * WorkerTypes.  State and Pricing data which is used for provisioning
+ * is not stored here.  The only time we fetch state here is for shutting
+ * down everything.
+ */
 var WorkerType = base.Entity.configure({
   version: 1,
   partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
   rowKey: base.Entity.keys.StringKey('workerType'),
   properties: {
+    /* This is a string identifier of the Worker Type.  It
+     * is what we give to the Queue to figure out whether there
+     * is pending work. */
     workerType: base.Entity.types.String,
+    /* This is the basic AWS LaunchSpecification.  It is
+     * stored as an opaque JSON blob and represents the
+     * information which will be shared between all instances
+     * of this worker across all regions and instance types */
     launchSpecification: base.Entity.types.JSON,
+    /* This is the minimum capacity we will run */
     minCapacity: base.Entity.types.Number,
+    /* This is the maximum capacity which we will ever run */
     maxCapacity: base.Entity.types.Number,
+    /* Scaling ratio a ratio of pending jobs to capacity.  A number
+     * which is between 0 and 1 will ensure that there is always 
+     * idle capacity and a number greater than 1 will ensure that
+     * some percentage of tasks will remain pending before we spawn
+     * instances. */
     scalingRatio: base.Entity.types.Number,
+    /* This is the minimum spot bid... It isn't actually read
+     * and should be moved to the instance type definition... */
     minSpotBid: base.Entity.types.Number,
     maxSpotBid: base.Entity.types.Number,
+    /* Right now this is ineffective */
     canUseOndemand: base.Entity.types.JSON,
+    /* Right now this is ineffective */
     canUseSpot: base.Entity.types.JSON,
+    /* This dictionary describes which instance types that this workerType
+     * can run on as well as type-specific information.
+     * This is a dictionary in the shape:
+     * {
+     *   'c1.small': {
+     *     capacity: 1,
+     *     utility: 1,
+     *     overwrites: {}
+     *   }
+     * }
+     * The top level key is the EC2 instance type which should
+     * be used.  In each instance type, there are three keys:
+     *   - capacity: this is the number of tasks this instance
+     *               can run concurrently.
+     *   - utility: this is an arbitrary number which we multiply
+     *              by spot price and compare to other instance
+     *              types to figure out which machine to bid on
+     *   - overwrites: this object overwrites keys in the general
+     *                 launch specification
+     */
     types: base.Entity.types.JSON,
+    /* This is a JSON object which contains the regions which this
+     * workerType is allowed to run in as well as the region-specific
+     * information.  It is in the shape:
+     * {
+     *   'us-west-1': {
+     *     'overwrites': {
+     *       'ImageId': 'ami-aaaaaaa'
+     *      }
+     *   }
+     * } */
     regions: base.Entity.types.JSON,
   },
-  context: ['ec2', 'keyPrefix', 'pubKey'],
+  context: ['ec2', 'keyPrefix', 'pubKey', 'influx'],
 });
 
-/** Create a worker type */
+
 WorkerType.create = function(workerType, properties) {
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
 
-/** Load worker from worker type */
-WorkerType.load = function(workerType) {
-  return base.Entity.load.call(this, {
-    workerType: workerType
-  });
-};
 
-/** Give a JSON version of a worker type */
-WorkerType.prototype.json = function() {
-  return lodash.clone(this.__properties);
-};
-
-/** Load all worker types.  Note that this
- * This method only returns the __properties
- * from base.Entity.scan */
 WorkerType.loadAll = function() {
   var workers = [];
 
@@ -63,49 +107,61 @@ WorkerType.loadAll = function() {
   return p;
 };
 
-/**
- * Create an AWS LaunchSpecification for this workerType
- */
-WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
-  // These are the keys which are only applicable to a given region.
-  
-  regionSpecificKeys = ['ImageId'];
 
-  // We're going to make sure that none are set in the generic launchSpec
-  var that = this;
-  if (!this.types[instanceType]) {
-    var e = this.workerType + 'does not allow instance type ' + instanceType;
-    throw new Error(e);
-  }
+WorkerType.loadAllNames = function() {
+  var names = [];
 
-  var actual = lodash.clone(this.types[instanceType].overwrites);
-  var newSpec = lodash.defaults(actual, this.launchSpecification);
-  if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
-    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
-  }
-  newSpec.KeyName = this.keyPrefix + this.workerType;
-  newSpec.InstanceType = instanceType;
-  regionSpecificKeys.forEach(function(key) {
-    newSpec[key] = that.regions[region].overwrites[key];
+  var p = base.Entity.scan.call(this, {}, {
+    handler: function (item) {
+      names.push(item.workerType);
+    }
   });
 
-  return newSpec;
-    
+  p = p.then(function() {
+    return names;
+  });
+
+  return p;
 };
 
+
+WorkerType.load = function(workerType) {
+  return base.Entity.load.call(this, {
+    workerType: workerType
+  });
+};
+
+
 /**
- * Return the list of regions which are configured to be  
+ * Return an Object for JSON encoding which represents
+ * the data associated with this WorkerType
+ */
+WorkerType.prototype.json = function() {
+  return lodash.clone(this.__properties);
+};
+
+
+/**
+ * Return the list of regions which can be operated in.
+ * This is a subset of the regions which a given node
+ * is allowed to run in and the list of regions that the
+ * API is configred to run in.
  */
 WorkerType.prototype.listRegions = function() {
   var that = this;
   return Object.keys(this.regions).filter(function(region) {
     return that.ec2.regions.indexOf(region) !== -1;
   }); 
-}
+};
+
 
 /**
- * Create a key pair in all AWS Regions known to this worker
- * type
+ * We use KeyPair names to determine ownership and workerType
+ * in the EC2 world because we can't tag SpotRequests until they've
+ * mutated into Instances.  This sucks and all, but hey, what else
+ * can we do?  This method checks which regions have the required
+ * KeyPair already and creates the KeyPair in regions which do not
+ * already have it
  */
 WorkerType.prototype.createKeyPair = function() {
   var that = this;
@@ -138,9 +194,11 @@ WorkerType.prototype.createKeyPair = function() {
 
 };
 
+
 /**
- * Delete a KeyPair when it is no longer needed
- * NOTE: This does not shutdown any instances!
+ * Delete a KeyPair when it's no longer needed.  This method
+ * does nothing more and you shouldn't run it until you've turned
+ * everything off.
  */
 WorkerType.prototype.deleteKeyPair = function() {
   var that = this;
@@ -172,13 +230,29 @@ WorkerType.prototype.deleteKeyPair = function() {
 
 };
 
+
+/**
+ * Turn off every single EC2 instance and cancel all spot
+ * requests which were created by this Provisioner
+ */
+WorkerType.killEverything = function (debug) {
+  var p = WorkerType.loadAll();
+
+  p = p.then(function(workerTypes) {
+    return Promise.all(workerTypes.map(function(workerType) {
+      return workerType.killall(debug);
+    }));
+  });
+
+  return p;
+};
+
+
 /**
  * Shutdown all instances of this workerType, cancel
- * any open spot requests.  I guess this could use
- * exisiting aws state from aws-state.js but this is
- * pretty single-purposed.
+ * any open spot requests.
  */
-WorkerType.prototype.killall = function(debug) {
+WorkerType.prototype.killAll = function(debug) {
   var that = this;
   var regionDeaths = {};
 
@@ -242,17 +316,17 @@ WorkerType.prototype.killall = function(debug) {
   });
 
   p = p.then(function(res) {
-    debug(res);
-    debug('Submitted kill/cancel requests for %s', that.workerType);
-    return that.deleteKeyPair();
+    debug('Submitted kill and cancel requests for %s', that.workerType);
   });
 
   return p;
 
-}
+};
+
 
 /**
- * Provision this WorkerType
+ * Provision a given workerType based on the pricing available, capacity existing
+ * and number of pending tasks.
  */
 WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
   var that = this;
@@ -270,7 +344,122 @@ WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
   }
 
   return p;
-}
+};
+
+
+/**
+ * Create an AWS LaunchSpecification for this workerType.  This method
+ * does all the various overwriting of type and region specific LaunchSpecification
+ * keys.
+ */
+WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
+  // These are the keys which are only applicable to a given region.
+  
+  var typeSpecificKeys = ['InstanceType'];
+
+  // AMI/ImageId are per-region
+  var regionSpecificKeys = ['ImageId'];
+
+  typeSpecificKeys.forEach(function(key) {
+    if (this.launchSpecification[key]) {
+      throw new Error(this.workerType + ' should not have ' + 
+                      key + ' in its general launch spec');
+    }
+    if (this.regions[region][key]) {
+      throw new Error(this.workerType + ' should not have ' + 
+                      key + ' in its region launch spec overwrites');
+    }
+  });
+
+  regionSpecificKeys.forEach(function(key) {
+    if (this.launchSpecification[key]) {
+      throw new Error(this.workerType + ' should not have ' + 
+                      key + ' in its general launch spec');
+    }
+    if (this.types[instanceType][key]) {
+      throw new Error(this.workerType + ' should not have ' + 
+                      key + ' in its type launch spec overwrites');
+    }
+  });
+
+  // We're going to make sure that none are set in the generic launchSpec
+  var that = this;
+  if (!this.types[instanceType]) {
+    var e = this.workerType + 'does not allow instance type ' + instanceType;
+    throw new Error(e);
+  }
+
+  var actual = lodash.clone(this.types[instanceType].overwrites);
+  var newSpec = lodash.defaults(actual, this.launchSpecification);
+  if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
+    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
+  }
+  newSpec.KeyName = this.keyPrefix + this.workerType;
+  newSpec.InstanceType = instanceType;
+  Object.keys(this.regions[region]).forEach(function(key) {
+    newSpec[key] = that.regions[region].overwrites[key];
+  });
+
+  return newSpec;
+    
+};
+
+
+/**
+ * Make sure that all combinations of LaunchSpecs work.  This sync
+ * function will throw if there is an error found or will return
+ * a dictionary of all the launch specs!
+ */
+WorkerType.prototype.testLaunchSpecs = function(debug) {
+  var launchSpecs = {};
+  Object.keys(this.regions).forEach(function(region) {
+    launchSpecs[region] = {};
+    Object.keys(this.types).forEach(function(type) {
+      launchSpecs[region][type] = this.createLaunchSpec(debug, region, type);
+    });
+  });
+  return launchSpecs;
+};
+
+
+/**
+ * Figure out how many capacity units need to be created.  This number is
+ * determined by calculating how much capacity is needed to maintain a given
+ * scaling ratio and returns the number of capacity units which need to be
+ * created or destroyed.  This will give an exact number of units, something
+ * else will be required to decide what to do if the number of needed capacity
+ * units does not fit nicely with the number of capacity units available per
+ * instance type.  Positive value means add capacity, negative means destroy
+ */
+WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending) {
+  // We need to know the current ratio of capacity to pending
+  var percentPending = 1 + pending / capacity;
+
+  var change = 0;
+
+  // We only want to scale anything once we have a pending
+  // percentage that exceeds the scalingRatio
+  if (percentPending > this.scalingRatio) {
+    // But when we do, let's submit enough requests that
+    // we end up in an ideal state if all are fulfilled
+    var ideal = (capacity + pending) / this.scalingRatio;
+    change = ideal - capacity;
+  }
+
+  debug('change needed is %d', change);
+
+  if (capacity + change > this.maxCapacity) {
+    change = this.maxCapacity - capacity;
+    debug('%s would exceed max, using %d instead', this.workerType, change); 
+  } else if (capacity + change < this.minCapacity) {
+    change = this.minCapacity - capacity;
+    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
+  } 
+
+  return Math.round(change);
+  
+};
+
 
 /**
  * Select region, instance type and spot bids based on the amount of capacity units needed.
@@ -329,9 +518,6 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
 };
 
 
-/**
- * Spawn an instance!
- */
 WorkerType.prototype.spawn = function(debug, bid) {
   var launchSpec = this.createLaunchSpec(bid.region, bid.type);
 
@@ -356,63 +542,5 @@ WorkerType.prototype.spawn = function(debug, bid) {
   return p;
 };
 
-/**
- * Figure out how many capacity units need to be created.  This number is
- * determined by calculating how much capacity is needed to maintain a given
- * scaling ratio and returns the number of capacity units which need to be
- * created or destroyed.  This will give an exact number of units, something
- * else will be required to decide what to do if the number of needed capacity
- * units does not fit nicely with the number of capacity units available per
- * instance type.  Positive value means add capacity, negative means destroy
- */
-WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending) {
-  // We need to know the current ratio of capacity to pending
-  var percentPending = 1 + pending / capacity;
-
-  var change = 0;
-
-  // We only want to scale anything once we have a pending
-  // percentage that exceeds the scalingRatio
-  if (percentPending > this.scalingRatio) {
-    // But when we do, let's submit enough requests that
-    // we end up in an ideal state if all are fulfilled
-    var ideal = (capacity + pending) / this.scalingRatio;
-    change = ideal - capacity;
-  }
-
-  debug('change needed is %d', change);
-
-  if (capacity + change > this.maxCapacity) {
-    change = this.maxCapacity - capacity;
-    debug('%s would exceed max, using %d instead', this.workerType, change); 
-  } else if (capacity + change < this.minCapacity) {
-    change = this.minCapacity - capacity;
-    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
-  } 
-
-  return Math.round(change);
-  
-};
-
-
-/**
- * Load all workerTypes.  This won't scale perfectly, but
- * we don't see there being a huge number of these upfront
- */
-WorkerType.loadAllNames = function() {
-  var names = [];
-
-  var p = base.Entity.scan.call(this, {}, {
-    handler: function (item) {
-      names.push(item.workerType);
-    }
-  });
-
-  p = p.then(function() {
-    return names;
-  });
-
-  return p;
-};
 
 exports.WorkerType = WorkerType;

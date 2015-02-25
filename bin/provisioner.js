@@ -35,6 +35,12 @@ var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
 
 var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
 
+var influx = new base.stats.Influx({
+  connectionString:   cfg.get('influx:connectionString'),
+  maxDelay:           cfg.get('influx:maxDelay'),
+  maxPendingPoints:   cfg.get('influx:maxPendingPoints')
+});
+
 var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
@@ -42,6 +48,7 @@ var WorkerType = data.WorkerType.setup({
       ec2:            ec2,
       keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
       pubKey:         cfg.get('provisioner:awsInstancePubkey'),
+      influx:         influx,
     },
   });
 
@@ -53,6 +60,7 @@ var config = {
   awsInstancePubKey: cfg.get('provisioner:awsInstancePubkey'),
   taskcluster: cfg.get('taskcluster'),
   ec2: ec2,
+  influx: influx,
   provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
   allowedAwsRegions: allowedRegions,
 }

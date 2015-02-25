@@ -7,6 +7,11 @@ var Cache = require('../cache');
 var assert = require('assert');
 
 
+/**
+ * Return a promise that resolves to an AWS State object.  We do this
+ * so that we can grab the state using promises but then inspect state
+ * using synchronus methods, as they're all just list processing
+ */
 function fetchState(ec2, keyPrefix) {
   var that = this;
 
@@ -49,18 +54,27 @@ function AwsState(keyPrefix, state) {
   this.keyPrefix = keyPrefix;
 }
 
+
 /**
- * Internally classify the state
+ * Classify the state received from AWS into something in the shape:
+ * {
+ *   region: {
+ *     workerTypeName: {
+ *       running: [<Instance>],
+ *       pending: [<Instance>],
+ *       spotReq: [<SpotRequest>],
+ *     }
+ *   }
+ * }
+ * The Instance and SpotRequest objects are those returned by AWS.
+ * We flatten the Reservations because we don't really care about that
+ * feature right now.
  */
 function _classify(regions, keyPrefix, instanceState, spotReqs) {
   var that = this;
   var state = {};
-  var rCount = 0;
-  var pCount = 0;
-  var srCount = 0;
 
   regions.forEach(function(region) {
-    // Initialize the state!
     var rState = state[region] = {};
 
     function x(type) {
@@ -91,8 +105,9 @@ function _classify(regions, keyPrefix, instanceState, spotReqs) {
 
 };
 
+
 /**
- * Return a list of known workerTypes
+ * Return a list workerTypes known to AWS
  */
 AwsState.prototype.knownWorkerTypes = function() {
   var workerTypes = [];
@@ -110,8 +125,12 @@ AwsState.prototype.knownWorkerTypes = function() {
 
 };
 
+
 /**
- * Count running Capacity for a workerType
+ * Count the capacity of this workerType that are in the states specified
+ * by `states`.  Doing this uses the Capcity key from the workerType's
+ * types dictionary.  Remember that capacity is the number of tasks
+ * that this instance/request will be able to service
  */
 AwsState.prototype.capacityForType = function(workerType, states) {
   var that = this;

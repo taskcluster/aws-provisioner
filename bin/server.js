@@ -44,6 +44,7 @@ var launch = function(profile) {
   // Configure me an EC2 API instance.  This one should be able
   // to run in any region, which we'll limit by the ones
   // store in the worker definition
+  // NOTE: Should we use ec2.describeRegions? meh
   var ec2 = new aws('EC2', cfg.get('aws'), [
     'us-east-1', 'us-west-1', 'us-west-2',
     'eu-west-1', 'eu-central-1',

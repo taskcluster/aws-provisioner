@@ -15,55 +15,13 @@ var awsPricing = require('./aws-pricing');
 var Cache = require('../cache');
 var assert = require('assert');
 
+var MAX_PROVISION_ITERATION = 1000 * 60 * 20; // 20 minutes
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
-
-/* Influx DB
-    - probably in queue
-    - tests in base.
- */
-
-/*
-  TODO: Things in here
-
-   5. schema for allowedinstancetypes should ensure overwrites.instancetype exists
-  12. pricing history should use the nextToken if present to
-  13. store requests and instance data independently from AWS so that we don't have issues
-      with the eventual consistency system.  This will also let us track when
-      a spot request is rejected
-  17. provide metrics on how long it takes for spot request to be filled, etc
-  25. overwrite userdata with temporary taskcluster credentials as base64 encoded json
-  28. pulse msg for taskPending, has provisioner id in it.  could use to maintain
-      state of pending jobs
-  35. Look at Rail's joi patch and figure out why things are breaking with it
-  36. verify that errors dont bring down the whole process
-  38. redo the excess unit killer
-  39. when testing, alter the UserData instead of copying ami-id
-  40. be able to encrypt UserData using opengpg.js
-
-  TODO: Things in the server API
-
-  29. do ami copy when machine is inserted or updated in the azure table storage
-      http://aws.amazon.com/about-aws/whats-new/2013/03/12/announcing-ami-copy-for-amazon-ec2/
-  36. add the following things:
-        - api end point that lists all instances and spot requests in all regions
-        - api end point that shuts off all instances managed by this provisioner
-        - api end point to kill all instances of a specific type
-        - api end point to show capacity, etc for each workerType
-
-  TODO: Other
-  30. add influx timing to the multiaws
-  33. api endpoint when the machine comes up to tell us how long it took to turn on
-
-  Questions:
-  1. How can I get JSON Schema to say I need a dictionary, i don't care what its
-     key names are, but I care that the key points to an object of a given shape
-  
- */
 
 
 /**
- * Create a Provisioner object.  This object knows how to provision
- * AWS Instances.  The config object should be structured like this:
+ * A provisioner object represents our knowledge of how to take AWS state, pricing data
+ * and WorkerType definitions and provision EC2 instances.
  */
 function Provisioner(cfg) {
   // This is the ID of the provisioner.  It is used to interogate the queue
@@ -107,6 +65,7 @@ function Provisioner(cfg) {
 
   this.__provRunId = 0;
 
+  // We cache aws pricing data because it's not important to be completely fresh
   this.pricingCache = new Cache(15, awsPricing, this.ec2);
 }
 
@@ -117,19 +76,33 @@ module.exports.Provisioner = Provisioner;
  */
 Provisioner.prototype.run = function () {
   var that = this;
+
   this.__keepRunning = true;
 
   function provisionIteration() {
+    // We should cancel the last iteration's watch dog
+    if (this.__watchdog) {
+      clearTimeout(this.__watchdog);
+    }
+    // And make sure we set this one!
+    this.__watchdog = setTimeout(function() {
+      generalDebug('KILLING PROVISIONER BECAUSE IT APPEARS TO BE STUCK...');
+      // Hmm, should I instead just process.exit(1);
+      throw new Error('PROVISIONER HAS FALLEN AND CAN\'T GET BACK UP');
+    }, MAX_PROVISION_ITERATION);
+
     var p = that.runAllProvisionersOnce();
+
     p = p.then(function() {
       generalDebug('Finished a provision iteration');
       if (that.__keepRunning && !process.env.PROVISION_ONCE) {
         generalDebug('Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
-        generalDebug('PROVISION_ONCE environment variable is set, ');
+        generalDebug('env var PROVISION_ONCE means we stop here');
       }
     });
+
     p = p.catch(function(err) {
       generalDebug('Error running a provisioning iteration');
       generalDebug(err);
@@ -140,28 +113,33 @@ Provisioner.prototype.run = function () {
 
 };
 
+
 /**
- * Stop launching new provisioner iterations
+ * Stop launching new provisioner iterations but don't
+ * end the current one
  */
 Provisioner.prototype.stop = function () {
   this.__keepRunning = false;
+  if (this.__watchdog) {
+    clearTimeout(this.__watchdog);
+  }
 };
+
 
 /**
  * Run provisioners for all known worker types once
  */
 Provisioner.prototype.runAllProvisionersOnce = function() {
-  // We grab the pending task count here instead of in the provisionForType
-  // method to avoid making a bunch of unneeded API calls
 
   var that = this;
+  // So that we get per-iteration strings
   var debug = _debug(baseDbgStr + ':all:run_' + ++this.__provRunId);
 
-  debugger;
   debug('%s Beginning provisioning iteration', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
     awsState(this.ec2, this.awsKeyPrefix),
+    // Remember that we cache pricing data!
     this.pricingCache.get(),
   ]);
 
@@ -177,6 +155,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     })));
 
     return Promise.all(workerTypes.map(function(workerType) {
+      // We should be able to filter by a specific workerType
       var wtDebug = 
         _debug(baseDbgStr + ':' + workerType.workerType + ':run_' + that.__provRunId);
       return that.provisionType(wtDebug, workerType, state, pricing);
@@ -189,7 +168,8 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   });
 
   return p;
-}
+};
+
 
 /**
  * Provision a specific workerType.  This promise will have a value of true if
@@ -220,12 +200,14 @@ Provisioner.prototype.provisionType = function(debug, workerType, state, pricing
   });
   
   return p;
-}
+};
 
 
 /**
- * Kill excess
+ * When we have too many instances or outstanding spot requests, we should kill
+ * spot requests and pending jobs.  We should also have a sanity threshold of
+ * maxCapacity * 2 which will start to kill running instances
  */
 Provisioner.prototype.killExcess = function(debug, workerType, capacity) {
-
+  throw new Error('Implement me!');
 };

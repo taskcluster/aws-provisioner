@@ -9,8 +9,6 @@ var assert = require('assert');
 
 function fetchPricing(ec2) {
   var that = this;
-  // We wrap this instead of the raw ec2 method in a cache
-  // because we need the start date to be updated
   var startDate = new Date();
   startDate.setHours(startDate.getHours() - 2);
   var requestObj = {
@@ -46,7 +44,8 @@ function AwsPricing(regions, pricing) {
 
 
 /**
- * Get the pricing dictionary
+ * Get the pricing dictionary... This is a little ugly
+ * but it works... Ideas welcomed
  */
 AwsPricing.prototype.get = function () {
   return this.__pricing;

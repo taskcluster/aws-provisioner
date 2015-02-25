@@ -129,7 +129,7 @@ function(req, res) {
   p = p.then(function() {
     return res.reply(worker.json());
   });
-    
+
   p = p.catch(function(err) {
     errorHandler(err, res, workerType);
     return err;
@@ -274,7 +274,7 @@ api.declare({
 
   p = p.then(function(worker_) {
     worker = worker_;
-    return worker.killall();
+    return worker.killAll(debug);
   });
 
   p = p.then(function() {
@@ -303,9 +303,8 @@ api.declare({
   method:         'get',
   route:          '/list-worker-types',
   name:           'listWorkerTypes',
-  deferAuth:      true,
+  deferAuth:      true, // I don't think we need this unless we do parameterized scopes
   scopes:         [
-    [
       // Require both scopes... We need to parameterize these for each
       // <workerType> before we return the result
       // Wait, why do we need the get-worker-type:<workerType> scope?
@@ -318,7 +317,6 @@ api.declare({
       // so instead I'll just return a list of workerType names
       //'aws-provisioner:get-worker-type:<workerType>',
       'aws-provisioner:list-worker-types',
-    ]
   ],
   input:          undefined,  // No input
   output:         SCHEMA_PREFIX_CONST + 'list-worker-types-response.json#',
@@ -350,6 +348,54 @@ api.declare({
   return p;
 
 });
+
+
+/** 
+ * Shut down all managed instances.
+ */
+api.declare({
+  method:   'get', // Hmm, maybe this should be post
+  route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
+  name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
+  title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",
+  scopes:   ['aws-provisioner:all-stop'],
+  description: [
+    "Shut down every single EC2 instance managed by this provisioner. ",
+    "This means every single last one.  You probably don't want to use ",
+    "this method, which is why it has an obnoxious name.  Don't even try ",
+    "to claim you didn't know what this method does!"
+  ].join('\n')
+}, function(req, res) {
+
+  // I don't think we need this here....
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var ctx = this;
+
+  debug('SOMEONE IS TURNING EVERYTHING OFF');
+  var p = ctx.WorkerType.killEverything(debug);
+
+  p = p.then(function() {
+    res.reply({
+      outcome: true,
+      message: 'Dude, you just turned absolutely everything off.',
+    });
+  });
+
+  p = p.catch(function(err) {
+    res.status(503).json({
+      message: 'Could not shut down everything',
+    });
+  });
+
+  return p;
+
+});
+
 
 /** Check that the server is a alive */
 api.declare({
