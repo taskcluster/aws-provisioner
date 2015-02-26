@@ -374,6 +374,11 @@ WorkerType.prototype.testLaunchSpecs = function(debug) {
 WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyPrefix) {
   // These are the keys which are only applicable to a given region.
   
+  assert(worker);
+  assert(keyPrefix);
+  debug(worker);
+  assert(worker.regions[region], region + ' is not configured');
+  assert(worker.types[instanceType], instanceType + ' is not configured');
   var typeSpecificKeys = ['InstanceType'];
 
   // AMI/ImageId are per-region
@@ -410,7 +415,7 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
   }
   newSpec.KeyName = keyPrefix + worker.workerType;
   newSpec.InstanceType = instanceType;
-  Object.keys(worker.regions[region]).forEach(function(key) {
+  Object.keys(worker.regions[region].overwrites).forEach(function(key) {
     newSpec[key] = worker.regions[region].overwrites[key];
   });
 
@@ -544,7 +549,12 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
 
 
 WorkerType.prototype.spawn = function(debug, bid) {
-  var launchSpec = this.createLaunchSpec(bid.region, bid.type);
+  assert(bid, 'Must specify a spot bid');
+  assert(this.regions[bid.region], 'Must specify an allowed region');
+  assert(this.types[bid.type], 'Must specify an allowed instance type');
+  assert(typeof bid.price === 'number', 'Spot Price must be number');
+
+  var launchSpec = this.createLaunchSpec(debug, bid.region, bid.type);
 
   var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,

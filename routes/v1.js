@@ -231,7 +231,6 @@ api.declare({
 });
 
 
-// Get workerType
 api.declare({
   method:         'get',
   route:          '/get-launch-specs/:workerType',
@@ -271,7 +270,6 @@ api.declare({
 });
 
 
-// Get workerType
 api.declare({
   method:         'get',
   route:          '/worker-type/:workerType',
@@ -406,6 +404,61 @@ api.declare({
 });
 
 
+/** 
+ * Shut down all instances of a workerType.
+ */
+api.declare({
+  method:   'get',
+  route:    '/shutdown/every/ec2/instances/for/:workerType',
+  name:     'shutdownEveryEc2InstanceFor',
+  title:    "Shutdown Every Ec2 Instance of this Worker Type",
+  scopes:   [
+    'aws-provisioner:aws',
+    'aws-provisioner:get-worker-type:<workerType>',
+  ],
+  description: [
+    "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
+    "Shut down every single EC2 instance managed by this provisioner. ",
+    "This means every single last one.  You probably don't want to use ",
+    "this method, which is why it has an obnoxious name.  Don't even try ",
+    "to claim you didn't know what this method does!"
+  ].join('\n')
+}, function(req, res) {
+
+  // I don't think we need this here....
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var ctx = this;
+  var workerType = req.params.workerType;
+
+  debug('SOMEONE IS TURNING OFF ALL ' + workerType);
+
+  var p = ctx.WorkerType.load(workerType);
+
+  p = p.then(function(worker) {
+    return worker.killAll();
+  });
+
+  p = p.then(function() {
+    res.reply({
+      outcome: true,
+      message: 'Dude, you just turned absolutely everything off.',
+    });
+  });
+
+  p = p.catch(function(err) {
+    res.status(503).json({
+      message: 'Could not shut down all ' + workerType,
+    });
+  });
+
+  return p;
+
+});
 
 /** 
  * Shut down all managed instances.
@@ -415,7 +468,7 @@ api.declare({
   route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
   name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
   title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",
-  scopes:   ['aws-provisioner:all-stop'],
+  scopes:   ['aws-provisioner:aws:all-stop'],
   description: [
     "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
     "Shut down every single EC2 instance managed by this provisioner. ",
@@ -454,6 +507,56 @@ api.declare({
 
 });
 
+
+api.declare({
+  method:         'post',
+  route:          '/worker-type/:workerType/spawn',
+  name:           'spawnWorkerType',
+  deferAuth:      true,
+  scopes:         [
+    'aws-provisioner:aws',
+    'aws-provisioner:spawn-worker-type:<workerType>'
+  ],
+  input:          SCHEMA_PREFIX_CONST + 'spawn-instance-request.json#',
+  output:         SCHEMA_PREFIX_CONST + 'spawn-instance-response.json#',
+  title:          "Spawn an instance of a Worker Type",
+  description: [
+    'Spawn an instance of a workerType given a bid.  A bid is an ',
+    'object which has a number `price`, string `region` and string ',
+    '`instance type`.'
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var input       = req.body;
+  var workerType  = req.params.workerType;
+  
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load(workerType)
+    
+  p = p.then(function(worker) {
+    return worker.spawn(debug, input);
+  });
+
+  p = p.then(function(sir) {
+    var reply = {
+      SpotInstanceRequestId: sir,
+    };
+    return res.reply(reply);
+  })
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
+});
 
 /** Check that the server is a alive */
 api.declare({
