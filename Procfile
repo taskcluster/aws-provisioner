@@ -1,2 +1,2 @@
-web:            node bin/server.js development
-provisioner:    node bin/provisioner.js development
+web:            node bin/server.js production
+provisioner:    node bin/provisioner.js production

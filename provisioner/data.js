@@ -86,6 +86,8 @@ var WorkerType = base.Entity.configure({
 
 
 WorkerType.create = function(workerType, properties) {
+  assert(workerType);
+  assert(properties);
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
@@ -126,6 +128,7 @@ WorkerType.loadAllNames = function() {
 
 
 WorkerType.load = function(workerType) {
+  assert(workerType);
   return base.Entity.load.call(this, {
     workerType: workerType
   });
@@ -236,6 +239,7 @@ WorkerType.prototype.deleteKeyPair = function() {
  * requests which were created by this Provisioner
  */
 WorkerType.killEverything = function (debug) {
+  assert(debug);
   var p = WorkerType.loadAll();
 
   p = p.then(function(workerTypes) {
@@ -253,6 +257,7 @@ WorkerType.killEverything = function (debug) {
  * any open spot requests.
  */
 WorkerType.prototype.killAll = function(debug) {
+  assert(debug);
   var that = this;
   var regionDeaths = {};
 
@@ -329,6 +334,10 @@ WorkerType.prototype.killAll = function(debug) {
  * and number of pending tasks.
  */
 WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
+  assert(debug);
+  assert(pricing);
+  assert(capacity);
+  assert(pending);
   var that = this;
 
   var spotBids = this.determineSpotBids(debug, pricing, capacity, pending);
@@ -352,7 +361,10 @@ WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType, potential) {
+WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
+  assert(debug);
+  assert(region);
+  assert(instanceType);
   return WorkerType.createLaunchSpec(debug, region, instanceType, this, this.keyPrefix);
 }
 
@@ -362,6 +374,7 @@ WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType, po
  * a dictionary of all the launch specs!
  */
 WorkerType.prototype.testLaunchSpecs = function(debug) {
+  assert(debug);
   return WorkerType.testLaunchSpecs(debug, this, this.keyPrefix);
 }
 
@@ -373,10 +386,9 @@ WorkerType.prototype.testLaunchSpecs = function(debug) {
  */
 WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyPrefix) {
   // These are the keys which are only applicable to a given region.
-  
+  assert(debug); 
   assert(worker);
   assert(keyPrefix);
-  debug(worker);
   assert(worker.regions[region], region + ' is not configured');
   assert(worker.types[instanceType], instanceType + ' is not configured');
   var typeSpecificKeys = ['InstanceType'];
@@ -430,6 +442,9 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
  * a dictionary of all the launch specs!
  */
 WorkerType.testLaunchSpecs = function(debug, worker, keyPrefix) {
+  assert(debug);
+  assert(worker);
+  assert(keyPrefix);
   var errors = [];
   var launchSpecs = {};
   Object.keys(worker.regions).forEach(function(region) {
@@ -462,6 +477,9 @@ WorkerType.testLaunchSpecs = function(debug, worker, keyPrefix) {
  * instance type.  Positive value means add capacity, negative means destroy
  */
 WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending) {
+  assert(debug);
+  assert(capacity);
+  assert(pending);
   // We need to know the current ratio of capacity to pending
   var percentPending = 1 + pending / capacity;
 
@@ -480,10 +498,10 @@ WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending
 
   if (capacity + change > this.maxCapacity) {
     change = this.maxCapacity - capacity;
-    debug('%s would exceed max, using %d instead', this.workerType, change); 
+    debug('would exceed max, using %d instead', change); 
   } else if (capacity + change < this.minCapacity) {
     change = this.minCapacity - capacity;
-    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
+    debug('wouldn\'t be meet min, using %d instead', change);
   } 
 
   return Math.round(change);
@@ -503,6 +521,10 @@ WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending
  * history multiplied by 1.3 to give a 30% buffer.
  */
 WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pending) {
+  assert(debug);
+  assert(pricing);
+  assert(capacity);
+  assert(pending);
   var that = this;
   
   var cheapestType;
@@ -518,8 +540,7 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
 
   while (change > 0) {
     Object.keys(this.types).forEach(function(potentialType) {
-      that.regionsForType().forEach(function(potentialRegion) {
-        debugger;
+      that.listRegions().forEach(function(potentialRegion) {
         var potentialSpotBid = pricingInfo[potentialRegion][potentialType];
         // Like capacity we assume that if a utility factor is not available
         // that we consider it to be the base (1)

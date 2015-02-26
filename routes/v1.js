@@ -84,10 +84,8 @@ function errorHandler(err, res, workerType) {
   }
 }
 
-// Export api
 module.exports = api;
 
-// Create workerType
 api.declare({
   method:         'put',
   route:          '/worker-type/:workerType',
@@ -413,12 +411,12 @@ api.declare({
   name:     'shutdownEveryEc2InstanceFor',
   title:    "Shutdown Every Ec2 Instance of this Worker Type",
   scopes:   [
-    'aws-provisioner:aws',
-    'aws-provisioner:get-worker-type:<workerType>',
+    ['aws-provisioner:aws',
+    'aws-provisioner:get-worker-type:<workerType>',],
   ],
   description: [
     "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
-    "Shut down every single EC2 instance managed by this provisioner. ",
+    "Shut down every single EC2 instance associated with this workerType. ",
     "This means every single last one.  You probably don't want to use ",
     "this method, which is why it has an obnoxious name.  Don't even try ",
     "to claim you didn't know what this method does!"
@@ -468,7 +466,7 @@ api.declare({
   route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
   name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
   title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",
-  scopes:   ['aws-provisioner:aws:all-stop'],
+  scopes:   [['aws-provisioner:all-stop', 'aws-provisioner:aws']],
   description: [
     "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
     "Shut down every single EC2 instance managed by this provisioner. ",
@@ -513,10 +511,10 @@ api.declare({
   route:          '/worker-type/:workerType/spawn',
   name:           'spawnWorkerType',
   deferAuth:      true,
-  scopes:         [
+  scopes:         [[
     'aws-provisioner:aws',
     'aws-provisioner:spawn-worker-type:<workerType>'
-  ],
+  ]],
   input:          SCHEMA_PREFIX_CONST + 'spawn-instance-request.json#',
   output:         SCHEMA_PREFIX_CONST + 'spawn-instance-response.json#',
   title:          "Spawn an instance of a Worker Type",
@@ -558,30 +556,14 @@ api.declare({
 
 });
 
-/** Check that the server is a alive */
-api.declare({
-  method:   'get',
-  route:    '/ping',
-  name:     'ping',
-  title:    "Ping Server",
-  description: [
-    "Documented later...",
-    "",
-    "**Warning** this api end-point is **not stable**."
-  ].join('\n')
-}, function(req, res) {
-  res.status(200).json({
-    alive:    true,
-    uptime:   process.uptime()
-  });
-});
+
 
 api.declare({
   method:         'get',
   route:          '/aws-state',
   name:           'awsState',
   scopes:         [
-      'aws-provisioner:aws:show-state',
+      'aws-provisioner:show-state',
   ],
   input:          undefined,  // No input
   output:         SCHEMA_PREFIX_CONST + 'get-aws-state-response.json#',
@@ -609,20 +591,38 @@ api.declare({
 
 });
 
-/** Check that the server is a alive */
 api.declare({
   method:   'get',
-  route:    '/api',
-  name:     'api',
-  title:    "api reference",
+  route:    '/ping',
+  name:     'ping',
+  title:    "Ping Server",
   description: [
     "Documented later...",
     "",
     "**Warning** this api end-point is **not stable**."
   ].join('\n')
 }, function(req, res) {
+  res.status(200).json({
+    alive:    true,
+    uptime:   process.uptime()
+  });
+});
+
+api.declare({
+  method:   'get',
+  route:    '/api-reference',
+  name:     'apiReference',
+  title:    "api reference",
+  description: [
+    "Get an API reference!",
+    "",
+    "**Warning** this api end-point is **not stable**."
+  ].join('\n')
+}, function(req, res) {
+  var host = req.get('host');
+  var proto = req.connection.encrypted ? 'https' : 'http';
   res.status(200).json(api.reference({
-    baseUrl: 'http://localhost:5556/v1'
+    baseUrl: proto + '://' + host + '/v1'
   }));
 });
 

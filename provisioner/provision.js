@@ -81,11 +81,11 @@ Provisioner.prototype.run = function () {
 
   function provisionIteration() {
     // We should cancel the last iteration's watch dog
-    if (this.__watchdog) {
-      clearTimeout(this.__watchdog);
+    if (that.__watchdog) {
+      clearTimeout(that.__watchdog);
     }
     // And make sure we set this one!
-    this.__watchdog = setTimeout(function() {
+    that.__watchdog = setTimeout(function() {
       generalDebug('KILLING PROVISIONER BECAUSE IT APPEARS TO BE STUCK...');
       // Hmm, should I instead just process.exit(1);
       throw new Error('PROVISIONER HAS FALLEN AND CAN\'T GET BACK UP');
