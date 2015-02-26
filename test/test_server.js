@@ -177,6 +177,20 @@ describe('provisioner api server', function() {
     });
   });
 
+  describe('showing aws state', function() {
+    it('should return a list', function() {
+      var p = subject.awsProvisioner.awsState();
+
+      p = p.then(function(result) {
+        result.should.be.an.Object;
+        result.should.have.property('us-west-1');
+        result['us-west-1'].should.be.an.Object;
+      });
+
+      return p;
+    });
+  });
+
   describe('showing all launch specs', function() {
     it('should show all launch specs', function() {
       var wName = slugid.v4();

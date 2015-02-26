@@ -477,7 +477,6 @@ api.declare({
   method:         'get',
   route:          '/aws-state',
   name:           'awsState',
-  deferAuth:  true,
   scopes:         [
       'aws-provisioner:aws:show-state',
   ],
