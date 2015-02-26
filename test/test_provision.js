@@ -11,7 +11,6 @@ var sinon = require('sinon');
 var provision = require('../provisioner/provision');
 
 var sampleWorkerType = require('./sampleWorkerType.json');
-var invalidUserDataWorkerType = require('./invalidUserDataWorkerType.json');
 
 describe('determineCapacityChange', function() {
   var subject = provision._determineCapacityChange;

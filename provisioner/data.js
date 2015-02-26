@@ -352,7 +352,26 @@ WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
+WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType, potential) {
+  return WorkerType.createLaunchSpec(debug, region, instanceType, this, this.keyPrefix);
+}
+
+/**
+ * Make sure that all combinations of LaunchSpecs work.  This sync
+ * function will throw if there is an error found or will return
+ * a dictionary of all the launch specs!
+ */
+WorkerType.prototype.testLaunchSpecs = function(debug) {
+  return WorkerType.testLaunchSpecs(debug, this, this.keyPrefix);
+}
+
+/**
+ * We need to be able to create a launch specification for testing without
+ * already having an instance.  This is available as a non-instance method
+ * so that we can create and test launch specifications before inserting
+ * them into Azure.
+ */
+WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyPrefix) {
   // These are the keys which are only applicable to a given region.
   
   var typeSpecificKeys = ['InstanceType'];
@@ -361,43 +380,38 @@ WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
   var regionSpecificKeys = ['ImageId'];
 
   typeSpecificKeys.forEach(function(key) {
-    if (this.launchSpecification[key]) {
-      throw new Error(this.workerType + ' should not have ' + 
-                      key + ' in its general launch spec');
+    if (worker.launchSpecification[key]) {
+      throw new Error(key + ' is type specific, not general');
     }
-    if (this.regions[region][key]) {
-      throw new Error(this.workerType + ' should not have ' + 
-                      key + ' in its region launch spec overwrites');
+    if (worker.regions[region][key]) {
+      throw new Error(key + ' is type specific, not type specific');
     }
   });
 
   regionSpecificKeys.forEach(function(key) {
-    if (this.launchSpecification[key]) {
-      throw new Error(this.workerType + ' should not have ' + 
-                      key + ' in its general launch spec');
+    if (worker.launchSpecification[key]) {
+      throw new Error(key + ' is region specific, not general');
     }
-    if (this.types[instanceType][key]) {
-      throw new Error(this.workerType + ' should not have ' + 
-                      key + ' in its type launch spec overwrites');
+    if (worker.types[instanceType][key]) {
+      throw new Error(key + ' is type specific, not region specific');
     }
   });
 
   // We're going to make sure that none are set in the generic launchSpec
-  var that = this;
-  if (!this.types[instanceType]) {
-    var e = this.workerType + 'does not allow instance type ' + instanceType;
+  if (!worker.types[instanceType]) {
+    var e = worker.workerType + 'does not allow instance type ' + instanceType;
     throw new Error(e);
   }
 
-  var actual = lodash.clone(this.types[instanceType].overwrites);
-  var newSpec = lodash.defaults(actual, this.launchSpecification);
+  var actual = lodash.clone(worker.types[instanceType].overwrites);
+  var newSpec = lodash.defaults(actual, worker.launchSpecification);
   if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
     throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
   }
-  newSpec.KeyName = this.keyPrefix + this.workerType;
+  newSpec.KeyName = keyPrefix + worker.workerType;
   newSpec.InstanceType = instanceType;
-  Object.keys(this.regions[region]).forEach(function(key) {
-    newSpec[key] = that.regions[region].overwrites[key];
+  Object.keys(worker.regions[region]).forEach(function(key) {
+    newSpec[key] = worker.regions[region].overwrites[key];
   });
 
   return newSpec;
@@ -410,14 +424,25 @@ WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function(debug) {
+WorkerType.testLaunchSpecs = function(debug, worker, keyPrefix) {
+  var errors = [];
   var launchSpecs = {};
-  Object.keys(this.regions).forEach(function(region) {
+  Object.keys(worker.regions).forEach(function(region) {
     launchSpecs[region] = {};
-    Object.keys(this.types).forEach(function(type) {
-      launchSpecs[region][type] = this.createLaunchSpec(debug, region, type);
+    Object.keys(worker.types).forEach(function(type) {
+      try {
+        launchSpecs[region][type] = WorkerType.createLaunchSpec(debug, region, type, worker, keyPrefix);
+      } catch (e) {
+        errors.push(e)
+      }
     });
   });
+  if (errors.length > 0) {
+    var err = new Error('Launch specifications are invalid');
+    err.code = 'InvalidLaunchSpecifications';
+    err.reasons = errors;
+    throw err;
+  }
   return launchSpecs;
 };
 

@@ -13,6 +13,8 @@ describe('provisioner api server', function() {
 
 
   var wDefinition = JSON.parse(fs.readFileSync(__dirname + '/sampleWorkerType.json'));
+  var invalidLaunchSpecs =
+    JSON.parse(fs.readFileSync(__dirname + '/invalidLaunchSpecOptions.json'));
 
   var wDefinitionForCreate = _.clone(wDefinition);
   delete wDefinitionForCreate['workerType'];
@@ -54,6 +56,22 @@ describe('provisioner api server', function() {
       return p;
     });
 
+    it('should fail when launch specs cannot be generated on create', function() {
+      var p = subject.awsProvisioner.createWorkerType('invalid', invalidLaunchSpecs);
+
+      p = p.then(function(result) {
+        throw new Error('should have failed here'); 
+      });
+
+      p = p.catch(function(err) {
+        err.should.be.an.Error; 
+        err.body.reason.should.be.an.Array;
+        err.body.reason.length.should.equal(4);
+      });
+
+      return p;
+    });
+
     it('should fail when workertype is not found', function() {
       var p = subject.awsProvisioner.workerType('akdsfjlaksdjfl');
 
@@ -82,7 +100,7 @@ describe('provisioner api server', function() {
     });
 
     p = p.catch(function(err) {
-      console.error(err); 
+      err.should.be.an.Error;
     })
     
     return p;;
@@ -159,4 +177,32 @@ describe('provisioner api server', function() {
     });
   });
 
-});
+  describe('showing all launch specs', function() {
+    it('should show all launch specs', function() {
+      var wName = slugid.v4();
+        
+      var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
+
+      p = p.then(function() {
+        subject.awsProvisioner.getLaunchSpecs(wName);
+      });
+
+      p.then(function(result) {
+        result.should.be.an.Object;
+        result.should.have.property('us-west-1');
+        result.should.have.property('us-west-2');
+        result['us-west-1'].should.have.property('m3.medium');
+        result['us-west-2'].should.have.property('m3.medium');
+        result['us-west-1'].should.have.property('m3.large');
+        result['us-west-2'].should.have.property('m3.large');
+      });
+
+      p = p.then(function() {
+        return subject.awsProvisioner.removeWorkerType(wName);
+      });
+
+      return p;
+    });
+  });
+
+})

@@ -54,6 +54,13 @@ function AwsState(keyPrefix, state) {
   this.keyPrefix = keyPrefix;
 }
 
+/**
+ * Get the raw state
+ */
+AwsState.prototype.get = function() {
+  return this.__state;
+};
+
 
 /**
  * Classify the state received from AWS into something in the shape:

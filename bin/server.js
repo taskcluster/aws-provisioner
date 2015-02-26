@@ -6,8 +6,10 @@ var base        = require('taskcluster-base');
 var taskcluster = require('taskcluster-client');
 var data        = require('../provisioner/data');
 var exchanges   = require('../provisioner/exchanges');
+var awsState    = require('../provisioner/aws-state');
 var v1          = require('../routes/v1');
 var aws         = require('multi-region-promised-aws');
+var Cache       = require('../cache');
 
 /** Launch server */
 var launch = function(profile) {
@@ -51,6 +53,8 @@ var launch = function(profile) {
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
     'sa-east-1'
   ]);
+  
+  var awsStateCache = new Cache(5, awsState, ec2);
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
@@ -67,6 +71,7 @@ var launch = function(profile) {
       ec2:            ec2,
       keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
       pubKey:         cfg.get('provisioner:awsInstancePubkey'),
+      influx:         influx,
     }
     //account: cfg.get('azure:accountName'),
     //credentials: cfg.get('taskcluster:credentials'),
@@ -116,6 +121,7 @@ var launch = function(profile) {
       context: {
         WorkerType:     WorkerType,
         publisher:      publisher,
+        awsStateCache:  awsStateCache,
       },
       validator:        validator,
       authBaseUrl:      cfg.get('taskcluster:authBaseUrl'),
