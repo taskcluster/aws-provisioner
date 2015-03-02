@@ -84,15 +84,23 @@ var WorkerType = base.Entity.configure({
   context: ['ec2', 'keyPrefix', 'pubKey', 'influx'],
 });
 
-
+/**
+ * Create a workerType in the table.  The properties
+ * should not have a workerType key since that will be
+ * specified in the workerType argument
+ */
 WorkerType.create = function(workerType, properties) {
   assert(workerType);
   assert(properties);
+  assert(!properties.workerType);
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
 
 
+/**
+ * Return a list of all known workerTypes
+ */
 WorkerType.loadAll = function() {
   var workers = [];
 
@@ -109,8 +117,10 @@ WorkerType.loadAll = function() {
   return p;
 };
 
-
-WorkerType.loadAllNames = function() {
+/**
+ * Load the names of all known workerTypes
+ */
+WorkerType.listWorkerTypes = function() {
   var names = [];
 
   var p = base.Entity.scan.call(this, {}, {
@@ -127,6 +137,28 @@ WorkerType.loadAllNames = function() {
 };
 
 
+/**
+ * Turn off every single EC2 instance and cancel all spot
+ * requests which were created by this Provisioner
+ */
+WorkerType.killEverything = function (debug) {
+  assert(debug);
+
+  var p = WorkerType.loadAll.call(this);
+
+  p = p.then(function (workerTypes) {
+    return Promise.all(workerTypes.map(function(workerType) {
+      return workerType.killAll(debug);
+    }));
+  });
+
+  return p;
+};
+
+
+/**
+ * Load a single workerType by name
+ */
 WorkerType.load = function(workerType) {
   assert(workerType);
   return base.Entity.load.call(this, {
@@ -137,7 +169,9 @@ WorkerType.load = function(workerType) {
 
 /**
  * Return an Object for JSON encoding which represents
- * the data associated with this WorkerType
+ * the data associated with this WorkerType.  This is a
+ * method intended for use in displaying the data associated
+ * with a given workerType
  */
 WorkerType.prototype.json = function() {
   return lodash.clone(this.__properties);
@@ -233,25 +267,6 @@ WorkerType.prototype.deleteKeyPair = function() {
 
 };
 
-
-/**
- * Turn off every single EC2 instance and cancel all spot
- * requests which were created by this Provisioner
- */
-WorkerType.killEverything = function (debug) {
-  assert(debug);
-  var p = WorkerType.loadAll();
-
-  p = p.then(function(workerTypes) {
-    return Promise.all(workerTypes.map(function(workerType) {
-      return workerType.killall(debug);
-    }));
-  });
-
-  return p;
-};
-
-
 /**
  * Shutdown all instances of this workerType, cancel
  * any open spot requests.
@@ -261,6 +276,7 @@ WorkerType.prototype.killAll = function(debug) {
   var that = this;
   var regionDeaths = {};
 
+  // First find all the known-to-aws instances
   var p = Promise.all([
     this.ec2.describeInstances({
       Filters: [{
@@ -282,9 +298,17 @@ WorkerType.prototype.killAll = function(debug) {
     }),
   ]);
 
+  // Then create promises to kill all of them
   p = p.then(function(res) {
     var killinators = [];
     that.listRegions().forEach(function(region) {
+
+      // We have lists of instances and spot requests
+      // instead of just pushing new promises for each
+      // discovered instance and request so that we can
+      // reduce the number of API calls from 
+      // regions * (instances+requests) to at most 2 api
+      // calls
       var instances = [];
       var spotreqs = [];
 
@@ -311,7 +335,7 @@ WorkerType.prototype.killAll = function(debug) {
 
       if (spotreqs.length > 0) {
         debug('Cancelling %d spot requests in %s', spotreqs.length, region);
-        killinators.push(that.ec2.cancelSpotInstanceRequests.inRegion(awsRegion, {
+        killinators.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
           SpotInstanceRequestIds: spotreqs,
         }));
       }
@@ -336,23 +360,19 @@ WorkerType.prototype.killAll = function(debug) {
 WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
   assert(debug);
   assert(pricing);
-  assert(capacity);
-  assert(pending);
+  assert(typeof capacity === 'number');
+  assert(typeof pending === 'number');
   var that = this;
 
   var spotBids = this.determineSpotBids(debug, pricing, capacity, pending);
 
   if (spotBids.length === 0) {
-    debug('no spot requests will be created');
     return [];
   } else {
-    debug('creating %d spot requests', spotBids.length);
     return Promise.all(spotBids.map(function(bid) {
       return that.spawn(debug, bid);
     }));
   }
-
-  return p;
 };
 
 
@@ -368,6 +388,7 @@ WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
   return WorkerType.createLaunchSpec(debug, region, instanceType, this, this.keyPrefix);
 }
 
+
 /**
  * Make sure that all combinations of LaunchSpecs work.  This sync
  * function will throw if there is an error found or will return
@@ -377,6 +398,7 @@ WorkerType.prototype.testLaunchSpecs = function(debug) {
   assert(debug);
   return WorkerType.testLaunchSpecs(debug, this, this.keyPrefix);
 }
+
 
 /**
  * We need to be able to create a launch specification for testing without
@@ -391,11 +413,22 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
   assert(keyPrefix);
   assert(worker.regions[region], region + ' is not configured');
   assert(worker.types[instanceType], instanceType + ' is not configured');
-  var typeSpecificKeys = ['InstanceType'];
 
-  // AMI/ImageId are per-region
-  var regionSpecificKeys = ['ImageId'];
+  // These are keys that are only allowable in the set of type specific
+  // overwrites.  Only keys which are strictly related to instance type
+  // should ever be here.
+  var typeSpecificKeys = [
+    'InstanceType', // InstanceType decides which instancetype to use...
+  ];
 
+  // These are keys that are only allowable in the set of region specific
+  // overwrites.  Only things which are strictly linked to the region
+  // should ever be in this list.
+  var regionSpecificKeys = [
+    'ImageId', // AMI IDs (ImageId) are created and are different per-region
+  ];
+
+  // Check for type specific keys in the general keys and region keys
   typeSpecificKeys.forEach(function(key) {
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is type specific, not general');
@@ -405,6 +438,7 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
     }
   });
 
+  // Check for region specific keys in the general and type keys
   regionSpecificKeys.forEach(function(key) {
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is region specific, not general');
@@ -414,25 +448,76 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
     }
   });
 
-  // We're going to make sure that none are set in the generic launchSpec
+  // Make sure that this worker allows the requested workerType
   if (!worker.types[instanceType]) {
-    var e = worker.workerType + 'does not allow instance type ' + instanceType;
+    var e = worker.workerType + ' does not allow instance type ' + instanceType;
     throw new Error(e);
   }
 
-  var actual = lodash.clone(worker.types[instanceType].overwrites);
-  var newSpec = lodash.defaults(actual, worker.launchSpecification);
-  if (!/^[A-Za-z0-9+/=]*$/.exec(newSpec.UserData)) {
-    throw new Error('Launch specification does not contain Base64: ' + newSpec.UserData);
+  // Make sure that this worker allows the requested region
+  if (!worker.regions[region]) {
+    var e = worker.workerType + ' does not allow region ' + region;
+    throw new Error(e);
   }
-  newSpec.KeyName = keyPrefix + worker.workerType;
-  newSpec.InstanceType = instanceType;
-  Object.keys(worker.regions[region].overwrites).forEach(function(key) {
-    newSpec[key] = worker.regions[region].overwrites[key];
+
+  // Start with the general options
+  var launchSpec = lodash.clone(worker.launchSpecification);
+
+  // Now overwrite the ones that are region specific
+  Object.keys(worker.regions[region].overwrites).forEach(function(regionKey) {
+    launchSpec[regionKey] = worker.regions[region].overwrites[regionKey];
   });
 
-  return newSpec;
-    
+  // Now overwrite the ones that are type specific
+  Object.keys(worker.types[instanceType].overwrites).forEach(function(typeKey) {
+    launchSpec[typeKey] = worker.types[instanceType].overwrites[typeKey];
+  });
+
+  // set the KeyPair and InstanceType correctly
+  launchSpec.KeyName = keyPrefix + worker.workerType;
+  launchSpec.InstanceType = instanceType;
+
+  if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
+    throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
+  }
+
+  // These are the keys that we require to be set.  They
+  // are not listed as required in the api docs, but we
+  // are going to say that they are required in our world
+  // http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_LaunchSpecification.html
+  var mandatoryKeys = [
+    'ImageId',
+    'InstanceType',
+    'KeyName',
+    'UserData',
+  ];
+
+  // Now check that we have all the mandatory keys
+  mandatoryKeys.forEach(function(key) {
+    assert(launchSpec[key], 'Your launch spec must have key ' + key);
+  });
+
+  // These are the additional keys which *might* be specified
+  var allowedKeys = mandatoryKeys.concat([
+    'SecurityGroups',
+    'AddressingType',
+    'BlockDeviceMappings',
+    'EbsOptimized',
+    'IamInstanceProfile',
+    'KernelId',
+    'MonitoringEnabled',
+    'NetworkInterfaces',
+    'Placement',
+    'RamdiskId',
+    'SubnetId',
+  ]);
+
+  // Now check that there are no unknown keys
+  Object.keys(launchSpec).forEach(function(key) {
+    assert(-1 !== allowedKeys.indexOf(key), 'Your launch spec has invalid key ' + key);
+  });
+
+  return launchSpec;
 };
 
 
@@ -478,8 +563,8 @@ WorkerType.testLaunchSpecs = function(debug, worker, keyPrefix) {
  */
 WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending) {
   assert(debug);
-  assert(capacity);
-  assert(pending);
+  assert(typeof capacity === 'number');
+  assert(typeof pending === 'number');
   // We need to know the current ratio of capacity to pending
   var percentPending = 1 + pending / capacity;
 
@@ -523,8 +608,8 @@ WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending
 WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pending) {
   assert(debug);
   assert(pricing);
-  assert(capacity);
-  assert(pending);
+  assert(typeof capacity === 'number');
+  assert(typeof pending === 'number');
   var that = this;
   
   var cheapestType;
@@ -569,7 +654,13 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
 };
 
 
+/**
+ * Create an instance of this workerType given a bid.
+ * A bid is an object with the keys of `region`, `price`
+ * and `type`
+ */
 WorkerType.prototype.spawn = function(debug, bid) {
+  var that = this;
   assert(bid, 'Must specify a spot bid');
   assert(this.regions[bid.region], 'Must specify an allowed region');
   assert(this.types[bid.type], 'Must specify an allowed instance type');
@@ -586,17 +677,28 @@ WorkerType.prototype.spawn = function(debug, bid) {
 
   p = p.then(function(spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
-    return spotRequest.SpotInstanceRequests[0].SpotInstanceRequestId;
+    return spotRequest.SpotInstanceRequests[0];
   });
 
-  p = p.then(function(spotReqId) {
+  p = p.then(function(spotReq) {
     debug('submitted spot request %s for $%d in %s for %s',
-      spotReqId, bid.price, bid.region, bid.type);
-    return spotReqId;
+      spotReq.SpotInstanceRequestId, bid.price, bid.region, bid.type);
+    return {
+      workerType: that.workerType,
+      request: spotReq,
+      bid: bid,
+      submitted: new Date(),
+    };
   });
 
   return p;
 };
 
+/**
+ * Return the capacity for a given type
+ */
+WorkerType.prototype.capacityOfType = function(type) {
+  return this.types[type].capacity;
+};
 
 exports.WorkerType = WorkerType;

@@ -117,6 +117,8 @@ function(req, res) {
   // TODO: ^ do this.  not entirely sure what this means, are LaunchSpecification
   //       security groups the same as scopes?
 
+  // We want to make sure that every single possible generated LaunchSpec
+  // would be valid before we even try to store it
   try {
     ctx.WorkerType.testLaunchSpecs(debug, input, 'TestKeyPrefix');
   } catch (err) {
@@ -157,11 +159,13 @@ function(req, res) {
   return p;
 });
 
+
 api.declare({
   method:         'post',
   route:          '/worker-type/:workerType/update',
   name:           'updateWorkerType',
   deferAuth:      true,
+  // Shouldn't we just have a single scope for modifying/creating/deleting workerTypes
   scopes:         ['aws-provisioner:update-worker-type:<workerType>'],
   input:          SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
   output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
@@ -228,44 +232,6 @@ api.declare({
 
 });
 
-
-api.declare({
-  method:         'get',
-  route:          '/get-launch-specs/:workerType',
-  name:           'getLaunchSpecs',
-  deferAuth:      true,
-  scopes:         ['aws-provisioner:get-worker-type:<workerType>'],
-  input:          undefined,  // No input
-  output:         SCHEMA_PREFIX_CONST + 'get-launch-specs-response.json#',
-  title:          "Get All Launch Specifications for WorkerType",
-  description: [
-    "Return the EC2 LaunchSpecifications for all combinations of regions", 
-    "and instance types or a list of reasons why the launch specifications",
-    "are not valid",
-  ].join('\n')
-}, function(req, res) {
-  var ctx         = this;
-  var workerType  = req.params.workerType;
-
-  if(!req.satisfies({
-    workerType:       workerType
-  })) {
-    return; // by default req.satisfies() sends a response on failure, so we're done
-  }
-
-  var p = ctx.WorkerType.load(workerType);
-  
-  p = p.then(function(worker) {
-    return res.reply(worker.testLaunchSpecs(debug));
-  });
-
-  p = p.catch(function(err) {
-    errorHandler(err, res, workerType);
-  });
-
-  return p;
-
-});
 
 
 api.declare({
@@ -352,6 +318,12 @@ api.declare({
     return res.reply({});
   });
 
+  p = p.then(function() {
+    return ctx.publisher.workerTypeDeleted({
+      workerType: workerType,
+    })
+  });
+
   p = p.catch(function(err) {
     errorHandler(err, res, workerType);
     return err;
@@ -361,7 +333,6 @@ api.declare({
 });
 
 
-// List workerTypes
 api.declare({
   method:         'get',
   route:          '/list-worker-types',
@@ -386,7 +357,7 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = this.WorkerType.loadAllNames()
+  var p = this.WorkerType.listWorkerTypes()
 
   p = p.then(function(workerNames) {
     return res.reply(workerNames);
@@ -402,18 +373,54 @@ api.declare({
 });
 
 
-/** 
- * Shut down all instances of a workerType.
- */
+api.declare({
+  method:         'get',
+  route:          '/get-launch-specs/:workerType',
+  name:           'getLaunchSpecs',
+  deferAuth:      true,
+  scopes:         ['aws-provisioner:get-worker-type:<workerType>'],
+  input:          undefined,  // No input
+  output:         SCHEMA_PREFIX_CONST + 'get-launch-specs-response.json#',
+  title:          "Get All Launch Specifications for WorkerType",
+  description: [
+    "Return the EC2 LaunchSpecifications for all combinations of regions", 
+    "and instance types or a list of reasons why the launch specifications",
+    "are not valid",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var workerType  = req.params.workerType;
+
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load(workerType);
+  
+  p = p.then(function(worker) {
+    return res.reply(worker.testLaunchSpecs(debug));
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+  });
+
+  return p;
+
+});
+
+
 api.declare({
   method:   'get',
   route:    '/shutdown/every/ec2/instances/for/:workerType',
   name:     'shutdownEveryEc2InstanceFor',
   title:    "Shutdown Every Ec2 Instance of this Worker Type",
-  scopes:   [
-    ['aws-provisioner:aws',
-    'aws-provisioner:get-worker-type:<workerType>',],
-  ],
+  scopes:   [[
+    'aws-provisioner:aws',
+    'aws-provisioner:get-worker-type:<workerType>',
+  ]],
   description: [
     "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
     "Shut down every single EC2 instance associated with this workerType. ",
@@ -423,7 +430,6 @@ api.declare({
   ].join('\n')
 }, function(req, res) {
 
-  // I don't think we need this here....
   if(!req.satisfies({
     workerType:       workerType
   })) {
@@ -444,11 +450,12 @@ api.declare({
   p = p.then(function() {
     res.reply({
       outcome: true,
-      message: 'Dude, you just turned absolutely everything off.',
+      message: 'You just turned off all ' + workerType + '.  Feel the power!',
     });
   });
 
   p = p.catch(function(err) {
+    console.error(err);
     res.status(503).json({
       message: 'Could not shut down all ' + workerType,
     });
@@ -458,15 +465,16 @@ api.declare({
 
 });
 
-/** 
- * Shut down all managed instances.
- */
+
 api.declare({
   method:   'get', // Hmm, maybe this should be post
   route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
   name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
   title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",
-  scopes:   [['aws-provisioner:all-stop', 'aws-provisioner:aws']],
+  scopes:   [[
+    'aws-provisioner:all-stop',
+    'aws-provisioner:aws'
+  ]],
   description: [
     "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
     "Shut down every single EC2 instance managed by this provisioner. ",
@@ -476,13 +484,6 @@ api.declare({
   ].join('\n')
 }, function(req, res) {
 
-  // I don't think we need this here....
-  if(!req.satisfies({
-    workerType:       workerType
-  })) {
-    return; // by default req.satisfies() sends a response on failure, so we're done
-  }
-
   var ctx = this;
 
   debug('SOMEONE IS TURNING EVERYTHING OFF');
@@ -491,11 +492,12 @@ api.declare({
   p = p.then(function() {
     res.reply({
       outcome: true,
-      message: 'Dude, you just turned absolutely everything off.',
+      message: 'You just turned absolutely everything off.  Feel the power!',
     });
   });
 
   p = p.catch(function(err) {
+    console.error(err, err.stack);
     res.status(503).json({
       message: 'Could not shut down everything',
     });
@@ -557,6 +559,140 @@ api.declare({
 });
 
 
+api.declare({
+  method:         'get',
+  route:          '/hello/:instanceId',
+  name:           'hello',
+  deferAuth:      true,
+  scopes:         [
+    'aws-provisioner:aws',
+    'aws-provisioner:<instanceId>'
+  ],
+  title:          "Say Hello to Provisioner",
+  description: [
+    "This end point will eventually be passed into the workers ",
+    "so that they can inform the provisioner how long it took to ",
+    "become ready for work.  This way the provisioner can track ",
+    "how long it took AWS to go from spot request to ready.  You'll ",
+    "need temporary credentials which have the instance id as a scope",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var input       = req.body;
+  var instanceId  = req.params.instanceId;
+  
+  if(!req.satisfies({
+    instanceId:       instanceId
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  // Here's where we'd submit this info somewhere useful
+  debug('Instance %s is now ready for work!', instanceId);
+
+  res.reply('How you doin ' + instanceId + '?');
+
+});
+
+
+api.declare({
+  method:         'get',
+  route:          '/worker-type/:workerType/stats',
+  name:           'workerTypeStats',
+  deferAuth:      true,
+  scopes:         [[
+    'aws-provisioner:get-worker-type:<workerType>'
+  ]],
+  output:         SCHEMA_PREFIX_CONST + 'worker-type-stats-response.json#',
+  title:          "Spawn an instance of a Worker Type",
+  description: [
+    'Spawn an instance of a workerType given a bid.  A bid is an ',
+    'object which has a number `price`, string `region` and string ',
+    '`instance type`.'
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var input       = req.body;
+  var workerType  = req.params.workerType;
+  
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = Promise.all([
+      ctx.WorkerType.load(workerType),
+      ctx.awsStateCache.get(),
+  ]);
+    
+  p = p.then(function(result) {
+    var worker = result[0];
+    var state = result[1];
+
+    var workerStats = {
+      running: [],
+      pending: [],
+      spotReq: [],
+    };
+
+    worker.listRegions().forEach(function(region) {
+      if (state[region] && state[region][workerType]) {
+        Array.prototype.push.apply(workerStats.running, state[region][workerType].running);
+        Array.prototype.push.apply(workerStats.pending, state[region][workerType].pending);
+        Array.prototype.push.apply(workerStats.spotReq, state[region][workerType].spotReq);
+      }
+    });
+
+    res.reply(workerStats);
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:         'get',
+  route:          '/get-ids',
+  name:           'getIds',
+  scopes:         [
+      'aws-provisioner:get-ids',
+  ],
+  input:          undefined,  // No input
+  output:         SCHEMA_PREFIX_CONST + 'get-aws-state-response.json#',
+  title:          "List Worker Types",
+  description: [
+    "List all known WorkerType names",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+
+  var p = ctx.awsStateCache.get();
+
+  p = p.then(function(state) {
+    res.reply({
+      running: state.listRunningInstanceIds(),
+      pending: state.listPendingInstanceIds(),
+      spotReq: state.listSpotRequestIds(),
+    });
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, 'showing aws state');
+    return err;
+  });
+
+
+  return p;
+
+});
+
 
 api.declare({
   method:         'get',
@@ -590,6 +726,7 @@ api.declare({
   return p;
 
 });
+
 
 api.declare({
   method:   'get',

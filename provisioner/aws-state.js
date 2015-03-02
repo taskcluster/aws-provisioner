@@ -5,6 +5,7 @@ var lodash = require('lodash');
 var util = require('util');
 var Cache = require('../cache');
 var assert = require('assert');
+var debug = require('debug')('aws-provisioner:aws-state');
 
 
 /**
@@ -13,6 +14,8 @@ var assert = require('assert');
  * using synchronus methods, as they're all just list processing
  */
 function fetchState(ec2, keyPrefix) {
+  assert(ec2);
+  assert(keyPrefix);
   var that = this;
 
   var p = Promise.all([
@@ -45,21 +48,6 @@ function fetchState(ec2, keyPrefix) {
 }
 
 module.exports = fetchState;
-
-/**
- * AWS EC2 state at a specific moment in time
- */
-function AwsState(keyPrefix, state) {
-  this.__state = state;
-  this.keyPrefix = keyPrefix;
-}
-
-/**
- * Get the raw state
- */
-AwsState.prototype.get = function() {
-  return this.__state;
-};
 
 
 /**
@@ -114,14 +102,38 @@ function _classify(regions, keyPrefix, instanceState, spotReqs) {
 
 
 /**
- * Return a list workerTypes known to AWS
+ * AWS EC2 state at a specific moment in time
+ */
+function AwsState(keyPrefix, state) {
+  this.__state = state;
+  this.keyPrefix = keyPrefix;
+}
+
+
+/**
+ * Get the raw state
+ */
+AwsState.prototype.get = function(region, type) {
+  if (region && type) {
+    return this.__state[region][type];
+  } else if (region && !type) {
+    return this.__state[region];
+  } else if (!region && !type) {
+    return this.__state;
+  }
+};
+
+
+
+/**
+ * Return a list of workerTypes known to AWS
  */
 AwsState.prototype.knownWorkerTypes = function() {
   var workerTypes = [];
   var that = this;
 
-  Object.keys(this.__state).forEach(function(region) {
-    Object.keys(that.__state[region]).forEach(function(workerType) {
+  this.regions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(workerType) {
       if (workerTypes.indexOf(workerType) === -1) {
         workerTypes.push(workerType);
       }
@@ -134,12 +146,79 @@ AwsState.prototype.knownWorkerTypes = function() {
 
 
 /**
+ * Return a list of all running Instance Ids that are known in this AWS State
+ * These are not categorized by region.  It's one list of strings.
+ */
+AwsState.prototype.listRunningInstanceIds = function() {
+  var allIds = [];
+  var that = this;
+
+  this.regions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(workerType) {
+      var ids = that.__state[region][workerType].running.map(function(x) {
+        return x.InstanceId;
+      });
+      Array.prototype.push.apply(allIds, ids);
+    });
+  });
+
+  return allIds;
+};
+
+
+/**
+ * Return a list of all pending Instance Ids that are known in this AWS State
+ * These are not categorized by region. It's one list of strings.
+ */
+AwsState.prototype.listPendingInstanceIds = function() {
+  var allIds = [];
+  var that = this;
+
+  this.regions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(workerType) {
+      var ids = that.__state[region][workerType].pending.map(function(x) {
+        return x.InstanceId;
+      });
+      Array.prototype.push.apply(allIds, ids);
+    });
+  });
+
+  return allIds;
+};
+
+
+/**
+ * Return a list of all Spot Request Ids that are known in this AWS State
+ * These are not categorized by region or by instance type. It's one
+ * list of strings.
+ */
+AwsState.prototype.listSpotRequestIds = function() {
+  var allIds = [];
+  var that = this;
+
+  this.regions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(workerType) {
+      var ids = that.__state[region][workerType].spotReq.map(function(x) {
+        return x.SpotInstanceRequestId;
+      });
+      Array.prototype.push.apply(allIds, ids);
+    });
+  });
+
+  return allIds;
+};
+
+
+/**
  * Count the capacity of this workerType that are in the states specified
  * by `states`.  Doing this uses the Capcity key from the workerType's
  * types dictionary.  Remember that capacity is the number of tasks
- * that this instance/request will be able to service
+ * that this instance/request will be able to service.
+ * If specified, `extraSpotRequests` is a dictionary which contains a region
+ * and worker type categorized list of outstanding spot requests
  */
-AwsState.prototype.capacityForType = function(workerType, states) {
+AwsState.prototype.capacityForType = function(workerType, extraSpotRequests, states) {
+  assert(workerType);
   var that = this;
   var wName = workerType.workerType;
   var capacity = 0;
@@ -147,13 +226,8 @@ AwsState.prototype.capacityForType = function(workerType, states) {
     states = ['running', 'pending', 'spotReq'];
   }
 
-  // This is a mapping between EC2 Instance Type and Capacity Unit Count
-  var capMap = {};
-  Object.keys(workerType.types).forEach(function(type) {
-    capMap[type] = workerType.types[type].capacity;
-  });
-
-  // Find instances and add them to the capacity
+  // Find instances in the retrevied state and add them to the capacity
+  // according to their declared capacity
   workerType.listRegions().forEach(function(region) {
     var rState = that.__state[region]; 
 
@@ -165,25 +239,54 @@ AwsState.prototype.capacityForType = function(workerType, states) {
 
     if (states.indexOf('running') !== -1) {
       wState.running.forEach(function(instance) {
-        capacity += capMap[instance.InstanceType];
+        capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
     if (states.indexOf('pending') !== -1) {
       wState.pending.forEach(function(instance) {
-        capacity += capMap[instance.InstanceType];
+        capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
     if (states.indexOf('spotReq') !== -1) {
       wState.spotReq.forEach(function(request) {
-        capacity += capMap[request.LaunchSpecification.InstanceType];
+        capacity += workerType.capacityOfType(request.LaunchSpecification.InstanceType);
       });
     }
 
   });
 
+  // Extra spot requests are those which known to the provisioner but aren't
+  // available yet through the API.  We want to make sure that they are counted
+  // in the available capacity so that we don't resubmit requests for them
+  // over and over again
+  if (extraSpotRequests) {
+    Object.keys(extraSpotRequests).forEach(function(region) {
+      var srs = extraSpotRequests[region][workerType.workerType];
+      srs.forEach(function(sr) {
+        var type = sr.request.LaunchSpecification.InstanceType;
+        capacity += workerType.capacityOfType(type);
+      });
+    });
+  }
+
   return capacity;
-  
 };
 
+
+/**
+ * List all the regions known to this AWS State
+ */
+AwsState.prototype.regions = function() {
+  return Object.keys(this.__state);
+};
+
+
+/**
+ * List the types known in a given region
+ */
+AwsState.prototype.typesForRegion = function(region) {
+  assert(region);
+  return Object.keys(this.__state[region]);
+};

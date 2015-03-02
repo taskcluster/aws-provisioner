@@ -54,7 +54,7 @@ var launch = function(profile) {
     'sa-east-1'
   ]);
   
-  var awsStateCache = new Cache(5, awsState, ec2);
+  var awsStateCache = new Cache(5, awsState, ec2, cfg.get('provisioner:awsKeyPrefix'));
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
