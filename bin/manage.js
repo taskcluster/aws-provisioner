@@ -86,6 +86,7 @@ function createClient() {
 
 program
   .version(pkgData.version || 'unknown')
+  .description('Perform various management tasks for the Taskcluster AWS Provisioner')
   .option('-u, --url [url]', 'URL for the API to work against', "https://aws-provisioner2.herokuapp.com/v1");
 
 

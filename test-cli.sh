@@ -10,7 +10,7 @@ set -xe
 url="http://localhost:5556/v1"
 
 run () {
-  node bin/manage-worker-types.js --url $url $@
+  node bin/manage.js --url $url $@
 }
 
 run help
@@ -23,3 +23,4 @@ run create gaia.json
 run fetch test
 run fetch-all
 run all-stop
+run --config test setup-table
