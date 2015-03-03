@@ -11,6 +11,7 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
+    "commander": "^2.6.0",
     "debug": "2.1.0",
     "joi": "^5.1.0",
     "lodash": "^2.4.1",
