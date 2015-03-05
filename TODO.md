@@ -24,3 +24,5 @@
 * insert into influx when the hello endpoint is hit
 * Ensure that UserData is valid JSON
 * Write tests for all the provisioning logic
+* Wait up to a certain amount of time before assuming that
+  a spot request is cancelled

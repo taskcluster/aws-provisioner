@@ -23,7 +23,7 @@ module.exports = fetchState;
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsState(ec2, keyPrefix) {
+function AwsManager(ec2, keyPrefix) {
   assert(keyPrefix);
   assert(ec2);
   this.ec2 = ec2;
@@ -31,14 +31,14 @@ function AwsState(ec2, keyPrefix) {
   this.__apiState = {};
 }
 
-module.exports = AwsState;
+module.exports = AwsManager;
 
 
 /**
  * Update the state from the AWS API and return a promise
  * with no resolution value when completed.
  */
-AwsState.prototype.update = function() {
+AwsManager.prototype.update = function() {
   var that = this;
 
   var p = Promise.all([
@@ -85,7 +85,7 @@ AwsState.prototype.update = function() {
  * We flatten the Reservations because we don't really care about that
  * feature right now.
  */
-AwsState.prototype._classify = function(instanceState, spotReqs) {
+AwsManager.prototype._classify = function(instanceState, spotReqs) {
   var that = this;
   var state = {};
 
@@ -124,7 +124,7 @@ AwsState.prototype._classify = function(instanceState, spotReqs) {
 /**
  * Get the raw state
  */
-AwsState.prototype.get = function(region, type) {
+AwsManager.prototype.get = function(region, type) {
   if (region && type) {
     return this.__apiState[region][type];
   } else if (region && !type) {
@@ -138,7 +138,7 @@ AwsState.prototype.get = function(region, type) {
 /**
  * List all the regions known to this AWS State
  */
-AwsState.prototype.regions = function() {
+AwsManager.prototype.regions = function() {
   return Object.keys(this.__apiState);
 };
 
@@ -146,7 +146,7 @@ AwsState.prototype.regions = function() {
 /**
  * List the types known in a given region
  */
-AwsState.prototype.typesForRegion = function(region) {
+AwsManager.prototype.typesForRegion = function(region) {
   assert(region);
   return Object.keys(this.__apiState[region]);
 };
@@ -155,7 +155,7 @@ AwsState.prototype.typesForRegion = function(region) {
 /**
  * Return a list of workerTypes known to AWS
  */
-AwsState.prototype.knownWorkerTypes = function() {
+AwsManager.prototype.knownWorkerTypes = function() {
   var workerTypes = [];
   var that = this;
 
@@ -175,7 +175,7 @@ AwsState.prototype.knownWorkerTypes = function() {
  * Return a list of all running Instance Ids that are known in this AWS State
  * These are not categorized by region.  It's one list of strings.
  */
-AwsState.prototype.listRunningInstanceIds = function() {
+AwsManager.prototype.listRunningInstanceIds = function() {
   var allIds = [];
   var that = this;
 
@@ -196,7 +196,7 @@ AwsState.prototype.listRunningInstanceIds = function() {
  * Return a list of all pending Instance Ids that are known in this AWS State
  * These are not categorized by region. It's one list of strings.
  */
-AwsState.prototype.listPendingInstanceIds = function() {
+AwsManager.prototype.listPendingInstanceIds = function() {
   var allIds = [];
   var that = this;
 
@@ -218,7 +218,7 @@ AwsState.prototype.listPendingInstanceIds = function() {
  * These are not categorized by region or by instance type. It's one
  * list of strings.
  */
-AwsState.prototype.listSpotRequestIds = function() {
+AwsManager.prototype.listSpotRequestIds = function() {
   var allIds = [];
   var that = this;
 
@@ -243,7 +243,7 @@ AwsState.prototype.listSpotRequestIds = function() {
  * If specified, `extraSpotRequests` is a dictionary which contains a region
  * and worker type categorized list of outstanding spot requests
  */
-AwsState.prototype.capacityForType = function(workerType, extraSpotRequests, states) {
+AwsManager.prototype.capacityForType = function(workerType, extraSpotRequests, states) {
   assert(workerType);
   var that = this;
   var wName = workerType.workerType;
