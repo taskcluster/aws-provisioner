@@ -14,15 +14,38 @@ var debug = require('debug')('aws-provisioner:aws-state');
  * using synchronus methods, as they're all just list processing
  */
 function fetchState(ec2, keyPrefix) {
-  assert(ec2);
+
+}
+
+module.exports = fetchState;
+
+
+/**
+ * AWS EC2 state at a specific moment in time
+ */
+function AwsState(ec2, keyPrefix) {
   assert(keyPrefix);
+  assert(ec2);
+  this.ec2 = ec2;
+  this.keyPrefix = keyPrefix;
+  this.__apiState = {};
+}
+
+module.exports = AwsState;
+
+
+/**
+ * Update the state from the AWS API and return a promise
+ * with no resolution value when completed.
+ */
+AwsState.prototype.update = function() {
   var that = this;
 
   var p = Promise.all([
     ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
-        Values: [keyPrefix + '*']
+        Values: [that.keyPrefix + '*']
       },{
         Name: 'instance-state-name',
         Values: ['running', 'pending']
@@ -31,7 +54,7 @@ function fetchState(ec2, keyPrefix) {
     ec2.describeSpotInstanceRequests({
       Filters: [{
         Name: 'launch.key-name',
-        Values: [keyPrefix + '*']
+        Values: [that.keyPrefix + '*']
       }, {
         Name: 'state',
         Values: ['open']
@@ -40,14 +63,11 @@ function fetchState(ec2, keyPrefix) {
   ]);
 
   p = p.then(function(res) {
-    return new AwsState(keyPrefix, _classify(ec2.regions, keyPrefix, res[0], res[1])
-    );
+    this.__apiState = that._classify(res[0], res[1]);
   });
 
   return p;
-}
-
-module.exports = fetchState;
+};
 
 
 /**
@@ -65,11 +85,11 @@ module.exports = fetchState;
  * We flatten the Reservations because we don't really care about that
  * feature right now.
  */
-function _classify(regions, keyPrefix, instanceState, spotReqs) {
+AwsState.prototype._classify = function(instanceState, spotReqs) {
   var that = this;
   var state = {};
 
-  regions.forEach(function(region) {
+  that.ec2.regions.forEach(function(region) {
     var rState = state[region] = {};
 
     function x(type) {
@@ -84,14 +104,14 @@ function _classify(regions, keyPrefix, instanceState, spotReqs) {
 
     instanceState[region].Reservations.forEach(function(reservation) {
       reservation.Instances.forEach(function(instance) {
-        var workerType = instance.KeyName.substr(keyPrefix.length);
+        var workerType = instance.KeyName.substr(that.keyPrefix.length);
         x(workerType);
         rState[workerType][instance.State.Name].push(instance); 
       });
     });
 
     spotReqs[region].SpotInstanceRequests.forEach(function(request) {
-      var workerType = request.LaunchSpecification.KeyName.substr(keyPrefix.length);
+      var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
     }); 
 
   });
@@ -102,27 +122,34 @@ function _classify(regions, keyPrefix, instanceState, spotReqs) {
 
 
 /**
- * AWS EC2 state at a specific moment in time
- */
-function AwsState(keyPrefix, state) {
-  this.__state = state;
-  this.keyPrefix = keyPrefix;
-}
-
-
-/**
  * Get the raw state
  */
 AwsState.prototype.get = function(region, type) {
   if (region && type) {
-    return this.__state[region][type];
+    return this.__apiState[region][type];
   } else if (region && !type) {
-    return this.__state[region];
+    return this.__apiState[region];
   } else if (!region && !type) {
-    return this.__state;
+    return this.__apiState;
   }
 };
 
+
+/**
+ * List all the regions known to this AWS State
+ */
+AwsState.prototype.regions = function() {
+  return Object.keys(this.__apiState);
+};
+
+
+/**
+ * List the types known in a given region
+ */
+AwsState.prototype.typesForRegion = function(region) {
+  assert(region);
+  return Object.keys(this.__apiState[region]);
+};
 
 
 /**
@@ -141,7 +168,6 @@ AwsState.prototype.knownWorkerTypes = function() {
   });
 
   return workerTypes;
-
 };
 
 
@@ -155,7 +181,7 @@ AwsState.prototype.listRunningInstanceIds = function() {
 
   this.regions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.__state[region][workerType].running.map(function(x) {
+      var ids = that.get(region, workerType).running.map(function(x) {
         return x.InstanceId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -176,7 +202,7 @@ AwsState.prototype.listPendingInstanceIds = function() {
 
   this.regions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.__state[region][workerType].pending.map(function(x) {
+      var ids = that.get(region, workerType).pending.map(function(x) {
         return x.InstanceId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -198,7 +224,7 @@ AwsState.prototype.listSpotRequestIds = function() {
 
   this.regions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.__state[region][workerType].spotReq.map(function(x) {
+      var ids = that.get(region, workerType).spotReq.map(function(x) {
         return x.SpotInstanceRequestId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -229,7 +255,7 @@ AwsState.prototype.capacityForType = function(workerType, extraSpotRequests, sta
   // Find instances in the retrevied state and add them to the capacity
   // according to their declared capacity
   workerType.listRegions().forEach(function(region) {
-    var rState = that.__state[region]; 
+    var rState = that.get(region);
 
     if (!rState[wName]) {
       return;
@@ -274,19 +300,3 @@ AwsState.prototype.capacityForType = function(workerType, extraSpotRequests, sta
   return capacity;
 };
 
-
-/**
- * List all the regions known to this AWS State
- */
-AwsState.prototype.regions = function() {
-  return Object.keys(this.__state);
-};
-
-
-/**
- * List the types known in a given region
- */
-AwsState.prototype.typesForRegion = function(region) {
-  assert(region);
-  return Object.keys(this.__state[region]);
-};
