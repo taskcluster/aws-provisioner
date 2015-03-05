@@ -3,6 +3,7 @@ var base        = require('taskcluster-base');
 var assert      = require('assert');
 var Promise     = require('promise');
 var lodash      = require('lodash');
+var debug       = require('debug')('aws-provisioner:WorkerType');
 
 var KEY_CONST = 'worker-type';
 
@@ -81,7 +82,7 @@ var WorkerType = base.Entity.configure({
      * } */
     regions: base.Entity.types.JSON,
   },
-  context: ['ec2', 'keyPrefix', 'pubKey', 'influx'],
+  context: [],
 });
 
 /**
@@ -138,25 +139,6 @@ WorkerType.listWorkerTypes = function() {
 
 
 /**
- * Turn off every single EC2 instance and cancel all spot
- * requests which were created by this Provisioner
- */
-WorkerType.killEverything = function (debug) {
-  assert(debug);
-
-  var p = WorkerType.loadAll.call(this);
-
-  p = p.then(function (workerTypes) {
-    return Promise.all(workerTypes.map(function(workerType) {
-      return workerType.killAll(debug);
-    }));
-  });
-
-  return p;
-};
-
-
-/**
  * Load a single workerType by name
  */
 WorkerType.load = function(workerType) {
@@ -175,20 +157,6 @@ WorkerType.load = function(workerType) {
  */
 WorkerType.prototype.json = function() {
   return lodash.clone(this.__properties);
-};
-
-
-/**
- * Return the list of regions which can be operated in.
- * This is a subset of the regions which a given node
- * is allowed to run in and the list of regions that the
- * API is configred to run in.
- */
-WorkerType.prototype.listRegions = function() {
-  var that = this;
-  return Object.keys(this.regions).filter(function(region) {
-    return that.ec2.regions.indexOf(region) !== -1;
-  }); 
 };
 
 
@@ -271,8 +239,8 @@ WorkerType.prototype.deleteKeyPair = function() {
  * Shutdown all instances of this workerType, cancel
  * any open spot requests.
  */
-WorkerType.prototype.killAll = function(debug) {
-  assert(debug);
+WorkerType.prototype.killAll = function() {
+  throw new Error('Broken!');
   var that = this;
   var regionDeaths = {};
 
@@ -358,10 +326,10 @@ WorkerType.prototype.killAll = function(debug) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
+WorkerType.prototype.createLaunchSpec = function(region, instanceType, keyPrefix) {
   assert(region);
   assert(instanceType);
-  return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix);
+  return WorkerType.createLaunchSpec(region, instanceType, this, keyPrefix);
 }
 
 
@@ -370,8 +338,8 @@ WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function() {
-  return WorkerType.testLaunchSpecs(this, this.keyPrefix);
+WorkerType.prototype.testLaunchSpecs = function(keyPrefix) {
+  return WorkerType.testLaunchSpecs(this, keyPrefix);
 }
 
 
@@ -509,7 +477,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix) {
     launchSpecs[region] = {};
     Object.keys(worker.types).forEach(function(type) {
       try {
-        launchSpecs[region][type] = WorkerType.createLaunchSpec(debug, region, type, worker, keyPrefix);
+        launchSpecs[region][type] = WorkerType.createLaunchSpec(region, type, worker, keyPrefix);
       } catch (e) {
         errors.push(e)
       }
@@ -534,8 +502,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix) {
  * units does not fit nicely with the number of capacity units available per
  * instance type.  Positive value means add capacity, negative means destroy
  */
-WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending) {
-  assert(debug);
+WorkerType.prototype.determineCapacityChange = function(capacity, pending) {
   assert(typeof capacity === 'number');
   assert(typeof pending === 'number');
   // We need to know the current ratio of capacity to pending
@@ -578,8 +545,8 @@ WorkerType.prototype.determineCapacityChange = function(debug, capacity, pending
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pending) {
-  assert(debug);
+WorkerType.prototype.determineSpotBids = function(regions, pricing, capacity, pending) {
+  assert(regions);
   assert(pricing);
   assert(typeof capacity === 'number');
   assert(typeof pending === 'number');
@@ -590,15 +557,23 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
   var cheapestRegion;
   var spotBid;
 
-  var change = this.determineCapacityChange(debug, capacity, pending);
+  var change = this.determineCapacityChange(capacity, pending);
 
   var spotBids = [];
 
   var pricingInfo = pricing.pricesByRegionAndType();
 
+  var allowedRegions = Object.keys(this.regions).filter(function(region) {
+    return regions.indexOf(region) !== -1;
+  });
+
+  if (allowedRegions.length === 0) {
+    throw new Error('No configured region is allowed by ' + this.workerType);
+  }
+
   while (change > 0) {
     Object.keys(this.types).forEach(function(potentialType) {
-      that.listRegions().forEach(function(potentialRegion) {
+      allowedRegions.forEach(function(potentialRegion) {
         var potentialSpotBid = pricingInfo[potentialRegion][potentialType];
         // Like capacity we assume that if a utility factor is not available
         // that we consider it to be the base (1)

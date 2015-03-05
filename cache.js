@@ -1,5 +1,4 @@
 'use strict';
-var debug = require('debug')('cache');
 
 /**
  * This object caches the return value of a function
@@ -42,10 +41,8 @@ function Cache(maxAgeMinutes, that, func) {
 Cache.prototype.isValid = function() {
   var now = new Date();
   if (this.data && this.expiration && now < this.expiration) {
-    debug('cache has not expired');
     return true;
   }
-  debug('cache has expired');
   return false;
 };
 
@@ -59,9 +56,7 @@ Cache.prototype.get = function() {
     this.expiration = new Date();
     this.expiration.setMinutes(this.expiration.getMinutes() + this.maxAgeMinutes);
     this.data = this.func.apply(this.that, this.args); 
-    debug('cache was expired, got new value');
   } else {
-    debug('cache is value, returning cached data');
   }
   return this.data;
 

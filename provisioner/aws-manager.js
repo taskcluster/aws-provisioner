@@ -5,34 +5,37 @@ var lodash = require('lodash');
 var util = require('util');
 var Cache = require('../cache');
 var assert = require('assert');
-var debug = require('debug')('aws-provisioner:aws-state');
-
-
-/**
- * Return a promise that resolves to an AWS State object.  We do this
- * so that we can grab the state using promises but then inspect state
- * using synchronus methods, as they're all just list processing
- */
-function fetchState(ec2, keyPrefix) {
-
-}
-
-module.exports = fetchState;
+var debug = require('debug')('aws-provisioner:aws-manager');
 
 
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsManager(ec2, keyPrefix) {
-  assert(keyPrefix);
+function AwsManager(ec2, keyPrefix, pubKey) {
   assert(ec2);
+  assert(keyPrefix);
+  assert(pubKey);
   this.ec2 = ec2;
   this.keyPrefix = keyPrefix;
+  this.pubKey = pubKey;
   this.__apiState = {};
+  this.__internalState = {};
+  this.__knownKeyPairs = [];
 }
 
 module.exports = AwsManager;
 
+/**
+ * Instead of writing .indexOf(x) !== -1 a million
+ * times.
+ */
+function has(x, y) {
+  if (!Array.prototype.includes) {
+    return x.indexOf(y) !== -1;
+  } else {
+    x.includes(y);
+  }
+}
 
 /**
  * Update the state from the AWS API and return a promise
@@ -42,7 +45,7 @@ AwsManager.prototype.update = function() {
   var that = this;
 
   var p = Promise.all([
-    ec2.describeInstances({
+    that.ec2.describeInstances({
       Filters: [{
         Name: 'key-name',
         Values: [that.keyPrefix + '*']
@@ -51,7 +54,7 @@ AwsManager.prototype.update = function() {
         Values: ['running', 'pending']
       }
     ]}),
-    ec2.describeSpotInstanceRequests({
+    that.ec2.describeSpotInstanceRequests({
       Filters: [{
         Name: 'launch.key-name',
         Values: [that.keyPrefix + '*']
@@ -63,7 +66,13 @@ AwsManager.prototype.update = function() {
   ]);
 
   p = p.then(function(res) {
-    this.__apiState = that._classify(res[0], res[1]);
+    that.__apiState = that._classify(res[0], res[1]);
+  });
+
+  p = p.then(function() {
+    // We want to make sure that our internal state is always up to date when
+    // we fetch the updated state
+    that.reconcileInternalState();
   });
 
   return p;
@@ -117,15 +126,17 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
   });
 
   return state;
-
 };
 
 
 /**
- * Get the raw state
+ * Get Api State Only
  */
-AwsManager.prototype.get = function(region, type) {
+AwsManager.prototype.getApi = function(region, type) {
   if (region && type) {
+    if (!this.__apiState[region]) {
+      return {};
+    }
     return this.__apiState[region][type];
   } else if (region && !type) {
     return this.__apiState[region];
@@ -134,12 +145,23 @@ AwsManager.prototype.get = function(region, type) {
   }
 };
 
-
 /**
- * List all the regions known to this AWS State
+ * Get Internal State Only.  Remember that Internal state
+ * contains an extra Container object which contains
+ * the the raw `request`, the `workerType` name, the `bid`
+ * and a datetime of when it was `submitted`
  */
-AwsManager.prototype.regions = function() {
-  return Object.keys(this.__apiState);
+AwsManager.prototype.getInternal = function(region, type) {
+  if (region && type) {
+    if (!this.__internalState[region]) {
+      return {};
+    }
+    return this.__internalState[region][type];
+  } else if (region && !type) {
+    return this.__internalState[region];
+  } else if (!region && !type) {
+    return this.__internalState;
+  }
 };
 
 
@@ -148,9 +170,24 @@ AwsManager.prototype.regions = function() {
  */
 AwsManager.prototype.typesForRegion = function(region) {
   assert(region);
+  var apiState = this.getApi(region) || {};
+  var internalState = this.getInternal(region) || {};
+
+  var types = Object.keys(apiState);
+  Array.prototype.push.apply(types, Object.keys(internalState).filter(function(type) {
+    return has(types, type);
+  }));
   return Object.keys(this.__apiState[region]);
 };
 
+
+/**
+ * List the regions that this Manager is configured to 
+ * manage
+ */
+AwsManager.prototype.managedRegions = function () {
+  return lodash.clone(this.ec2.regions);
+};
 
 /**
  * Return a list of workerTypes known to AWS
@@ -159,9 +196,9 @@ AwsManager.prototype.knownWorkerTypes = function() {
   var workerTypes = [];
   var that = this;
 
-  this.regions().forEach(function(region) {
+  this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      if (workerTypes.indexOf(workerType) === -1) {
+      if (!has(workerTypes, workerType)) {
         workerTypes.push(workerType);
       }
     });
@@ -179,9 +216,9 @@ AwsManager.prototype.listRunningInstanceIds = function() {
   var allIds = [];
   var that = this;
 
-  this.regions().forEach(function(region) {
+  this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.get(region, workerType).running.map(function(x) {
+      var ids = that.getApi(region, workerType).running.map(function(x) {
         return x.InstanceId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -200,9 +237,9 @@ AwsManager.prototype.listPendingInstanceIds = function() {
   var allIds = [];
   var that = this;
 
-  this.regions().forEach(function(region) {
+  this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.get(region, workerType).pending.map(function(x) {
+      var ids = that.getApi(region, workerType).pending.map(function(x) {
         return x.InstanceId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -218,13 +255,13 @@ AwsManager.prototype.listPendingInstanceIds = function() {
  * These are not categorized by region or by instance type. It's one
  * list of strings.
  */
-AwsManager.prototype.listSpotRequestIds = function() {
+AwsManager.prototype.listSpotUnfulfilledRequestIds = function() {
   var allIds = [];
   var that = this;
 
-  this.regions().forEach(function(region) {
+  this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      var ids = that.get(region, workerType).spotReq.map(function(x) {
+      var ids = that.getApi(region, workerType).spotReq.map(function(x) {
         return x.SpotInstanceRequestId;
       });
       Array.prototype.push.apply(allIds, ids);
@@ -236,6 +273,36 @@ AwsManager.prototype.listSpotRequestIds = function() {
 
 
 /**
+ * Return a list of all Spot Request Ids that are known in this AWS State
+ * These are not categorized by region or by instance type. It's one
+ * list of strings.
+ */
+AwsManager.prototype.listSpotRequestIds = function() {
+  var ids = [];
+  var that = this;
+
+  this.managedRegions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(workerType) {
+      that.getApi(region, workerType).spotReq.forEach(function(x) {
+        ids.push(x.SpotInstanceRequestId);
+      });
+      that.getApi(region, workerType).running.forEach(function(x) {
+        if (x.SpotInstanceRequestId) {
+          ids.push(x.SpotInstanceRequestId);
+        }
+      });
+      that.getApi(region, workerType).pending.forEach(function(x) {
+        if (x.SpotInstanceRequestId) {
+          ids.push(x.SpotInstanceRequestId);
+        }
+      });
+    });
+  });
+
+  return ids;
+};
+
+/**
  * Count the capacity of this workerType that are in the states specified
  * by `states`.  Doing this uses the Capcity key from the workerType's
  * types dictionary.  Remember that capacity is the number of tasks
@@ -243,7 +310,7 @@ AwsManager.prototype.listSpotRequestIds = function() {
  * If specified, `extraSpotRequests` is a dictionary which contains a region
  * and worker type categorized list of outstanding spot requests
  */
-AwsManager.prototype.capacityForType = function(workerType, extraSpotRequests, states) {
+AwsManager.prototype.capacityForType = function(workerType, states) {
   assert(workerType);
   var that = this;
   var wName = workerType.workerType;
@@ -254,8 +321,8 @@ AwsManager.prototype.capacityForType = function(workerType, extraSpotRequests, s
 
   // Find instances in the retrevied state and add them to the capacity
   // according to their declared capacity
-  workerType.listRegions().forEach(function(region) {
-    var rState = that.get(region);
+  this.ec2.regions.forEach(function(region) {
+    var rState = that.getApi(region);
 
     if (!rState[wName]) {
       return;
@@ -263,40 +330,377 @@ AwsManager.prototype.capacityForType = function(workerType, extraSpotRequests, s
     
     var wState = rState[wName];
 
-    if (states.indexOf('running') !== -1) {
+    if (has(states, 'running')) {
       wState.running.forEach(function(instance) {
         capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
-    if (states.indexOf('pending') !== -1) {
+    if (has(states, 'pending')) {
       wState.pending.forEach(function(instance) {
         capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
-    if (states.indexOf('spotReq') !== -1) {
+    if (has(states, 'spotReq')) {
       wState.spotReq.forEach(function(request) {
         capacity += workerType.capacityOfType(request.LaunchSpecification.InstanceType);
       });
     }
-
   });
 
   // Extra spot requests are those which known to the provisioner but aren't
   // available yet through the API.  We want to make sure that they are counted
   // in the available capacity so that we don't resubmit requests for them
   // over and over again
-  if (extraSpotRequests) {
-    Object.keys(extraSpotRequests).forEach(function(region) {
-      var srs = extraSpotRequests[region][workerType.workerType];
-      srs.forEach(function(sr) {
-        var type = sr.request.LaunchSpecification.InstanceType;
-        capacity += workerType.capacityOfType(type);
+  Object.keys(this.getInternal()).forEach(function(region) {
+    var wState = that.getInternal(region, workerType.workerType);
+
+    var notInApi = 0;
+
+    if (wState && has(states, 'spotReq')) {
+      wState.spotReq.forEach(function(sr) {
+        capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
+        notInApi++;
       });
-    });
-  }
+      debug('There are %d instances (not capacity) not showing up in API calls', notInApi);
+    }
+  });
 
   return capacity;
 };
+
+
+/**
+ * Because the AWS is eventually consistent, it will sometimes take time for
+ * spot requests to show up in the describeSpotInstanceRequests calls for
+ * AWS state.  We will maintain an internal table of these submitted but
+ * not yet visible spot requests so that we can offset the count of a given
+ * instance type for figuring out running capacity.  If the provisioning
+ * process is restarted before the spot request shows up in the api's
+ * state we will lose track of it until it turns into an instance.
+ */
+AwsManager.prototype.trackNewSpotRequest = function(sr) {
+  assert(sr);
+
+  var that = this;
+  var allKnownIds = this.listSpotRequestIds();
+
+  // Ensure that there are places in the internal state for
+  // new state information
+  if (!this.__internalState[sr.bid.region]) {
+    this.__internalState[sr.bid.region] = {};
+  }
+  if (!this.__internalState[sr.bid.region][sr.workerType]) {
+    this.__internalState[sr.bid.region][sr.workerType] = {
+      running: [],
+      pending: [],
+      spotReq: [],
+    };
+  }
+
+  // Store the new spot request in the internal state
+  if (!has(allKnownIds, sr.request.SpotInstanceRequestId)) {
+    that.__internalState[sr.bid.region][sr.workerType].spotReq.push(sr);
+  }
+};
+
+
+/**
+ * Once a SpotRequest shows up in the state returned from the AWS api
+ * we should remove it from the internal state of spot requests that
+ * is needed.  We do this before running the provisioner of each
+ * workerType to avoid double counting a newly discovered spot request
+ */
+AwsManager.prototype.reconcileInternalState = function() {
+  // Remove the SRs which AWS now tracks from internal state
+
+  var that = this;
+  var now = new Date();
+  var allKnownIds = this.listSpotRequestIds();
+
+  this.managedRegions().forEach(function(region) {
+    that.typesForRegion(region).forEach(function(type) {
+      if (that.__internalState[region] && that.__internalState[region][type]) {
+        // We could also splice the items to delete out, but that feels like
+        // an over-optimization right now
+        that.__internalState[region][type].spotReq = that.__internalState[region][type].spotReq.filter(function(sr) {
+          var id = sr.request.SpotInstanceRequestId;
+          if (!has(allKnownIds, id)) {
+            debug('Spot request %s for %s in %s is still not tracked, leaving in place', id, type, region);
+            return true;
+          } else {
+            var delay = now - sr.submitted;
+            debug('%s took up to %d seconds to show up in AWS api', id, delay / 1000);
+            return false;
+          }
+        });
+      }
+    });
+  });
+};
+
+
+/**
+ * Create an instance of a WorkerType and track it.  Internally,
+ * we will track the outstanding spot requests until they are seen
+ * in the EC2 API.  This makes sure that we don't ignroe spot requests
+ * that we've made but not yet seen.  This avoids run-away provisioning
+ */
+AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
+  var that = this;
+  assert(bid, 'Must specify a spot bid');
+  assert(workerType.regions[bid.region], 'Must specify an allowed region');
+  assert(workerType.types[bid.type], 'Must specify an allowed instance type');
+  assert(typeof bid.price === 'number', 'Spot Price must be number');
+  
+  var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
+
+  var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
+    InstanceCount: 1,
+    Type: 'one-time',
+    LaunchSpecification: launchSpec,
+    SpotPrice: bid.price.toString(),
+  });
+
+  p = p.then(function(spotRequest) {
+    // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
+    return spotRequest.SpotInstanceRequests[0];
+  });
+
+  p = p.then(function(spotReq) {
+    debug('submitted spot request %s for $%d for %s in %s for %s',
+      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.type);
+    var info = {
+      workerType: workerType.workerType,
+      request: spotReq,
+      bid: bid,
+      submitted: new Date(),
+    };
+    return info;
+  });
+
+  p = p.then(function(info) {
+    that.trackNewSpotRequest(info);
+  });
+
+  return p;  
+};
+
+/**
+ * Kill every instance of a worker type.  We can use this
+ * for the provisioner API, but more importantly for the
+ * rouge instance killer.  We only take a string because
+ * the rouge killer by definition is only for killing nodes
+ * which are no longer associated with a workerType
+ */
+AwsManager.prototype.killAll = function(workerName) {
+  throw new Error('Implement me!');
+};
+
+/**
+ * We use KeyPair names to determine ownership and workerType
+ * in the EC2 world because we can't tag SpotRequests until they've
+ * mutated into Instances.  This sucks and all, but hey, what else
+ * can we do?  This method checks which regions have the required
+ * KeyPair already and creates the KeyPair in regions which do not
+ * already have it.  Note that the __knownKeyPair cache should never
+ * become shared, since we rely on it not surviving restarts in the
+ * case that we start running this manager in another region.  If
+ * we didn't dump the cache, we could create the key in one region
+ * but not the new one that we add.  TODO: Look into what happens
+ * when we add a region to the list of allowed regions... I suspect
+ * that we'll end up having to track which regions the workerName
+ * is enabled in.
+ */
+AwsManager.prototype.createKeyPair = function(workerName) {
+  assert(workerName);
+
+  var that = this;
+
+  var keyName = this.keyPrefix + workerName;
+
+  if (this.hasKeyPair(workerName)) {
+    // Short circuit checking for a key but return
+    // a promise so this cache is invisible to the
+    // calling function from a non-cached instance
+    return Promise.resolve();
+  } else {
+    var p = this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
+      Filters: [{
+        Name: 'key-name',
+        Values: [keyName]
+      }] 
+    });
+
+    p = p.then(function(res) {
+      var toCreate = [];
+
+      that.ec2.regions.forEach(function(region) {
+        var matchingKey = res[region].KeyPairs[0];
+        if (!matchingKey) {
+          toCreate.push(that.ec2.importKeyPair.inRegion(region, {
+            KeyName: keyName,
+            PublicKeyMaterial: that.pubKey,
+          }));
+        } 
+      });
+      return Promise.all(toCreate);
+    });
+    
+    p = p.then(function() {
+      debug('created KeyPair for %s', workerName);
+      that.__knownKeyPairs.push(workerName);
+    });
+
+    return p;
+  }
+
+};
+
+
+/**
+ * Check if a KeyPair is known
+ */
+AwsManager.prototype.hasKeyPair = function(workerName) {
+  return has(this.__knownKeyPairs, workerName);
+};
+
+
+/**
+ * Delete a KeyPair when it's no longer needed.  This method
+ * does nothing more and you shouldn't run it until you've turned
+ * everything off.
+ */
+AwsManager.prototype.deleteKeyPair = function(workerName) {
+  assert(workerName);
+  var that = this;
+
+  var keyName = this.keyPrefix + workerName;
+
+  var p = this.ec2.describeKeyPairs({
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }] 
+  });
+
+  p = p.then(function(res) {
+    var toDelete = [];
+
+    that.ec2.regions.forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (matchingKey) {
+        toDelete.push(that.ec2.deleteKeyPair.inRegion(region, {
+          KeyName: keyName,
+        }));
+      } 
+    });
+    return Promise.all(toDelete);
+  });
+
+  p = p.then(function() {
+    debug('deleted KeyPair for %s', workerName);
+    that.__knownKeyPairs = that.__knownKeyPairs.filter(function(knownKeyPair) {
+      return knownKeyPair !== keyName;
+    });
+  });
+
+  return p;
+
+};
+
+
+/**
+ * Rouge Killer.  A rouge is an instance that has a KeyPair name
+ * that belongs to this provisioner but is not present in the list
+ * of workerNames provided.  We can also use this to shut down all
+ * instances of everything if we just pass an empty list of workers
+ * which will say to this function that all workerTypes are rouge.
+ * Sneaky, huh?
+ */
+AwsManager.prototype.rougeKiller = function(workerNames) {
+  assert(workerNames);
+  var that = this;
+  var known = this.knownWorkerTypes();
+  var rouge = [];
+  known.filter(function(name) {
+    return !has(workerNames, name);
+  }).forEach(killByName);
+
+  // We'll let the rouge killer clean up any other instances which come
+  // up after this occurs
+  return Promise.all(rouge);
+};
+
+
+/**
+ * Kill all instances in all regions of a given workerName
+ */
+AwsManager.prototype.killByName = function(name) {
+  debug('found a rouge: %s', name);
+
+  rouge.push(that.deleteKeyPair(name));
+
+  that.managedRegions().forEach(function(region) {
+    var apiState = that.getApi(region, name);
+    var internalState = that.getInternal(region, name);
+
+    var instances = [];
+    var requests = [];
+
+    [apiState, internalState].forEach(function(state) {
+      if (state.running) {
+        Array.prototype.push.apply(instances, state.running.map(function(r) {
+          return r.InstanceId;
+        }));
+      }
+
+      if (state.pending) {
+        Array.prototype.push.apply(instances, state.pending.map(function(r) {
+          return r.InstanceId;
+        }));
+      }
+
+      if (state.spotReq) {
+        Array.prototype.push.apply(requests, state.spotReq.map(function(r) {
+          return r.SpotInstanceRequestId;
+        }));
+      }
+    });
+
+    rouge.push(that.killCancel(region, instances, requests));
+  });
+};
+
+
+/**
+ * Kill instances and cancel spot requests
+ */
+AwsManager.prototype.killCancel = function(region, instances, requests) {
+  assert(instances || requests);
+  var that = this;
+
+  var promises = [];
+  var i = instances || [];
+  var r = requests || [];
+
+  if (i.length > 0) {
+    promises.push(that.ec2.terminateInstances.inRegion(region, {
+      InstanceIds: i,
+    }));
+  }
+
+  if (r.length > 0) {
+    promises.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
+      SpotInstanceRequestIds: r,
+    }));
+  }
+
+  debug('%s instances being killed: %s', region, JSON.stringify(i));
+  debug('%s spot requests being cancelled: %s', region, JSON.stringify(r));
+
+  return Promise.all(promises);
+};
+
 

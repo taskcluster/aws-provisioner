@@ -18,6 +18,7 @@ function fetchPricing(ec2) {
       Values: ['Linux/UNIX'],
     }],
   }
+
   var p = ec2.describeSpotPriceHistory(requestObj);
 
   p = p.then(function(pricing) {

@@ -183,8 +183,8 @@ describe('provisioner api server', function() {
 
       p = p.then(function(result) {
         result.should.be.an.Object;
-        result.should.have.property('us-west-1');
-        result['us-west-1'].should.be.an.Object;
+        result.should.have.property('api');
+        result['api'].should.be.an.Object;
       });
 
       return p;

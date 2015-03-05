@@ -5,14 +5,10 @@ var _debug = require('debug');
 var baseDbgStr = 'aws-provisioner'; 
 var generalDebug = require('debug')(baseDbgStr + ':general');
 var base = require('taskcluster-base');
-var taskcluster = require('taskcluster-client');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
-var awsState = require('./aws-state');
-var awsPricing = require('./aws-pricing');
-var Cache = require('../cache');
 var assert = require('assert');
 
 var MAX_PROVISION_ITERATION = 1000 * 60 * 20; // 20 minutes
@@ -21,25 +17,32 @@ var MAX_PROVISION_ITERATION = 1000 * 60 * 20; // 20 minutes
 
 
 /**
- * A provisioner object represents our knowledge of how to take AWS state, pricing data
- * and WorkerType definitions and provision EC2 instances.  It does not understand
- * how to actually create instances or fetch the state or pricing, rather it defers
- * to the workerType to create instances and the state and pricing determine all of
- * the relevant facts needed
+ * A Provisioner knows how to use an AWS Manager and WorkerType to do provisioning.
+ * It does not understand itself how to do AWS things or Azure things, it just
+ * knows how and when certain things need to occur for provisioning to happen
  */
 function Provisioner(cfg) {
+  // We should have an AwsManager
+  assert(cfg.awsManager);
+  this.awsManager = cfg.awsManager;
+
+  // We should have a WorkerType Entity
+  assert(cfg.WorkerType);
+  this.WorkerType = cfg.WorkerType;
+
+  // We should have a Queue
+  assert(cfg.queue);
+  this.queue = cfg.queue;
+
+  // We should have a Pricing Cache
+  assert(cfg.pricingCache);
+  this.pricingCache = cfg.pricingCache;
+
   // This is the ID of the provisioner.  It is used to interogate the queue
   // for pending tasks
   assert(cfg.provisionerId);
   assert(typeof cfg.provisionerId === 'string');
   this.provisionerId = cfg.provisionerId;
-
-  // This is a prefix which we use in AWS to determine ownership
-  // of a given instance.  If we could tag instances while they were
-  // still spot requests, we wouldn't need to do this.
-  assert(cfg.awsKeyPrefix);
-  assert(typeof cfg.awsKeyPrefix === 'string');
-  this.awsKeyPrefix = cfg.awsKeyPrefix;
 
   // This is the number of milliseconds to wait between completed provisioning runs
   assert(cfg.provisionIterationInterval);
@@ -47,30 +50,7 @@ function Provisioner(cfg) {
   assert(!isNaN(cfg.provisionIterationInterval));
   this.provisionIterationInterval = cfg.provisionIterationInterval;
 
-  // This is the Queue object which we use for things like retreiving
-  // the pending jobs.
-  assert(cfg.taskcluster);
-  assert(cfg.taskcluster.credentials)
-
-  // We only grab the credentials for now, no need to store them in this object
-  this.Queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
-
-  // We need a set up WorkerType reference
-  assert(cfg.WorkerType);
-  this.WorkerType = cfg.WorkerType;
-  
-  // We want the subset of AWS regions to use
-  assert(cfg.allowedAwsRegions);
-  this.allowedAwsRegions = cfg.allowedAwsRegions;
-
-  // We need a configured EC2 instance
-  assert(cfg.ec2);
-  this.ec2 = cfg.ec2;
-
   this.__provRunId = 0;
-
-  // We cache aws pricing data because it's not important to be completely fresh
-  this.pricingCache = new Cache(15, awsPricing, this.ec2);
 }
 
 module.exports.Provisioner = Provisioner;
@@ -141,19 +121,40 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   debug('%s Beginning provisioning iteration', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
-    awsState(this.ec2, this.awsKeyPrefix),
+    this.awsManager.update(),
     // Remember that we cache pricing data!
     this.pricingCache.get(),
   ]);
 
   p = p.then(function(res) {
+    // We'll do a little house keeping before we pass the stuff
+    // on to the actual provisioning logic
     var workerTypes = res[0];
-    var state = res[1];
+
+    // We'll use this twice here... let's generate it only once
+    var workerNames = workerTypes.map(function(x) {
+      return x.workerType;
+    });
+
+    var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
+    
+    // Remember that this thing caches stuff inside itself
+    Array.prototype.push.apply(houseKeeping, workerNames.map(function(name) {
+      return that.awsManager.createKeyPair(name);
+    }));
+
+    // We're just intercepting here... we want to pass the
+    // resolution value this handler got to the next one!
+    return Promise.all(houseKeeping).then(function() {
+      return res; 
+    });
+  });
+
+  p = p.then(function(res) {
+    var workerTypes = res[0];
     var pricing = res[2];
 
-    that.reconcileNewlyTracked(debug, state);
-
-    debug('AWS knows of these workerTypes: %s', JSON.stringify(state.knownWorkerTypes()));
+    debug('AWS knows of these workerTypes: %s', JSON.stringify(that.awsManager.knownWorkerTypes()));
     // We could probably combine this with the .map of workerTypes below... meh...
     debug('There are workerType definitions for these: %s', JSON.stringify(workerTypes.map(function(x) {
       return x.workerType;
@@ -163,7 +164,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       // We should be able to filter by a specific workerType
       var wtDebug = 
         _debug(baseDbgStr + ':workerType_' + workerType.workerType + ':run_' + that.__provRunId);
-      return that.provisionType(wtDebug, workerType, state, pricing);
+      return that.provisionType(wtDebug, workerType, pricing);
     }));
   });
 
@@ -183,17 +184,19 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function(debug, workerType, state, pricing) {
+Provisioner.prototype.provisionType = function(debug, workerType, pricing) {
   var that = this;
 
-  var p = this.Queue.pendingTasks(this.provisionerId, workerType.workerType);
+  var p = this.queue.pendingTasks(this.provisionerId, workerType.workerType);
 
-  p = p.then(function (pending) {
+  p = p.then(function (result) {
+    var pending = result.pendingTasks;
     // Remember that we send the internally tracked state so that we can
     // offset the count that we get here
-    var capacity = state.capacityForType(workerType);
+    var capacity = that.awsManager.capacityForType(workerType);
 
     if (typeof pending !== 'number') {
+      console.error(pending);
       pending = 0;
       debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
     }
@@ -201,7 +204,7 @@ Provisioner.prototype.provisionType = function(debug, workerType, state, pricing
     debug('capacity %d, pending: %d', capacity, pending);
 
     if (capacity < workerType.maxCapacity) {
-      return workerType.determineSpotBids(debug, pricing, capacity, pending);
+      return workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, capacity, pending);
     } else {
       // This is where we should kill excess capacity
       return []
@@ -211,24 +214,9 @@ Provisioner.prototype.provisionType = function(debug, workerType, state, pricing
 
   p = p.then(function(bids) {
     return Promise.all(bids.map(function(bid) {
-      return state.requestSpotInstance(workerType, bid);
+      return that.awsManager.requestSpotInstance(workerType, bid);
     }));
   });
 
   return p;
 };
-
-
-/**
- * When we have too many instances or outstanding spot requests, we should kill
- * spot requests and pending jobs.  We should also have a sanity threshold of
- * maxCapacity * 2 which will start to kill running instances
- */
-Provisioner.prototype.killExcess = function(debug, workerType, capacity) {
-  throw new Error('Implement me!');
-};
-
-
-
-
-

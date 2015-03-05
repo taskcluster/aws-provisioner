@@ -6,6 +6,10 @@ var base = require('taskcluster-base');
 var provision = require('../provisioner/provision');
 var aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
+var AwsManager = require('../provisioner/aws-manager');
+var awsPricing = require('../provisioner/aws-pricing');
+var Cache = require('../cache');
+var taskcluster = require('taskcluster-client');
 
 var profile = process.argv[2];
 
@@ -33,7 +37,27 @@ var cfg = base.config({
 
 var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
 
-var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
+/**
+ * We want a Generic Key Value store for shared state
+ */
+/*var SharedStateEntity = base.Entity.configure({
+  version:1,
+  partitionKey: base.Entity.keys.ConstantKey('SHARED_STATE'),
+  rowKey: base.Entity.keys.ConstantKey('SHARED_STATE'),
+  properties: {
+    val: base.Entity.types.JSON
+  }
+});
+
+var SharedState = SharedStateEntity.setup({
+  table: cfg.get('provisioner:sharedState'),
+  credentials: cfg.get('azure'),
+});
+*/
+
+
+var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+var pubKey = cfg.get('provisioner:awsInstancePubkey');
 
 var influx = new base.stats.Influx({
   connectionString:   cfg.get('influx:connectionString'),
@@ -42,27 +66,26 @@ var influx = new base.stats.Influx({
 });
 
 var WorkerType = data.WorkerType.setup({
-    table: cfg.get('provisioner:workerTypeTableName'),
-    credentials: cfg.get('azure'),
-    context: {
-      ec2:            ec2,
-      keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
-      pubKey:         cfg.get('provisioner:awsInstancePubkey'),
-      influx:         influx,
-    },
-  });
+  table: cfg.get('provisioner:workerTypeTableName'),
+  credentials: cfg.get('azure'),
+});
 
+// Create all the things which need to be injected into the
+// provisioner
+var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
+var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
+var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
+var pricingCache = new Cache(15, awsPricing, ec2);
 
 var config = {
   WorkerType: WorkerType,
+  queue: queue,
   provisionerId: cfg.get('provisioner:id'),
-  awsKeyPrefix: cfg.get('provisioner:awsKeyPrefix'),
-  awsInstancePubKey: cfg.get('provisioner:awsInstancePubkey'),
   taskcluster: cfg.get('taskcluster'),
-  ec2: ec2,
   influx: influx,
+  awsManager: awsManager,
+  pricingCache: pricingCache,
   provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
-  allowedAwsRegions: allowedRegions,
 }
 
 var provisioner = new provision.Provisioner(config);

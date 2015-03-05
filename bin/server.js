@@ -6,7 +6,7 @@ var base        = require('taskcluster-base');
 var taskcluster = require('taskcluster-client');
 var data        = require('../provisioner/data');
 var exchanges   = require('../provisioner/exchanges');
-var awsState    = require('../provisioner/aws-state');
+var AwsManager    = require('../provisioner/aws-manager');
 var v1          = require('../routes/v1');
 var aws         = require('multi-region-promised-aws');
 var Cache       = require('../cache');
@@ -36,6 +36,9 @@ var launch = function(profile) {
     filename:     'taskcluster-aws-provisioner'
   });
 
+  var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  var pubKey = cfg.get('provisioner:awsInstancePubkey');
+
   // Create InfluxDB connection for submitting statistics
   var influx = new base.stats.Influx({
     connectionString:   cfg.get('influx:connectionString'),
@@ -54,7 +57,9 @@ var launch = function(profile) {
     'sa-east-1'
   ]);
   
-  var awsStateCache = new Cache(5, awsState, ec2, cfg.get('provisioner:awsKeyPrefix'));
+  // We want an AwsManger here as well since we want to be
+  // able to inspect what goes on there from here
+  var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
@@ -67,12 +72,6 @@ var launch = function(profile) {
   var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
-    context: {
-      ec2:            ec2,
-      keyPrefix:      cfg.get('provisioner:awsKeyPrefix'),
-      pubKey:         cfg.get('provisioner:awsInstancePubkey'),
-      influx:         influx,
-    }
     //account: cfg.get('azure:accountName'),
     //credentials: cfg.get('taskcluster:credentials'),
     //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
@@ -121,7 +120,7 @@ var launch = function(profile) {
       context: {
         WorkerType:     WorkerType,
         publisher:      publisher,
-        awsStateCache:  awsStateCache,
+        awsManager:     awsManager,
       },
       validator:        validator,
       authBaseUrl:      cfg.get('taskcluster:authBaseUrl'),

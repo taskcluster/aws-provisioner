@@ -120,7 +120,7 @@ function(req, res) {
   // We want to make sure that every single possible generated LaunchSpec
   // would be valid before we even try to store it
   try {
-    ctx.WorkerType.testLaunchSpecs(debug, input, 'TestKeyPrefix');
+    ctx.WorkerType.testLaunchSpecs(input, 'TestKeyPrefix');
   } catch (err) {
     errorHandler(err, res, workerType);
   }
@@ -131,14 +131,6 @@ function(req, res) {
   
   p = p.then(function(worker_) {
     worker = worker_;
-  });
-
-  p = p.then(function() {
-    return worker.createKeyPair();
-  });
-
-  p = p.then(function(result) {
-    debug('Finished creating AWS KeyPair');
   });
 
   p = p.then(function() {
@@ -188,7 +180,7 @@ api.declare({
   var worker;
 
   try {
-    ctx.WorkerType.testLaunchSpecs(debug, input, 'TestKeyPrefix');
+    ctx.WorkerType.testLaunchSpecs(input, 'TestKeyPrefix');
   } catch (err) {
     errorHandler(err, res, workerType);
   }
@@ -203,14 +195,6 @@ api.declare({
         worker[key] = input[key];
       });
     });
-  });
-
-  p = p.then(function() {
-    return worker.createKeyPair();
-  });
-
-  p = p.then(function(result) {
-    debug('Finished creating AWS KeyPair');
   });
 
   p = p.then(function() {
@@ -298,30 +282,21 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var worker;
   var p = ctx.WorkerType.load(workerType)
 
-  p = p.then(function(worker_) {
-    worker = worker_;
-    return worker.killAll(debug);
-  });
-
-  p = p.then(function() {
+  p = p.then(function(worker) {
     return worker.remove();
   });
 
-  p = p.then(function(result) {
+  p = p.then(function() {
     debug('Finished deleting worker type');
-  });
-
-  p = p.then(function(worker) {
     return res.reply({});
   });
 
   p = p.then(function() {
-    return ctx.publisher.workerTypeDeleted({
-      workerType: workerType,
-    })
+    //return ctx.publisher.workerTypeDeleted({
+    //  workerType: workerType,
+    //})
   });
 
   p = p.catch(function(err) {
@@ -390,6 +365,7 @@ api.declare({
 }, function(req, res) {
   var ctx         = this;
   var workerType  = req.params.workerType;
+  var keyPrefix   = ctx.awsManager.keyPrefix
 
   if(!req.satisfies({
     workerType:       workerType
@@ -400,7 +376,7 @@ api.declare({
   var p = ctx.WorkerType.load(workerType);
   
   p = p.then(function(worker) {
-    return res.reply(worker.testLaunchSpecs(debug));
+    return res.reply(worker.testLaunchSpecs(keyPrefix));
   });
 
   p = p.catch(function(err) {
@@ -441,11 +417,7 @@ api.declare({
 
   debug('SOMEONE IS TURNING OFF ALL ' + workerType);
 
-  var p = ctx.WorkerType.load(workerType);
-
-  p = p.then(function(worker) {
-    return worker.killAll();
-  });
+  var p = ctx.awsManager.killByName(workerType);
 
   p = p.then(function() {
     res.reply({
@@ -487,7 +459,9 @@ api.declare({
   var ctx = this;
 
   debug('SOMEONE IS TURNING EVERYTHING OFF');
-  var p = ctx.WorkerType.killEverything(debug);
+
+  // Note that by telling the rouge killer
+  var p = ctx.awsManager.rougeKiller([]);
 
   p = p.then(function() {
     res.reply({
@@ -539,12 +513,12 @@ api.declare({
   var p = ctx.WorkerType.load(workerType)
     
   p = p.then(function(worker) {
-    return worker.spawn(debug, input);
+    return ctx.awsManager.requestSpotInstance(worker, input);
   });
 
   p = p.then(function(sir) {
     var reply = {
-      SpotInstanceRequestId: sir,
+      SpotInstanceRequest: sir,
     };
     return res.reply(reply);
   })
@@ -611,6 +585,7 @@ api.declare({
     '`instance type`.'
   ].join('\n')
 }, function(req, res) {
+  throw new Error('FIX ME!');
   var ctx         = this;
   var input       = req.body;
   var workerType  = req.params.workerType;
@@ -623,7 +598,7 @@ api.declare({
 
   var p = Promise.all([
       ctx.WorkerType.load(workerType),
-      ctx.awsStateCache.get(),
+      //ctx.awsStateCache.get(),
   ]);
     
   p = p.then(function(result) {
@@ -671,6 +646,7 @@ api.declare({
     "List all known WorkerType names",
   ].join('\n')
 }, function(req, res) {
+  throw new Error('FIX ME!');
   var ctx         = this;
 
   var p = ctx.awsStateCache.get();
@@ -711,10 +687,13 @@ api.declare({
   var ctx         = this;
   var workerType  = req.params.workerType;
 
-  var p = ctx.awsStateCache.get();
+  var p = ctx.awsManager.update();
 
-  p = p.then(function(state) {
-    res.reply(state.get());
+  p = p.then(function() {
+    res.reply({
+      api: ctx.awsManager.getApi(),
+      internal: ctx.awsManager.getInternal(),
+    });
   });
 
   p = p.catch(function(err) {
