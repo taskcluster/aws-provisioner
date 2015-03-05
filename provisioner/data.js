@@ -354,38 +354,14 @@ WorkerType.prototype.killAll = function(debug) {
 
 
 /**
- * Provision a given workerType based on the pricing available, capacity existing
- * and number of pending tasks.
- */
-WorkerType.prototype.provision = function(debug, pricing, capacity, pending) {
-  assert(debug);
-  assert(pricing);
-  assert(typeof capacity === 'number');
-  assert(typeof pending === 'number');
-  var that = this;
-
-  var spotBids = this.determineSpotBids(debug, pricing, capacity, pending);
-
-  if (spotBids.length === 0) {
-    return [];
-  } else {
-    return Promise.all(spotBids.map(function(bid) {
-      return that.spawn(debug, bid);
-    }));
-  }
-};
-
-
-/**
  * Create an AWS LaunchSpecification for this workerType.  This method
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
-  assert(debug);
+WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
   assert(region);
   assert(instanceType);
-  return WorkerType.createLaunchSpec(debug, region, instanceType, this, this.keyPrefix);
+  return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix);
 }
 
 
@@ -394,9 +370,8 @@ WorkerType.prototype.createLaunchSpec = function(debug, region, instanceType) {
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function(debug) {
-  assert(debug);
-  return WorkerType.testLaunchSpecs(debug, this, this.keyPrefix);
+WorkerType.prototype.testLaunchSpecs = function() {
+  return WorkerType.testLaunchSpecs(this, this.keyPrefix);
 }
 
 
@@ -406,9 +381,8 @@ WorkerType.prototype.testLaunchSpecs = function(debug) {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyPrefix) {
+WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) {
   // These are the keys which are only applicable to a given region.
-  assert(debug); 
   assert(worker);
   assert(keyPrefix);
   assert(worker.regions[region], region + ' is not configured');
@@ -526,8 +500,7 @@ WorkerType.createLaunchSpec = function(debug, region, instanceType, worker, keyP
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function(debug, worker, keyPrefix) {
-  assert(debug);
+WorkerType.testLaunchSpecs = function(worker, keyPrefix) {
   assert(worker);
   assert(keyPrefix);
   var errors = [];
@@ -653,46 +626,6 @@ WorkerType.prototype.determineSpotBids = function(debug, pricing, capacity, pend
   return spotBids;    
 };
 
-
-/**
- * Create an instance of this workerType given a bid.
- * A bid is an object with the keys of `region`, `price`
- * and `type`
- */
-WorkerType.prototype.spawn = function(debug, bid) {
-  var that = this;
-  assert(bid, 'Must specify a spot bid');
-  assert(this.regions[bid.region], 'Must specify an allowed region');
-  assert(this.types[bid.type], 'Must specify an allowed instance type');
-  assert(typeof bid.price === 'number', 'Spot Price must be number');
-
-  var launchSpec = this.createLaunchSpec(debug, bid.region, bid.type);
-
-  var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
-    InstanceCount: 1,
-    Type: 'one-time',
-    LaunchSpecification: launchSpec,
-    SpotPrice: bid.price.toString(),
-  });
-
-  p = p.then(function(spotRequest) {
-    // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
-    return spotRequest.SpotInstanceRequests[0];
-  });
-
-  p = p.then(function(spotReq) {
-    debug('submitted spot request %s for $%d in %s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, bid.region, bid.type);
-    return {
-      workerType: that.workerType,
-      request: spotReq,
-      bid: bid,
-      submitted: new Date(),
-    };
-  });
-
-  return p;
-};
 
 /**
  * Return the capacity for a given type
