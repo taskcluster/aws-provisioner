@@ -586,17 +586,13 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
   });
 
   p = p.then(function(res) {
-    var toDelete = [];
-
-    that.ec2.regions.forEach(function(region) {
-      var matchingKey = res[region].KeyPairs[0];
-      if (matchingKey) {
-        toDelete.push(that.ec2.deleteKeyPair.inRegion(region, {
-          KeyName: keyName,
-        }));
-      } 
-    });
-    return Promise.all(toDelete);
+    return Promise.all(that.managedRegions().filter(function(region) {
+      return !!res[region].KeyPairs[0];
+    }).map(function(region) {
+      return that.ec2.deleteKeyPair.inRegion(region, {
+        KeyName: keyName,
+      });
+    }));
   });
 
   p = p.then(function() {

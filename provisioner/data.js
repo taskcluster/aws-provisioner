@@ -143,7 +143,7 @@ WorkerType.listWorkerTypes = function() {
  */
 WorkerType.load = function(toLoad) {
   assert(workerType);
-  return base.Entity.load.call(this, toLoad});
+  return base.Entity.load.call(this, toLoad);
 };
 
 
