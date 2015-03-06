@@ -1,7 +1,7 @@
 module.exports = {
   taskcluster: {
-    queueBaseUrl: 'https://queue.taskcluster.net/v1',
-    authBaseUrl: 'https://auth.taskcluster.net/v1',
+    queueBaseUrl: undefined,
+    authBaseUrl: undefined,
     credentials: {
       clientId:     undefined,
       accessToken:  undefined,
