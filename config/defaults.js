@@ -34,7 +34,8 @@ module.exports = {
   },
   aws: {
     accessKeyId: undefined,
-    secretAccessKey: undefined
+    secretAccessKey: undefined,
+    version: '2014-10-01',
   },
   influx: {
     connectionString: undefined,

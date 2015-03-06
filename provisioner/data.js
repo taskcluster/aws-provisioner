@@ -141,11 +141,9 @@ WorkerType.listWorkerTypes = function() {
 /**
  * Load a single workerType by name
  */
-WorkerType.load = function(workerType) {
+WorkerType.load = function(toLoad) {
   assert(workerType);
-  return base.Entity.load.call(this, {
-    workerType: workerType
-  });
+  return base.Entity.load.call(this, toLoad});
 };
 
 

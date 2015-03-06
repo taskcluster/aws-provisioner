@@ -626,7 +626,11 @@ AwsManager.prototype.rougeKiller = function(workerNames) {
   var rouge = [];
   known.filter(function(name) {
     return !has(workerNames, name);
-  }).forEach(killByName);
+  }).forEach(function(name) {
+    debug('found a rouge: %s', name);
+    rouge.push(that.deleteKeyPair(name));
+    rouge.push(that.killByName(name));
+  });
 
   // We'll let the rouge killer clean up any other instances which come
   // up after this occurs
@@ -638,9 +642,8 @@ AwsManager.prototype.rougeKiller = function(workerNames) {
  * Kill all instances in all regions of a given workerName
  */
 AwsManager.prototype.killByName = function(name) {
-  debug('found a rouge: %s', name);
-
-  rouge.push(that.deleteKeyPair(name));
+  var deaths = [];
+  var that = this;
 
   that.managedRegions().forEach(function(region) {
     var apiState = that.getApi(region, name);
@@ -669,8 +672,10 @@ AwsManager.prototype.killByName = function(name) {
       }
     });
 
-    rouge.push(that.killCancel(region, instances, requests));
+    deaths.push(that.killCancel(region, instances, requests));
   });
+
+  return Promise.all(deaths);
 };
 
 

@@ -185,7 +185,7 @@ api.declare({
     errorHandler(err, res, workerType);
   }
   
-  var p = ctx.WorkerType.load(workerType)
+  var p = ctx.WorkerType.load({workerType: workerType});
     
   p = p.then(function(worker_) {
     worker = worker_;
@@ -240,7 +240,7 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.load(workerType);
+  var p = ctx.WorkerType.load({workerType: workerType});
   
   p = p.then(function(worker) {
     return res.reply(worker.json());
@@ -282,7 +282,7 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.load(workerType)
+  var p = ctx.WorkerType.load({workerType: workerType})
 
   p = p.then(function(worker) {
     return worker.remove();
@@ -373,7 +373,7 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.load(workerType);
+  var p = ctx.WorkerType.load({workerType: workerType});
   
   p = p.then(function(worker) {
     return res.reply(worker.testLaunchSpecs(keyPrefix));
@@ -510,7 +510,7 @@ api.declare({
     return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  var p = ctx.WorkerType.load(workerType)
+  var p = ctx.WorkerType.load({workerType: workerType})
     
   p = p.then(function(worker) {
     return ctx.awsManager.requestSpotInstance(worker, input);
@@ -597,7 +597,7 @@ api.declare({
   }
 
   var p = Promise.all([
-      ctx.WorkerType.load(workerType),
+      ctx.WorkerType.load({workerType: workerType}),
       //ctx.awsStateCache.get(),
   ]);
     
