@@ -632,8 +632,8 @@ AwsManager.prototype.killByName = function(name) {
   var that = this;
 
   that.managedRegions().forEach(function(region) {
-    var apiState = that.getApi(region, name);
-    var internalState = that.getInternal(region, name);
+    var apiState = that.getApi(region, name) || {};
+    var internalState = that.getInternal(region, name) || {};
 
     var instances = [];
     var requests = [];
