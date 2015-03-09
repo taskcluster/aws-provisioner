@@ -11,7 +11,11 @@ var awsPricing = require('../provisioner/aws-pricing');
 var Cache = require('../cache');
 var taskcluster = require('taskcluster-client');
 
-var profile = process.argv[2];
+var profile = process.argv[2] || process.env.NODE_ENV;
+if (!profile) {
+  console.log("Usage: server.js [profile]")
+  console.error("ERROR: No configuration profile is provided");
+}
 
 var cfg = base.config({
   defaults: require('../config/defaults.js'),

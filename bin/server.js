@@ -152,7 +152,7 @@ var launch = function(profile) {
 // If server.js is executed start the server
 if (!module.parent) {
   // Find configuration profile
-  var profile = process.argv[2];
+  var profile = process.argv[2] || process.env.NODE_ENV;
   if (!profile) {
     console.log("Usage: server.js [profile]")
     console.error("ERROR: No configuration profile is provided");
