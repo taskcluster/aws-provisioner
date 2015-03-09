@@ -36,6 +36,12 @@ var launch = function(profile) {
     filename:     'taskcluster-aws-provisioner'
   });
 
+  // Configure queue
+  var queue = new taskcluster.Queue({
+    baseUrl:        cfg.get('taskcluster:queueBaseUrl'),
+    credentials:    cfg.get('taskcluster:credentials')
+  });
+
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
 
@@ -81,13 +87,16 @@ var launch = function(profile) {
   // First create a validator and then publisher
   var validator = null;
   var publisher = null;
-  var publisherCreated = base.validator({
+
+  var p = base.validator({
     folder:           path.join(__dirname, '..', 'schemas'),
     constants:        require('../schemas/constants'),
     publish:          cfg.get('provisioner:publishMetaData') === 'true',
     schemaPrefix:     'aws-provisioner/v1/',
     aws:              cfg.get('aws')
-  }).then(function(validator_) {
+  });
+
+  p = p.then(function(validator_) {
     validator = validator_;
     return exchanges.setup({
       credentials:        cfg.get('pulse'),
@@ -100,21 +109,20 @@ var launch = function(profile) {
       component:          cfg.get('provisioner:statsComponent'),
       process:            'server'
     });
-  }).then(function(publisher_) {
+  });
+  
+  // Store the publisher to inject it as context into the API
+  p = p.then(function(publisher_) {
     publisher = publisher_;
   });
 
-  // Configure queue
-  var queue = new taskcluster.Queue({
-    baseUrl:        cfg.get('taskcluster:queueBaseUrl'),
-    credentials:    cfg.get('taskcluster:credentials')
+  // We also want to make sure that the table is created.  We could
+  // probably do this earlier
+  p = p.then(function() {
+    return WorkerType.ensureTable();
   });
 
-  // When: publisher, schema and validator is created, proceed
-  return Promise.all([
-    publisherCreated,
-    WorkerType.ensureTable(),
-  ]).then(function() {
+  p = p.then(function() {
     // Create API router and publish reference if needed
     return v1.setup({
       context: {
@@ -132,7 +140,9 @@ var launch = function(profile) {
       component:        cfg.get('provisioner:statsComponent'),
       drain:            influx
     });
-  }).then(function(router) {
+  });
+
+  p = p.then(function(router) {
     // Create app
     var app = base.app({
       port:           Number(process.env.PORT || cfg.get('server:port')),
@@ -147,6 +157,8 @@ var launch = function(profile) {
     // Create server
     return app.createServer();
   });
+
+  return p;
 };
 
 // If server.js is executed start the server
