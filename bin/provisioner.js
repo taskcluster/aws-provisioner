@@ -12,7 +12,6 @@ var Cache = require('../cache');
 var taskcluster = require('taskcluster-client');
 
 
-
 var launch = function(profile) {
   var cfg = base.config({
     defaults: require('../config/defaults.js'),
