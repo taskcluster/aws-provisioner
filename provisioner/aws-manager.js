@@ -487,16 +487,6 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   return p;  
 };
 
-/**
- * Kill every instance of a worker type.  We can use this
- * for the provisioner API, but more importantly for the
- * rouge instance killer.  We only take a string because
- * the rouge killer by definition is only for killing nodes
- * which are no longer associated with a workerType
- */
-AwsManager.prototype.killAll = function(workerName) {
-  throw new Error('Implement me!');
-};
 
 /**
  * We use KeyPair names to determine ownership and workerType

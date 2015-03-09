@@ -37,26 +37,6 @@ var launch = function(profile) {
   });
 
   var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
-
-  /**
-   * We want a Generic Key Value store for shared state
-   */
-  /*var SharedStateEntity = base.Entity.configure({
-    version:1,
-    partitionKey: base.Entity.keys.ConstantKey('SHARED_STATE'),
-    rowKey: base.Entity.keys.ConstantKey('SHARED_STATE'),
-    properties: {
-      val: base.Entity.types.JSON
-    }
-  });
-
-  var SharedState = SharedStateEntity.setup({
-    table: cfg.get('provisioner:sharedState'),
-    credentials: cfg.get('azure'),
-  });
-  */
-
-
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
 

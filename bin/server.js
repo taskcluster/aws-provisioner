@@ -95,7 +95,7 @@ var launch = function(profile) {
     schemaPrefix:     'aws-provisioner/v1/',
     aws:              cfg.get('aws')
   });
-  
+
   p = p.then(function(validator_) {
     validator = validator_;
     return exchanges.setup({
