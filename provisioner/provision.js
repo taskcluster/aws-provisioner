@@ -193,7 +193,9 @@ Provisioner.prototype.provisionType = function(debug, workerType, pricing) {
     var pending = result.pendingTasks;
     // Remember that we send the internally tracked state so that we can
     // offset the count that we get here
-    var capacity = that.awsManager.capacityForType(workerType);
+    var runningCapacity = that.awsManager.capacityForType(workerType, ['running']);
+    var pendingCapacity = that.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
+    var totalCapacity = runningCapacity + pendingCapacity;
 
     if (typeof pending !== 'number') {
       console.error(pending);
@@ -201,12 +203,20 @@ Provisioner.prototype.provisionType = function(debug, workerType, pricing) {
       debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
     }
 
-    debug('capacity %d, pending: %d', capacity, pending);
+    debug('running capacity %d, pending capacity %d, pending tasks %s',
+      runningCapacity, pendingCapacity, pending);
 
-    if (capacity < workerType.maxCapacity) {
-      return workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, capacity, pending);
+    if (totalCapacity < workerType.maxCapacity) {
+      return workerType.determineSpotBids(
+        that.awsManager.managedRegions(),
+        pricing,
+        runningCapacity,
+        pendingCapacity,
+        pending
+      );
     } else {
       // This is where we should kill excess capacity
+      // TODO: Kill all spot requests here
       return []
     }
 
