@@ -237,6 +237,38 @@ program
 
 
 program
+  .command('show <workerType>')
+  .description('print specified workerType to screen')
+  .action(function(workerType) {
+    var client = createClient();
+
+    var p = client.workerType(workerType);
+
+    p = p.then(function(worker) {
+      console.log(JSON.stringify(worker, null, 2));
+    });
+    
+    p = p.catch(errorHandler);
+  });
+
+
+program
+  .command('preview-launch-specs <workerType>')
+  .description('print specified workerTypes to screen')
+  .action(function(workerType) {
+    var client = createClient();
+
+    var p = client.getLaunchSpecs(workerType);
+
+    p = p.then(function(specs) {
+      console.log(JSON.stringify(specs, null, 2));
+    });
+    
+    p = p.catch(errorHandler);
+  });
+
+
+program
   .command('fetch <workerTypes...>')
   .description('fetch specified workerTypes')
   .action(function(workerTypes) {
