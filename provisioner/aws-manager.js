@@ -302,6 +302,7 @@ AwsManager.prototype.listSpotRequestIds = function() {
   return ids;
 };
 
+
 /**
  * Count the capacity of this workerType that are in the states specified
  * by `states`.  Doing this uses the Capcity key from the workerType's

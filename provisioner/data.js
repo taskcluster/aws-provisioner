@@ -82,7 +82,7 @@ var WorkerType = base.Entity.configure({
      * } */
     regions: base.Entity.types.JSON,
   },
-  context: [],
+  context: ['provisionerId', 'keyPrefix'],
 });
 
 /**
@@ -324,10 +324,10 @@ WorkerType.prototype.killAll = function() {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(region, instanceType, keyPrefix) {
+WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
   assert(region);
   assert(instanceType);
-  return WorkerType.createLaunchSpec(region, instanceType, this, keyPrefix);
+  return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix, this.provisionerId);
 }
 
 
@@ -336,8 +336,8 @@ WorkerType.prototype.createLaunchSpec = function(region, instanceType, keyPrefix
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function(keyPrefix) {
-  return WorkerType.testLaunchSpecs(this, keyPrefix);
+WorkerType.prototype.testLaunchSpecs = function() {
+  return WorkerType.testLaunchSpecs(this, this.keyPrefix, this.provisionerId);
 }
 
 
@@ -347,10 +347,11 @@ WorkerType.prototype.testLaunchSpecs = function(keyPrefix) {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) {
+WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, provisionerId) {
   // These are the keys which are only applicable to a given region.
   assert(worker);
   assert(keyPrefix);
+  assert(provisionerId);
   assert(worker.regions[region], region + ' is not configured');
   assert(worker.types[instanceType], instanceType + ' is not configured');
 
@@ -364,6 +365,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) 
   // These are keys that are only allowable in the set of region specific
   // overwrites.  Only things which are strictly linked to the region
   // should ever be in this list.
+  // TODO: Are kernel ids region specific as well?
   var regionSpecificKeys = [
     'ImageId', // AMI IDs (ImageId) are created and are different per-region
   ];
@@ -401,7 +403,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) 
   }
 
   // Start with the general options
-  var launchSpec = lodash.clone(worker.launchSpecification);
+  var launchSpec = lodash.cloneDeep(worker.launchSpecification);
 
   // Now overwrite the ones that are region specific
   Object.keys(worker.regions[region].overwrites).forEach(function(regionKey) {
@@ -420,6 +422,36 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) 
   if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
     throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
   }
+
+  // Here are the minimum number of things which must be stored in UserData.
+  // We will overwrite anything in the definition's UserData with these values
+  // because they so tightly coupled to how we do provisioning
+  var generatedUserData = {
+    capacity: worker.types[instanceType].capacity,
+    workerType: worker.workerType,
+    provisionerId: provisionerId,
+    region: region,
+    instanceType: instanceType,
+    launchSpecGenerated: new Date().toISOString(),
+  };
+
+  // We're going to try to read in the stored UserData field and use
+  // it as the basis for our generated UserData
+  // Note that we're enforcing here that UserData will contain
+  // JSON encoded values.  If the stored UserData is not in a format
+  // which is not parsable as Base64(Json(x)) then we're going to
+  // include it verbatim as a key
+  var hardCodedUserData = {};
+  try {
+    var hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
+  } catch(e) {
+    generatedUserData.originalUserData = launchSpec.UserData;
+    debug('Stored user data is not base64 encoded JSON');
+    debug(launchSpec.UserData);
+  }
+
+  var userData = lodash.assign(hardCodedUserData, generatedUserData);
+  launchSpec.UserData = new Buffer(JSON.stringify(userData)).toString('base64');
 
   // These are the keys that we require to be set.  They
   // are not listed as required in the api docs, but we
@@ -466,16 +498,18 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix) 
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function(worker, keyPrefix) {
+WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
   assert(worker);
   assert(keyPrefix);
+  assert(provisionerId);
   var errors = [];
   var launchSpecs = {};
   Object.keys(worker.regions).forEach(function(region) {
     launchSpecs[region] = {};
     Object.keys(worker.types).forEach(function(type) {
       try {
-        launchSpecs[region][type] = WorkerType.createLaunchSpec(region, type, worker, keyPrefix);
+        var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
+        launchSpecs[region][type] = x;
       } catch (e) {
         errors.push(e)
       }
@@ -536,11 +570,11 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   debug('change needed is %d', change);
 
-  if (capacity + change > this.maxCapacity) {
-    change = this.maxCapacity - capacity;
+  if (totalCapacity + change > this.maxCapacity) {
+    change = this.maxCapacity - totalCapacity;
     debug('would exceed max, using %d instead', change); 
-  } else if (capacity + change < this.minCapacity) {
-    change = this.minCapacity - capacity;
+  } else if (totalCapacity + change < this.minCapacity) {
+    change = this.minCapacity - totalCapacity;
     debug('wouldn\'t be meet min, using %d instead', change);
   } 
 
