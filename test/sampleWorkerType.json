@@ -4,7 +4,7 @@
     "SecurityGroups": [
       "default"
     ],
-    "UserData": "am9obg=="
+    "UserData": "eyJhIjoxfQ=="
   },
   "minCapacity": 4,
   "maxCapacity": 30,
@@ -18,14 +18,14 @@
       "capacity": 1,
       "utility": 1,
       "overwrites": {
-        "UserData": "am8obh=="
+        "UserData": "eyJhIjoxfQ=="
       }
     },
     "m3.large": {
       "capacity": 1,
       "utility": 2,
       "overwrites": {
-        "UserData": "am8obh=="
+        "UserData": "eyJhIjoxfQ=="
       }
     }
   },

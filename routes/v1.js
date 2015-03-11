@@ -120,7 +120,7 @@ function(req, res) {
   // We want to make sure that every single possible generated LaunchSpec
   // would be valid before we even try to store it
   try {
-    ctx.WorkerType.testLaunchSpecs(input, 'TestKeyPrefix');
+    ctx.WorkerType.testLaunchSpecs(input, ctx.keyPrefix, ctx.provisionerId);
   } catch (err) {
     errorHandler(err, res, workerType);
   }
@@ -180,7 +180,7 @@ api.declare({
   var worker;
 
   try {
-    ctx.WorkerType.testLaunchSpecs(input, 'TestKeyPrefix');
+    ctx.WorkerType.testLaunchSpecs(input, ctx.keyPrefix, ctx.provisionerId);
   } catch (err) {
     errorHandler(err, res, workerType);
   }
@@ -376,7 +376,7 @@ api.declare({
   var p = ctx.WorkerType.load({workerType: workerType});
   
   p = p.then(function(worker) {
-    return res.reply(worker.testLaunchSpecs(keyPrefix));
+    return res.reply(worker.testLaunchSpecs(ctx.keyPrefix, ctx.provisionerId));
   });
 
   p = p.catch(function(err) {
@@ -529,42 +529,6 @@ api.declare({
   });
 
   return p;
-
-});
-
-
-api.declare({
-  method:         'get',
-  route:          '/hello/:instanceId',
-  name:           'hello',
-  deferAuth:      true,
-  scopes:         [
-    'aws-provisioner:aws',
-    'aws-provisioner:<instanceId>'
-  ],
-  title:          "Say Hello to Provisioner",
-  description: [
-    "This end point will eventually be passed into the workers ",
-    "so that they can inform the provisioner how long it took to ",
-    "become ready for work.  This way the provisioner can track ",
-    "how long it took AWS to go from spot request to ready.  You'll ",
-    "need temporary credentials which have the instance id as a scope",
-  ].join('\n')
-}, function(req, res) {
-  var ctx         = this;
-  var input       = req.body;
-  var instanceId  = req.params.instanceId;
-  
-  if(!req.satisfies({
-    instanceId:       instanceId
-  })) {
-    return; // by default req.satisfies() sends a response on failure, so we're done
-  }
-
-  // Here's where we'd submit this info somewhere useful
-  debug('Instance %s is now ready for work!', instanceId);
-
-  res.reply('How you doin ' + instanceId + '?');
 
 });
 

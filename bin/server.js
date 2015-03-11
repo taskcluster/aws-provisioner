@@ -44,6 +44,7 @@ var launch = function(profile) {
 
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
+  var provisionerId = cfg.get('provisioner:id');
 
   // Create InfluxDB connection for submitting statistics
   var influx = new base.stats.Influx({
@@ -78,6 +79,10 @@ var launch = function(profile) {
   var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
+    context: {
+      keyPrefix: keyPrefix,
+      provisionerId: provisionerId,
+    },
     //account: cfg.get('azure:accountName'),
     //credentials: cfg.get('taskcluster:credentials'),
     //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
@@ -129,6 +134,8 @@ var launch = function(profile) {
         WorkerType:     WorkerType,
         publisher:      publisher,
         awsManager:     awsManager,
+        keyPrefix:      keyPrefix,
+        provisionerId:  provisionerId,
       },
       validator:        validator,
       authBaseUrl:      cfg.get('taskcluster:authBaseUrl'),

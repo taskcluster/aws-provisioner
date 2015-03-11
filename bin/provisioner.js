@@ -39,6 +39,7 @@ var launch = function(profile) {
   var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
+  var provisionerId = cfg.get('provisioner:id');
 
   var influx = new base.stats.Influx({
     connectionString:   cfg.get('influx:connectionString'),
@@ -49,6 +50,10 @@ var launch = function(profile) {
   var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
+    context: {
+      keyPrefix: keyPrefix,
+      provisionerId: provisionerId,
+    },
   });
 
   // Create all the things which need to be injected into the
@@ -61,7 +66,7 @@ var launch = function(profile) {
   var config = {
     WorkerType: WorkerType,
     queue: queue,
-    provisionerId: cfg.get('provisioner:id'),
+    provisionerId: provisionerId,
     taskcluster: cfg.get('taskcluster'),
     influx: influx,
     awsManager: awsManager,
