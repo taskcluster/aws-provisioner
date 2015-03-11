@@ -498,13 +498,25 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix) {
  * created or destroyed.  This will give an exact number of units, something
  * else will be required to decide what to do if the number of needed capacity
  * units does not fit nicely with the number of capacity units available per
- * instance type.  Positive value means add capacity, negative means destroy
+ * instance type.  Positive value means add capacity, negative means destroy.
+ * Running capacity are nodes that are on and assumed to be accepting jobs.
+ * Since we don't currently have a way to know when the node is *actually*
+ * accepting jobs, we'll just assume that running == accepting jobs.
+ * Pending capacity are those units (pending instances, spot requests)
+ * which are going to be created but have not yet been created.  We want to
+ * offset the number of units that we'd be creating by the number of pending
+ * capacity units
  */
-WorkerType.prototype.determineCapacityChange = function(capacity, pending) {
-  assert(typeof capacity === 'number');
+WorkerType.prototype.determineCapacityChange = function(runningCapacity, pendingCapacity, pending) {
+  assert(typeof runningCapacity === 'number');
+  assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
+
+  // We need to know how many total capacity units are extant
+  var totalCapacity = pendingCapacity + runningCapacity;
+
   // We need to know the current ratio of capacity to pending
-  var percentPending = 1 + pending / capacity;
+  var percentPending = 1 + pending / totalCapacity;
 
   var change = 0;
 
@@ -513,9 +525,14 @@ WorkerType.prototype.determineCapacityChange = function(capacity, pending) {
   if (percentPending > this.scalingRatio) {
     // But when we do, let's submit enough requests that
     // we end up in an ideal state if all are fulfilled
-    var ideal = (capacity + pending) / this.scalingRatio;
-    change = ideal - capacity;
+    var ideal = (totalCapacity + pending) / this.scalingRatio;
+    change = ideal - totalCapacity;
   }
+
+  // We need to offset the number of pending jobs by the
+  // number of units that can't yet start running tasks
+  debug('%d capacity is pending, offsetting change %d', pendingCapacity, change);
+  change = change - pendingCapacity;
 
   debug('change needed is %d', change);
 
@@ -543,10 +560,11 @@ WorkerType.prototype.determineCapacityChange = function(capacity, pending) {
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(regions, pricing, capacity, pending) {
+WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapacity, pendingCapacity, pending) {
   assert(regions);
   assert(pricing);
-  assert(typeof capacity === 'number');
+  assert(typeof runningCapacity === 'number');
+  assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
   var that = this;
   
@@ -555,7 +573,7 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, capacity, pe
   var cheapestRegion;
   var spotBid;
 
-  var change = this.determineCapacityChange(capacity, pending);
+  var change = this.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
   var spotBids = [];
 
