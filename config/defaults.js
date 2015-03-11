@@ -12,14 +12,14 @@ module.exports = {
     password: undefined,
   },
   provisioner: {
-    id:                   'aws-provisioner2',
-    workerTypeTableName:  'AwsWorkerTypes',
+    id:                   undefined,
+    workerTypeTableName:  undefined,
     publishMetaData:      'false',
-    statsComponent:       'aws-provisioner2',
-    awsKeyPrefix:         'aws-provisioner2-managed:',
+    statsComponent:       undefined,
+    awsKeyPrefix:         undefined,
     iterationInterval:    1000 * 10,
     awsInstancePubkey:    undefined,
-    allowedRegions:       'us-west-1,us-west-2', // comma seperated list
+    allowedRegions:       undefined, // comma seperated list
   },
   server: {
     publicUrl:  'https://localhost',
