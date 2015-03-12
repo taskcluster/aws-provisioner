@@ -175,7 +175,7 @@ AwsManager.prototype.typesForRegion = function(region) {
 
   var types = Object.keys(apiState);
   Array.prototype.push.apply(types, Object.keys(internalState).filter(function(type) {
-    return has(types, type);
+    return !has(types, type);
   }));
   return Object.keys(this.__apiState[region]);
 };
@@ -364,7 +364,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
         capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
         notInApi++;
       });
-      debug('There are %d instances (not capacity) not showing up in API calls', notInApi);
+      debug('%d instances (not capacity) not showing up in API calls', notInApi);
     }
   });
 
@@ -428,7 +428,7 @@ AwsManager.prototype.reconcileInternalState = function() {
         that.__internalState[region][type].spotReq = that.__internalState[region][type].spotReq.filter(function(sr) {
           var id = sr.request.SpotInstanceRequestId;
           if (!has(allKnownIds, id)) {
-            debug('Spot request %s for %s in %s is still not tracked, leaving in place', id, type, region);
+            debug('request %s for %s in %s not showing up in api calls', id, type, region);
             return true;
           } else {
             var delay = now - sr.submitted;
@@ -530,6 +530,7 @@ AwsManager.prototype.createKeyPair = function(workerName) {
       that.ec2.regions.forEach(function(region) {
         var matchingKey = res[region].KeyPairs[0];
         if (!matchingKey) {
+          debug('creating missing key %s in %s', keyName, region);
           toCreate.push(that.ec2.importKeyPair.inRegion(region, {
             KeyName: keyName,
             PublicKeyMaterial: that.pubKey,
@@ -540,7 +541,6 @@ AwsManager.prototype.createKeyPair = function(workerName) {
     });
     
     p = p.then(function() {
-      debug('created KeyPair for %s', workerName);
       that.__knownKeyPairs.push(workerName);
     });
 
@@ -554,6 +554,7 @@ AwsManager.prototype.createKeyPair = function(workerName) {
  * Check if a KeyPair is known
  */
 AwsManager.prototype.hasKeyPair = function(workerName) {
+  assert(workerName);
   return has(this.__knownKeyPairs, workerName);
 };
 
@@ -580,6 +581,7 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
     return Promise.all(that.managedRegions().filter(function(region) {
       return !!res[region].KeyPairs[0];
     }).map(function(region) {
+      debug('deleting key %s in %s', keyName, region);
       return that.ec2.deleteKeyPair.inRegion(region, {
         KeyName: keyName,
       });
@@ -587,9 +589,8 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
   });
 
   p = p.then(function() {
-    debug('deleted KeyPair for %s', workerName);
     that.__knownKeyPairs = that.__knownKeyPairs.filter(function(knownKeyPair) {
-      return knownKeyPair !== keyName;
+      return knownKeyPair !== workerName;
     });
   });
 
@@ -612,9 +613,9 @@ AwsManager.prototype.rougeKiller = function(workerNames) {
   var known = this.knownWorkerTypes();
   var rouge = [];
   known.filter(function(name) {
-    return !has(workerNames, name);
+    return !has(workerNames, name) ;
   }).forEach(function(name) {
-    debug('found a rouge: %s', name);
+    debug('killing rouge instances for type %s', name);
     rouge.push(that.deleteKeyPair(name));
     rouge.push(that.killByName(name));
   });
@@ -654,7 +655,12 @@ AwsManager.prototype.killByName = function(name) {
 
       if (state.spotReq) {
         Array.prototype.push.apply(requests, state.spotReq.map(function(r) {
-          return r.SpotInstanceRequestId;
+          // Remember that internal state is wrapped with some meta data!
+          if (r.request) {
+            return r.request.SpotInstanceRequestId;
+          } else {
+            return r.SpotInstanceRequestId;
+          }
         }));
       }
     });
@@ -678,19 +684,18 @@ AwsManager.prototype.killCancel = function(region, instances, requests) {
   var r = requests || [];
 
   if (i.length > 0) {
+    debug('killing instances %s in %s', JSON.stringify(i), region);
     promises.push(that.ec2.terminateInstances.inRegion(region, {
       InstanceIds: i,
     }));
   }
 
   if (r.length > 0) {
+    debug('cancelling spot requests %s in %s', JSON.stringify(r), region);
     promises.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
       SpotInstanceRequestIds: r,
     }));
   }
-
-  debug('%s instances being killed: %s', region, JSON.stringify(i));
-  debug('%s spot requests being cancelled: %s', region, JSON.stringify(r));
 
   return Promise.all(promises);
 };
