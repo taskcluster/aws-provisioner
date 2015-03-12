@@ -1,9 +1,7 @@
 'use strict';
 
 var Promise = require('promise');
-var _debug = require('debug');
-var baseDbgStr = 'aws-provisioner'; 
-var generalDebug = require('debug')(baseDbgStr + ':general');
+var debug = require('debug')('aws-provisioner:provision');
 var base = require('taskcluster-base');
 var lodash = require('lodash');
 var uuid = require('node-uuid');
@@ -70,7 +68,7 @@ Provisioner.prototype.run = function () {
     }
     // And make sure we set this one!
     that.__watchdog = setTimeout(function() {
-      generalDebug('KILLING PROVISIONER BECAUSE IT APPEARS TO BE STUCK...');
+      debug('KILLING PROVISIONER BECAUSE IT APPEARS TO BE STUCK...');
       // Hmm, should I instead just process.exit(1);
       throw new Error('PROVISIONER HAS FALLEN AND CAN\'T GET BACK UP');
     }, MAX_PROVISION_ITERATION);
@@ -79,15 +77,15 @@ Provisioner.prototype.run = function () {
 
     p = p.then(function() {
       if (that.__keepRunning && !process.env.PROVISION_ONCE) {
-        generalDebug('Done! Scheduling another provisioning iteration');
+        debug('Done! Scheduling another provisioning iteration');
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
-        generalDebug('Done! Not scheduling another provisioning iteration');
+        debug('Done! Not scheduling another provisioning iteration');
       }
     });
 
     p = p.catch(function(err) {
-      generalDebug('Error running a provisioning iteration');
+      debug('Error running a provisioning iteration');
       console.error(err, err.stack);
     });
   }
@@ -113,12 +111,9 @@ Provisioner.prototype.stop = function () {
  * Run provisioners for all known worker types once
  */
 Provisioner.prototype.runAllProvisionersOnce = function() {
-
   var that = this;
-  // So that we get per-iteration strings
-  var debug = _debug(baseDbgStr + ':all:run_' + ++this.__provRunId);
 
-  debug('%s Beginning provisioning iteration', this.provisionerId);
+  debug('%s Beginning provisioning iteration %d', this.provisionerId, ++this.__provRunId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
     this.awsManager.update(),
@@ -161,15 +156,12 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     })));
 
     return Promise.all(workerTypes.map(function(workerType) {
-      // We should be able to filter by a specific workerType
-      var wtDebug = 
-        _debug(baseDbgStr + ':workerType_' + workerType.workerType + ':run_' + that.__provRunId);
-      return that.provisionType(wtDebug, workerType, pricing);
+      return that.provisionType(workerType, pricing);
     }));
   });
 
   p = p.then(function(res) {
-    debug('Completed provisioning iteration');
+    debug('Completed provisioning iteration %d', that.__provRunId);
     return res;
   });
 
@@ -184,7 +176,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function(debug, workerType, pricing) {
+Provisioner.prototype.provisionType = function(workerType, pricing) {
   var that = this;
 
   var p = this.queue.pendingTasks(this.provisionerId, workerType.workerType);
