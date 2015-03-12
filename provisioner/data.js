@@ -233,91 +233,6 @@ WorkerType.prototype.deleteKeyPair = function() {
 
 };
 
-/**
- * Shutdown all instances of this workerType, cancel
- * any open spot requests.
- */
-WorkerType.prototype.killAll = function() {
-  throw new Error('Broken!');
-  var that = this;
-  var regionDeaths = {};
-
-  // First find all the known-to-aws instances
-  var p = Promise.all([
-    this.ec2.describeInstances({
-      Filters: [{
-        Name: 'key-name',
-        Values: [this.keyPrefix + this.workerType]
-      },{
-        Name: 'instance-state-name',
-        Values: ['running', 'pending']
-      }
-    ]}),
-    this.ec2.describeSpotInstanceRequests({
-      Filters: [{
-        Name: 'launch.key-name',
-        Values: [this.keyPrefix + this.workerType]
-      }, {
-        Name: 'state',
-        Values: ['open']
-      }]
-    }),
-  ]);
-
-  // Then create promises to kill all of them
-  p = p.then(function(res) {
-    var killinators = [];
-    that.listRegions().forEach(function(region) {
-
-      // We have lists of instances and spot requests
-      // instead of just pushing new promises for each
-      // discovered instance and request so that we can
-      // reduce the number of API calls from 
-      // regions * (instances+requests) to at most 2 api
-      // calls
-      var instances = [];
-      var spotreqs = [];
-
-      res[0][region].Reservations.forEach(function(reservation) {
-        reservation.Instances.forEach(function(instance) {
-          instances.push(instance.InstanceId);
-          debug('Killing %s instance %s in %s',
-            that.workerType, instance.InstanceId, region);
-        });
-      });
-
-      res[1][region].SpotInstanceRequests.forEach(function(request) {
-        spotreqs.push(request.SpotInstanceRequestId);
-        debug('Cancelling %s spot request %s in %s',
-          that.workerType, request.SpotInstanceRequestId, region);
-      });
-
-      if (instances.length > 0) {
-        debug('Killing %d instances in %s', instances.length, region);
-        killinators.push(that.ec2.terminateInstances.inRegion(region, {
-          InstanceIds: instances,
-        }));
-      }
-
-      if (spotreqs.length > 0) {
-        debug('Cancelling %d spot requests in %s', spotreqs.length, region);
-        killinators.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
-          SpotInstanceRequestIds: spotreqs,
-        }));
-      }
-
-    });
-    return Promise.all(killinators);
-  });
-
-  p = p.then(function(res) {
-    debug('Submitted kill and cancel requests for %s', that.workerType);
-  });
-
-  return p;
-
-};
-
 
 /**
  * Create an AWS LaunchSpecification for this workerType.  This method
@@ -446,7 +361,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     var hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
   } catch(e) {
     generatedUserData.originalUserData = launchSpec.UserData;
-    debug('Stored user data is not base64 encoded JSON');
+    debug('%s stored user data is not base64 encoded JSON', worker.workerType);
     debug(launchSpec.UserData);
   }
 
@@ -565,17 +480,17 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   // We need to offset the number of pending jobs by the
   // number of units that can't yet start running tasks
-  debug('%d capacity is pending, offsetting change %d', pendingCapacity, change);
   change = change - pendingCapacity;
 
-  debug('change needed is %d', change);
+  debug('%s change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
+        this.workerType, change, runningCapacity, pendingCapacity, pending);
 
   if (totalCapacity + change > this.maxCapacity) {
     change = this.maxCapacity - totalCapacity;
-    debug('would exceed max, using %d instead', change); 
+    debug('%s, would exceed max, using %d instead', this.workerType, change);
   } else if (totalCapacity + change < this.minCapacity) {
     change = this.minCapacity - totalCapacity;
-    debug('wouldn\'t be meet min, using %d instead', change);
+    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
   } 
 
   return Math.round(change);
@@ -647,7 +562,12 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
         type: cheapestType,
       });
     }
+
+    if (spotBid > that.maxSpotBid) {
+      throw new Error('Somehow the max spot bid was exceeded');
+    }
   }
+
   return spotBids;    
 };
 
