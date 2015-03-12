@@ -361,7 +361,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     var hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
   } catch(e) {
     generatedUserData.originalUserData = launchSpec.UserData;
-    debug('stored user data is not base64 encoded JSON');
+    debug('%s stored user data is not base64 encoded JSON', worker.workerType);
     debug(launchSpec.UserData);
   }
 
@@ -482,15 +482,15 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   // number of units that can't yet start running tasks
   change = change - pendingCapacity;
 
-  debug('change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
-        change, runningCapacity, pendingCapacity, pending);
+  debug('%s change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
+        this.workerType, change, runningCapacity, pendingCapacity, pending);
 
   if (totalCapacity + change > this.maxCapacity) {
     change = this.maxCapacity - totalCapacity;
-    debug('would exceed max, using %d instead', change); 
+    debug('%s, would exceed max, using %d instead', this.workerType, change);
   } else if (totalCapacity + change < this.minCapacity) {
     change = this.minCapacity - totalCapacity;
-    debug('wouldn\'t be meet min, using %d instead', change);
+    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
   } 
 
   return Math.round(change);
