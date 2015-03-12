@@ -361,7 +361,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     var hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
   } catch(e) {
     generatedUserData.originalUserData = launchSpec.UserData;
-    debug('Stored user data is not base64 encoded JSON');
+    debug('stored user data is not base64 encoded JSON');
     debug(launchSpec.UserData);
   }
 
@@ -480,10 +480,10 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   // We need to offset the number of pending jobs by the
   // number of units that can't yet start running tasks
-  debug('%d capacity is pending, offsetting change %d', pendingCapacity, change);
   change = change - pendingCapacity;
 
-  debug('change needed is %d', change);
+  debug('change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
+        change, runningCapacity, pendingCapacity, pending);
 
   if (totalCapacity + change > this.maxCapacity) {
     change = this.maxCapacity - totalCapacity;
@@ -562,7 +562,12 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
         type: cheapestType,
       });
     }
+
+    if (spotBid > that.maxSpotBid) {
+      throw new Error('Somehow the max spot bid was exceeded');
+    }
   }
+
   return spotBids;    
 };
 
