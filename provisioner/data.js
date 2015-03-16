@@ -399,9 +399,18 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     'SubnetId',
   ]);
 
+  // These are keys which we do not allow in the generated launch spec
+  var disallowedKeys = [
+    'Placement',
+  ];
+
+  disallowedKeys.forEach(function(key) {
+    assert(!launchSpec[key], 'Your launch spec must not have key ' + key);
+  });
+
   // Now check that there are no unknown keys
   Object.keys(launchSpec).forEach(function(key) {
-    assert(-1 !== allowedKeys.indexOf(key), 'Your launch spec has invalid key ' + key);
+    assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
   });
 
   return launchSpec;
@@ -482,7 +491,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   // number of units that can't yet start running tasks
   change = change - pendingCapacity;
 
-  debug('%s change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
+  debug('"%s" change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d)',
         this.workerType, change, runningCapacity, pendingCapacity, pending);
 
   if (totalCapacity + change > this.maxCapacity) {
@@ -517,50 +526,60 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
   assert(typeof pending === 'number');
   var that = this;
   
-  var cheapestType;
-  var cheapestPrice;
-  var cheapestRegion;
-  var spotBid;
-
   var change = this.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
   var spotBids = [];
 
-  var pricingInfo = pricing.pricesByRegionAndType();
-
-  var allowedRegions = Object.keys(this.regions).filter(function(region) {
-    return regions.indexOf(region) !== -1;
-  });
-
-  if (allowedRegions.length === 0) {
-    throw new Error('No configured region is allowed by ' + this.workerType);
-  }
+  var pricingData = pricing.maxPrices();
 
   while (change > 0) {
-    Object.keys(this.types).forEach(function(potentialType) {
-      allowedRegions.forEach(function(potentialRegion) {
-        var potentialSpotBid = pricingInfo[potentialRegion][potentialType];
-        // Like capacity we assume that if a utility factor is not available
-        // that we consider it to be the base (1)
-        var potentialPrice = (that.types[potentialType].utility || 1) * potentialSpotBid;
-        if (!cheapestPrice || (potentialPrice < cheapestPrice && potentialSpotBid > that.maxSpotBid)) {
-          cheapestPrice = potentialPrice;
-          cheapestType = potentialType;
-          cheapestRegion = potentialRegion;
-          // We bid a little higher because we don't want the machine to end
-          // too soon
-          spotBid = Math.ceil(potentialSpotBid * 1.3 * 1000000) / 1000000;
-        }
+    var cheapestType;
+    var cheapestPrice;
+    var cheapestRegion;
+    var cheapestZone;
+    var spotBid;
+
+    // Utility Factors, by instance type
+    var uf = {};
+    
+    var types = Object.keys(that.types).map(function(type) {
+      uf[type] = that.utilityOfType(type) || 1;
+      return type;
+    });
+
+    var regions = Object.keys(that.regions);
+
+    regions.forEach(function(region) {
+      var zones = pricing.__zoneInfo[region];
+      types.forEach(function(type) {
+        zones.forEach(function(zone) {
+          var potentialBid = pricingData[region][type][zone];
+          var potentialPrice = uf[type] * potentialBid;
+          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxSpotBid) { 
+            cheapestPrice = potentialPrice;
+            cheapestRegion = region;
+            cheapestType = type;
+            cheapestZone = zone;
+            // We might want to make the overbid configurable
+            spotBid = Math.ceil(potentialBid * 1.5 * 1000000) / 1000000;
+            if (spotBid < that.minSpotBid) {
+              spotBid = that.minSpotBid;
+            }
+          }
+        });
       });
     });
 
     if (spotBid) {
-      change -= that.types[cheapestType].capacity;
+      change -= that.capacityOfType(cheapestType);
       spotBids.push({
-        region: cheapestRegion,
         price: spotBid,
+        region: cheapestRegion,
         type: cheapestType,
+        zone: cheapestZone,
       });
+    } else {
+      throw new Error('Counld not create a bid which satisfies requirements');
     }
 
     // This is a sanity check to prevent a screw up where we theoretically
@@ -570,13 +589,20 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
     // change to the provisioner is a demonstration of our knowledge of that.
     if (spotBid > 20) {
       debug('[alert-operator] spot bid is exceptionally high...');
-      throw new Error('Spot bid really shouldn't be higher than $20');
+      throw new Error('Spot bid really shouldn\'t be higher than $20');
     }
   }
 
   return spotBids;    
 };
 
+
+/**
+ * Return the capacity for a given type
+ */
+WorkerType.prototype.utilityOfType = function(type) {
+  return this.types[type].utility;
+};
 
 /**
  * Return the capacity for a given type
