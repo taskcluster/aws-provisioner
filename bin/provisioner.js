@@ -88,7 +88,7 @@ if (!module.parent) {
   }
   // Launch with given profile
   launch(profile);
-  debug("Launched server successfully");
+  debug("Launched provisioner successfully");
 }
 
 module.exports = launch;

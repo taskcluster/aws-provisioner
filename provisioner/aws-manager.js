@@ -25,17 +25,6 @@ function AwsManager(ec2, keyPrefix, pubKey) {
 
 module.exports = AwsManager;
 
-/**
- * Instead of writing .indexOf(x) !== -1 a million
- * times.
- */
-function has(x, y) {
-  if (!Array.prototype.includes) {
-    return x.indexOf(y) !== -1;
-  } else {
-    x.includes(y);
-  }
-}
 
 /**
  * Update the state from the AWS API and return a promise
@@ -175,7 +164,7 @@ AwsManager.prototype.typesForRegion = function(region) {
 
   var types = Object.keys(apiState);
   Array.prototype.push.apply(types, Object.keys(internalState).filter(function(type) {
-    return !has(types, type);
+    return !types.includes(type);
   }));
   return Object.keys(this.__apiState[region]);
 };
@@ -198,7 +187,7 @@ AwsManager.prototype.knownWorkerTypes = function() {
 
   this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      if (!has(workerTypes, workerType)) {
+      if (workerTypes.includes(workerType)) {
         workerTypes.push(workerType);
       }
     });
@@ -331,19 +320,19 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
     
     var wState = rState[wName];
 
-    if (has(states, 'running')) {
+    if (states.includes('running')) {
       wState.running.forEach(function(instance) {
         capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
-    if (has(states, 'pending')) {
+    if (states.includes('pending')) {
       wState.pending.forEach(function(instance) {
         capacity += workerType.capacityOfType(instance.InstanceType);
       });
     }
 
-    if (has(states, 'spotReq')) {
+    if (states.includes('spotReq')) {
       wState.spotReq.forEach(function(request) {
         capacity += workerType.capacityOfType(request.LaunchSpecification.InstanceType);
       });
@@ -359,7 +348,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
 
     var notInApi = 0;
 
-    if (wState && has(states, 'spotReq')) {
+    if (wState && states.includes('spotReq')) {
       wState.spotReq.forEach(function(sr) {
         capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
         notInApi++;
@@ -401,7 +390,7 @@ AwsManager.prototype.trackNewSpotRequest = function(sr) {
   }
 
   // Store the new spot request in the internal state
-  if (!has(allKnownIds, sr.request.SpotInstanceRequestId)) {
+  if (!allKnownIds.includes(sr.request.SpotInstanceRequestId)) {
     that.__internalState[sr.bid.region][sr.workerType].spotReq.push(sr);
   }
 };
@@ -427,7 +416,7 @@ AwsManager.prototype.reconcileInternalState = function() {
         // an over-optimization right now
         that.__internalState[region][type].spotReq = that.__internalState[region][type].spotReq.filter(function(sr) {
           var id = sr.request.SpotInstanceRequestId;
-          if (!has(allKnownIds, id)) {
+          if (!allKnownIds.includes(id)) {
             debug('request %s for %s in %s not showing up in api calls', id, type, region);
             return true;
           } else {
@@ -457,6 +446,11 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   
   var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
 
+  // Add the availability zone info
+  launchSpec.Placement = {
+    AvailabilityZone: bid.zone,
+  };
+
   var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
     Type: 'one-time',
@@ -470,8 +464,8 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   });
 
   p = p.then(function(spotReq) {
-    debug('submitted spot request %s for $%d for %s in %s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.type);
+    debug('submitted spot request %s for $%d for %s in %s/%s for %s',
+      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
     var info = {
       workerType: workerType.workerType,
       request: spotReq,
@@ -555,7 +549,7 @@ AwsManager.prototype.createKeyPair = function(workerName) {
  */
 AwsManager.prototype.hasKeyPair = function(workerName) {
   assert(workerName);
-  return has(this.__knownKeyPairs, workerName);
+  return this.__knownKeyPairs.includes(workerName);
 };
 
 
@@ -607,21 +601,19 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
  * which will say to this function that all workerTypes are rouge.
  * Sneaky, huh?
  */
-AwsManager.prototype.rougeKiller = function(workerNames) {
-  assert(workerNames);
+AwsManager.prototype.rougeKiller = function(configuredWorkers) {
+  assert(configuredWorkers);
   var that = this;
-  var known = this.knownWorkerTypes();
+  var workersInState = this.knownWorkerTypes();
   var rouge = [];
-  known.filter(function(name) {
-    return !has(workerNames, name) ;
+  workersInState.filter(function(name) {
+    return !configuredWorkers.includes(name) ;
   }).forEach(function(name) {
     debug('killing rouge instances for type %s', name);
     rouge.push(that.deleteKeyPair(name));
     rouge.push(that.killByName(name));
   });
 
-  // We'll let the rouge killer clean up any other instances which come
-  // up after this occurs
   return Promise.all(rouge);
 };
 

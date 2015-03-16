@@ -5,6 +5,7 @@ module.exports = {
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2-dev',
     awsKeyPrefix:         'aws-provisioner2-dev-managed:',
+    allowedRegions:       'us-west-2',
   },
   server: {
     publicUrl:  'https://aws-provisioner2.herokuapp.com',
