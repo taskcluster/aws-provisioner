@@ -53,6 +53,7 @@ function Provisioner(cfg) {
 
 module.exports.Provisioner = Provisioner;
 
+
 /**
  * Start running a provisioner.
  */
@@ -131,6 +132,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       return x.workerType;
     });
 
+    debugger;
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
     
     // Remember that this thing caches stuff inside itself
@@ -149,11 +151,14 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     var workerTypes = res[0];
     var pricing = res[2];
 
-    debug('AWS knows of these workerTypes: %s', JSON.stringify(that.awsManager.knownWorkerTypes()));
-    // We could probably combine this with the .map of workerTypes below... meh...
-    debug('There are workerType definitions for these: %s', JSON.stringify(workerTypes.map(function(x) {
-      return x.workerType;
-    })));
+    var knownWorkerTypes = that.awsManager.knownWorkerTypes();
+    
+    debug('Provisioning for these worker types:');
+
+    workerTypes.forEach(function(workerType) {
+      var name = workerType.workerType;
+      debug('  * %s', name);
+    });
 
     return Promise.all(workerTypes.map(function(workerType) {
       return that.provisionType(workerType, pricing);
@@ -167,7 +172,6 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
   return p;
 };
-
 
 
 /**
@@ -194,9 +198,6 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
       pending = 0;
       debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
     }
-
-    debug('running capacity %d, pending capacity %d, pending tasks %s',
-      runningCapacity, pendingCapacity, pending);
 
     if (totalCapacity < workerType.maxCapacity) {
       return workerType.determineSpotBids(

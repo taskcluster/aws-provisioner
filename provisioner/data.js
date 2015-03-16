@@ -491,7 +491,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   // number of units that can't yet start running tasks
   change = change - pendingCapacity;
 
-  debug('%s change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d',
+  debug('"%s" change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d)',
         this.workerType, change, runningCapacity, pendingCapacity, pending);
 
   if (totalCapacity + change > this.maxCapacity) {
