@@ -457,6 +457,11 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   
   var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
 
+  // Add the availability zone info
+  launchSpec.Placement = {
+    AvailabilityZone: bid.zone,
+  };
+
   var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
     Type: 'one-time',
@@ -470,8 +475,8 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   });
 
   p = p.then(function(spotReq) {
-    debug('submitted spot request %s for $%d for %s in %s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.type);
+    debug('submitted spot request %s for $%d for %s in %s/%s for %s',
+      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
     var info = {
       workerType: workerType.workerType,
       request: spotReq,
