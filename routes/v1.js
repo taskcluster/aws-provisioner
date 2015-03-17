@@ -321,7 +321,6 @@ api.declare({
   ].join('\n')
 }, function(req, res) {
   var ctx         = this;
-  var workerType  = req.params.workerType;
 
   var p = this.WorkerType.listWorkerTypes()
 
