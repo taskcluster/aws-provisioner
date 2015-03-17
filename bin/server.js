@@ -178,9 +178,9 @@ if (!module.parent) {
   }
   // Launch with given profile
   launch(profile).then(function() {
-    debug("Launched server successfully");
+    debug("launched server successfully");
   }).catch(function(err) {
-    debug("Failed to start server, err: %s, as JSON: %j", err, err, err.stack);
+    debug("failed to start server, err: %s, as JSON: %j", err, err, err.stack);
     // If we didn't launch the server we should crash
     process.exit(1);
   });

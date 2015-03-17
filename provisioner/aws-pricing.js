@@ -137,13 +137,11 @@ AwsPricing.prototype.maxPrices = function() {
         if (zones.includes(zone)) {
           maxes[region][type][zone] = Math.max.apply(null, pricing[region][type][zone]);
         } else {
-          debug('AZ %s has pricing data but is not listed as available');
+          debug('availability zone %s has pricing data but is not listed as available');
         }
       });
     });
   });
-
-  debugger;
 
   return maxes;
 };
