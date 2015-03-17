@@ -94,6 +94,7 @@ WorkerType.create = function(workerType, properties) {
   assert(workerType);
   assert(properties);
   assert(!properties.workerType);
+  assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType));
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
