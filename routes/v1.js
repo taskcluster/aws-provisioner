@@ -381,7 +381,7 @@ api.declare({
 
 
 api.declare({
-  method:   'get',
+  method:   'post',
   route:    '/worker-type/:workerType/terminate-all-instances',
   name:     'terminateAllInstancesOfWorkerType',
   title:    "Shutdown Every Ec2 Instance of this Worker Type",
@@ -427,7 +427,7 @@ api.declare({
 
 
 api.declare({
-  method:   'get', // Hmm, maybe this should be post
+  method:   'post',
   route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
   name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
   title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",

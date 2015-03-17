@@ -2,7 +2,6 @@
   "name": "taskcluster-aws-provisioner",
   "version": "0.1.0",
   "private": true,
-  "main": "bin/server.js",
   "scripts": {
     "test": "test/runtests.sh"
   },
