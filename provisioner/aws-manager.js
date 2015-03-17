@@ -3,7 +3,6 @@
 var Promise = require('promise');
 var lodash = require('lodash');
 var util = require('util');
-var Cache = require('../cache');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
 
@@ -353,7 +352,9 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
         capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
         notInApi++;
       });
-      debug('%d instances (not capacity) not showing up in API calls', notInApi);
+      if (notInApi > 0) {
+        debug('%d instances (not capacity) not showing up in API calls', notInApi);
+      }
     }
   });
 
