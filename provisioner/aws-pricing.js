@@ -3,7 +3,6 @@
 var Promise = require('promise');
 var lodash = require('lodash');
 var util = require('util');
-var Cache = require('../cache');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-pricing');
 

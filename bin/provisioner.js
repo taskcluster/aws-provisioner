@@ -8,7 +8,7 @@ var aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
 var AwsManager = require('../provisioner/aws-manager');
 var awsPricing = require('../provisioner/aws-pricing');
-var Cache = require('../cache');
+var Cache = require('../lib/cache');
 var taskcluster = require('taskcluster-client');
 
 

@@ -8,7 +8,7 @@ var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
 var assert = require('assert');
-var WatchDog = require('../watchdog');
+var WatchDog = require('../lib/watchdog');
 
 var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 

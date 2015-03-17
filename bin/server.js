@@ -9,7 +9,7 @@ var exchanges   = require('../provisioner/exchanges');
 var AwsManager    = require('../provisioner/aws-manager');
 var v1          = require('../routes/v1');
 var aws         = require('multi-region-promised-aws');
-var Cache       = require('../cache');
+var Cache       = require('../lib/cache');
 
 /** Launch server */
 var launch = function(profile) {
