@@ -1,0 +1,44 @@
+{
+  "workerType": "test",
+  "launchSpecification": {
+    "SecurityGroups": [
+      "default"
+    ],
+    "UserData": "eyJhIjoxfQ=="
+  },
+  "minCapacity": 4,
+  "maxCapacity": 30,
+  "scalingRatio": 1.1,
+  "minSpotBid": 0.2,
+  "maxSpotBid": 1,
+  "canUseOndemand": false,
+  "canUseSpot": true,
+  "types": {
+    "m3.medium": {
+      "capacity": 1,
+      "utility": 1,
+      "overwrites": {
+        "UserData": "eyJhIjoxfQ=="
+      }
+    },
+    "m3.large": {
+      "capacity": 1,
+      "utility": 2,
+      "overwrites": {
+        "UserData": "eyJhIjoxfQ=="
+      }
+    }
+  },
+  "regions": {
+    "us-west-1": {
+      "overwrites": {
+        "ImageId": "ami-42908907"
+      }
+    },
+    "us-west-2": {
+      "overwrites": {
+        "ImageId": "ami-dfc39aef"
+      }
+    }
+  }
+}

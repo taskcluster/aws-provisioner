@@ -7,38 +7,85 @@ var base        = require('taskcluster-base');
 // Common schema prefix
 var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
 
+
 /**
  * API end-point for version v1/
  *
  * In this API implementation we shall assume the following context:
  * {
  *   publisher:         // Publisher created with exchanges.js
- *   workerType:        // Instance of data.WorkerType
+ *   WorkerType:        // Instance of data.WorkerType
  * }
  */
 var api = new base.API({
   title:          "AWS Provisioner API Documentation",
   description: [
-    "The AWS  provisioner, typically available at",
-    "`aws-provisioner.taskcluster.net`, is responsible for provisioning EC2",
-    "instances as tasks become become pending. To do this it monitors the",
-    "state of queues, EC2 instances, spot prices and other interesting",
-    "parameters."
-    // TODO: Write who the intended users are:
-    //        - tools for defining workerTypes
-    //        - tools for inspecting state of AWS
-    //        - hooks monitoring state
-    // TODO: Write what the AWS provisioner does, how the API works
-    //       just some introduction...
-    //       To quote a the Daleks: Explain..., Explain,.. Exterminate!
-    //                                                    (^disregard the that)
+    "The AWS Provisioner is responsible for provisioning instances on EC2 for use in",
+    "TaskCluster.  The provisioner maintains a set of worker configurations which",
+    "can be managed with an API that is typically available at",
+    "aws-provisioner.taskcluster.net.  This API can also perform basic instance",
+    "management tasks in addition to maintaining the internal state of worker type",
+    "configuration information.",
+    "",
+    "The Provisioner runs at a configurable interval.  Each iteration of the",
+    "provisioner fetches a current copy the state that the AWS EC2 api reports.  In",
+    "each iteration, we ask the Queue how many tasks are pending for that worker",
+    "type.  Based on the number of tasks pending and the scaling ratio, we may",
+    "submit requests for new instances.  We use pricing information, capacity and",
+    "utility factor information to decide which instance type in which region would",
+    "be the optimal configuration.",
+    "",
+    "Each EC2 instance type will declare a capacity and utility factor.  Capacity is",
+    "the number of tasks that a given machine is capable of running concurrently.",
+    "Utility factor is a relative measure of performance between two instance types.",
+    "We multiply the utility factor by the spot price to compare instance types and",
+    "regions when making the bidding choices.",
+    "",
   ].join('\n')
 });
 
-// Export api
+
+function errorHandler(err, res, workerType) {
+  console.error(err, err.stack);
+  switch(err.code) {
+    case 'ResourceNotFound':
+      return res.status(404).json({
+        message: workerType + ': ' + err.body.message.value,
+        error: {
+          workerType: workerType,
+          reason: err.code,
+        }
+      });
+      break; // I guess I don't need this because of the return...
+    case 'EntityAlreadyExists':
+      return res.status(409).json({
+        message: workerType + ': ' + err.body.message.value,
+        error: {
+          workerType: workerType,
+          reason: err.code,
+        }
+      });
+      break;
+    case 'InvalidLaunchSpecifications':
+      if (err.reasons) {
+        err.reasons.forEach(function (e) {
+          console.error(e, e.stack);
+        });
+      }
+      if (err.code === 'InvalidLaunchSpecifications') {
+        return res.status(500).json({
+          message: err.toString(),
+          code: err.code,
+          reason: err.reasons.map(function (x) { return x.toString() }),
+        });
+      }      
+    default:
+      throw err;
+  }
+}
+
 module.exports = api;
 
-// Create workerType
 api.declare({
   method:         'put',
   route:          '/worker-type/:workerType',
@@ -46,99 +93,131 @@ api.declare({
   deferAuth:      true,
   scopes:         ['aws-provisioner:create-worker-type:<workerType>'],
   input:          SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output:         SCHEMA_PREFIX_CONST + 'create-worker-type-response.json#',
+  output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title:          "Create new Worker Type",
   description: [
-    // Document what this method does
+    "Create a worker type and ensure that all EC2 regions have the required ",
+    "KeyPair"
   ].join('\n')
-}, function(req, res) {
+}, 
+function(req, res) {
   var ctx         = this;
   var input       = req.body;
   var workerType  = req.params.workerType;
 
-  // Authenticate request by providing parameters, this is necessary because
-  // we set `deferAuth: true`, we can't do automatic authentication if the
-  // scopes contain parameters like <workerType>
   if(!req.satisfies({
     workerType:       workerType
   })) {
-    return; // by default req.satisfies() sends a response, so we're done
+    return; // by default req.satisfies() sends a response on failure, so we're done
   }
 
-  // TODO: If workerType definition specifies scopes that should be given
+  // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
   //       that the caller has this scopes to avoid scope elevation.
+  // TODO: ^ do this.  not entirely sure what this means, are LaunchSpecification
+  //       security groups the same as scopes?
 
-  // Create workerType
-  return ctx.WorkerType.create({
-    // Define properties, see data.js
-  }).then((function() {
-    // TODO: Post AMQP message that workerType was created
-    return ctx.publisher.workerTypeCreated({
-      // Define properties, see exchanges.js
-    }).then(function() {
-      // Send a reply (always use res.reply), only use
-      return res.reply({
-        // Fulfill schema: 'create-worker-type-response.json#'
-      });
-  }, function(err) {
-    // Handle errors from `ctx.WorkerType.create`, not message publishing
-    // or res.reply.
+  // We want to make sure that every single possible generated LaunchSpec
+  // would be valid before we even try to store it
+  try {
+    ctx.WorkerType.testLaunchSpecs(input, ctx.keyPrefix, ctx.provisionerId);
+  } catch (err) {
+    errorHandler(err, res, workerType);
+  }
 
-    // Check that the code matches something you expected
-    if (err && err.code === 'EntityAlreadyExists') {
-      // Log this with debug() this makes it easier to see that we handled the
-      // error above which will typically be logged anyways.
-      debug("createWorkerType failed, as '%s' already exists", workerType);
-      // This is how we return error messages, there is no formal way to this
-      // yet... We probably should add something res.reportError(code, {...}),
-      // But generally speaking we always want a "message" property, and all
-      // the other stuff we're willing to return we stuff into "error".
-      // Note, we do not return custom 500 errors.
-      return res.status(409).json({
-        message:          "Conflict: workerType already exists!",
-        error: {
-          workerType:     workerType,
-          reason:         'already-exists'
-        }
-      });
-    }
+  var worker;
 
-    // If not handled above, rethrow, which will cause a 500 internal error
-    // Note, for 500 errors we return a generic message and a uuid that can
-    // be looked up in server logs. This way we don't expose sensitive
-    // information... Throwing an error in a promise returned in the handler
-    // will cause a 500, so rethrow here is perfect.
-    // Notice that I did do, return res.status(409)... above, so if handled
-    // the program won't go here.
-    throw err;
+  var p = ctx.WorkerType.create(workerType, input)
+  
+  p = p.then(function(worker_) {
+    worker = worker_;
   });
+
+  p = p.then(function() {
+    return ctx.publisher.workerTypeCreated({
+      workerType: workerType,
+    })
+  });
+
+  p = p.then(function() {
+    return res.reply(worker.json());
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
 });
 
 
-
-// Update workerType
 api.declare({
   method:         'post',
   route:          '/worker-type/:workerType/update',
   name:           'updateWorkerType',
   deferAuth:      true,
+  // Shouldn't we just have a single scope for modifying/creating/deleting workerTypes
   scopes:         ['aws-provisioner:update-worker-type:<workerType>'],
   input:          SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output:         SCHEMA_PREFIX_CONST + 'create-worker-type-response.json#',
+  output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title:          "Update Worker Type",
   description: [
-    // Document what this method does
+    "Update a workerType and ensure that all regions have the require",
+    "KeyPair",
   ].join('\n')
 }, function(req, res) {
   var ctx         = this;
   var input       = req.body;
   var workerType  = req.params.workerType;
 
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var worker;
+
+  try {
+    ctx.WorkerType.testLaunchSpecs(input, ctx.keyPrefix, ctx.provisionerId);
+  } catch (err) {
+    errorHandler(err, res, workerType);
+  }
+  
+  var p = ctx.WorkerType.load({workerType: workerType});
+    
+  p = p.then(function(worker_) {
+    worker = worker_;
+    return worker.modify(function(worker) {
+      // We know that data that gets to here is valid per-schema
+      Object.keys(input).forEach(function(key) {
+        worker[key] = input[key];
+      });
+    });
+  });
+
+  p = p.then(function() {
+    return ctx.publisher.workerTypeCreated({
+      workerType: workerType,
+    })
+  });
+
+  p = p.then(function() {
+    return res.reply(worker.json());
+  })
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
 });
 
 
-// Get workerType
+
 api.declare({
   method:         'get',
   route:          '/worker-type/:workerType',
@@ -149,37 +228,483 @@ api.declare({
   output:         SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title:          "Get Worker Type",
   description: [
-    // Document what this method does
+    "Retreive a WorkerType definition"
   ].join('\n')
 }, function(req, res) {
   var ctx         = this;
   var workerType  = req.params.workerType;
 
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load({workerType: workerType});
+  
+  p = p.then(function(worker) {
+    return res.reply(worker.json());
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
 });
 
-// List workerTypes
+
+// Delete workerType
+// TODO: send a pulse message that a worker type was removed
+api.declare({
+  method:         'delete',
+  route:          '/worker-type/:workerType',
+  name:           'removeWorkerType',
+  deferAuth:      true,
+  // TODO: Should we have a special scope for workertype removal?
+  scopes:         ['aws-provisioner:get-worker-type:<workerType>'],
+  input:          undefined,  // No input
+  output:         undefined,  // No output
+  title:          "Delete Worker Type",
+  description: [
+    "Delete a WorkerType definition, submits requests to kill all ",
+    "instances and delete the KeyPair from all configured EC2 regions",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var workerType  = req.params.workerType;
+
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load({workerType: workerType})
+
+  p = p.then(function(worker) {
+    return worker.remove();
+  });
+
+  p = p.then(function() {
+    debug('Finished deleting worker type');
+    return res.reply({});
+  });
+
+  p = p.then(function() {
+    //return ctx.publisher.workerTypeDeleted({
+    //  workerType: workerType,
+    //})
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+});
+
+
 api.declare({
   method:         'get',
   route:          '/list-worker-types',
   name:           'listWorkerTypes',
-  deferAuth:      true,
+  deferAuth:      true, // I don't think we need this unless we do parameterized scopes
   scopes:         [
-    [
-      // Require both scopes... We need to parameterize these for each
-      // <workerType> before we return the result
-      'aws-provisioner:get-worker-type:<workerType>',
       'aws-provisioner:list-worker-types',
-    ]
   ],
   input:          undefined,  // No input
   output:         SCHEMA_PREFIX_CONST + 'list-worker-types-response.json#',
   title:          "List Worker Types",
   description: [
-    // Document what this method does
+    "List all known WorkerType names",
   ].join('\n')
 }, function(req, res) {
   var ctx         = this;
+  var workerType  = req.params.workerType;
+
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = this.WorkerType.listWorkerTypes()
+
+  p = p.then(function(workerNames) {
+    return res.reply(workerNames);
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, 'listing all worker types');
+    return err;
+  });
+
+  return p;
 
 });
+
+
+api.declare({
+  method:         'get',
+  route:          '/get-launch-specs/:workerType',
+  name:           'getLaunchSpecs',
+  deferAuth:      true,
+  scopes:         ['aws-provisioner:get-worker-type:<workerType>'],
+  input:          undefined,  // No input
+  output:         SCHEMA_PREFIX_CONST + 'get-launch-specs-response.json#',
+  title:          "Get All Launch Specifications for WorkerType",
+  description: [
+    "Return the EC2 LaunchSpecifications for all combinations of regions", 
+    "and instance types or a list of reasons why the launch specifications",
+    "are not valid",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var workerType  = req.params.workerType;
+  var keyPrefix   = ctx.awsManager.keyPrefix
+
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load({workerType: workerType});
+  
+  p = p.then(function(worker) {
+    return res.reply(worker.testLaunchSpecs(ctx.keyPrefix, ctx.provisionerId));
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:   'get',
+  route:    '/shutdown/every/ec2/instances/for/:workerType',
+  name:     'shutdownEveryEc2InstanceFor',
+  title:    "Shutdown Every Ec2 Instance of this Worker Type",
+  scopes:   [[
+    'aws-provisioner:aws',
+    'aws-provisioner:get-worker-type:<workerType>',
+  ]],
+  description: [
+    "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
+    "Shut down every single EC2 instance associated with this workerType. ",
+    "This means every single last one.  You probably don't want to use ",
+    "this method, which is why it has an obnoxious name.  Don't even try ",
+    "to claim you didn't know what this method does!"
+  ].join('\n')
+}, function(req, res) {
+
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var ctx = this;
+  var workerType = req.params.workerType;
+
+  debug('SOMEONE IS TURNING OFF ALL ' + workerType);
+
+  var p = ctx.awsManager.killByName(workerType);
+
+  p = p.then(function() {
+    res.reply({
+      outcome: true,
+      message: 'You just turned off all ' + workerType + '.  Feel the power!',
+    });
+  });
+
+  p = p.catch(function(err) {
+    console.error(err);
+    res.status(503).json({
+      message: 'Could not shut down all ' + workerType,
+    });
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:   'get', // Hmm, maybe this should be post
+  route:    '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
+  name:     'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
+  title:    "Shutdown Every Single Ec2 Instance Managed By This Provisioner",
+  scopes:   [[
+    'aws-provisioner:all-stop',
+    'aws-provisioner:aws'
+  ]],
+  description: [
+    "WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ",
+    "Shut down every single EC2 instance managed by this provisioner. ",
+    "This means every single last one.  You probably don't want to use ",
+    "this method, which is why it has an obnoxious name.  Don't even try ",
+    "to claim you didn't know what this method does!"
+  ].join('\n')
+}, function(req, res) {
+
+  var ctx = this;
+
+  debug('SOMEONE IS TURNING EVERYTHING OFF');
+
+  // Note that by telling the rouge killer
+  var p = ctx.awsManager.rougeKiller([]);
+
+  p = p.then(function() {
+    res.reply({
+      outcome: true,
+      message: 'You just turned absolutely everything off.  Feel the power!',
+    });
+  });
+
+  p = p.catch(function(err) {
+    console.error(err, err.stack);
+    res.status(503).json({
+      message: 'Could not shut down everything',
+    });
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:         'post',
+  route:          '/worker-type/:workerType/spawn',
+  name:           'spawnWorkerType',
+  deferAuth:      true,
+  scopes:         [[
+    'aws-provisioner:aws',
+    'aws-provisioner:spawn-worker-type:<workerType>'
+  ]],
+  input:          SCHEMA_PREFIX_CONST + 'spawn-instance-request.json#',
+  output:         SCHEMA_PREFIX_CONST + 'spawn-instance-response.json#',
+  title:          "Spawn an instance of a Worker Type",
+  description: [
+    'Spawn an instance of a workerType given a bid.  A bid is an ',
+    'object which has a number `price`, string `region` and string ',
+    '`instance type`.'
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var input       = req.body;
+  var workerType  = req.params.workerType;
+  
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = ctx.WorkerType.load({workerType: workerType})
+    
+  p = p.then(function(worker) {
+    return ctx.awsManager.requestSpotInstance(worker, input);
+  });
+
+  p = p.then(function(sir) {
+    var reply = {
+      SpotInstanceRequest: sir,
+    };
+    return res.reply(reply);
+  })
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:         'get',
+  route:          '/worker-type/:workerType/stats',
+  name:           'workerTypeStats',
+  deferAuth:      true,
+  scopes:         [[
+    'aws-provisioner:get-worker-type:<workerType>'
+  ]],
+  output:         SCHEMA_PREFIX_CONST + 'worker-type-stats-response.json#',
+  title:          "Spawn an instance of a Worker Type",
+  description: [
+    'Spawn an instance of a workerType given a bid.  A bid is an ',
+    'object which has a number `price`, string `region` and string ',
+    '`instance type`.'
+  ].join('\n')
+}, function(req, res) {
+  throw new Error('FIX ME!');
+  var ctx         = this;
+  var input       = req.body;
+  var workerType  = req.params.workerType;
+  
+  if(!req.satisfies({
+    workerType:       workerType
+  })) {
+    return; // by default req.satisfies() sends a response on failure, so we're done
+  }
+
+  var p = Promise.all([
+      ctx.WorkerType.load({workerType: workerType}),
+      //ctx.awsStateCache.get(),
+  ]);
+    
+  p = p.then(function(result) {
+    var worker = result[0];
+    var state = result[1];
+
+    var workerStats = {
+      running: [],
+      pending: [],
+      spotReq: [],
+    };
+
+    worker.listRegions().forEach(function(region) {
+      if (state[region] && state[region][workerType]) {
+        Array.prototype.push.apply(workerStats.running, state[region][workerType].running);
+        Array.prototype.push.apply(workerStats.pending, state[region][workerType].pending);
+        Array.prototype.push.apply(workerStats.spotReq, state[region][workerType].spotReq);
+      }
+    });
+
+    res.reply(workerStats);
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, workerType);
+    return err;
+  });
+
+  return p;
+
+});
+
+
+api.declare({
+  method:         'get',
+  route:          '/get-ids',
+  name:           'getIds',
+  scopes:         [
+      'aws-provisioner:get-ids',
+  ],
+  input:          undefined,  // No input
+  output:         SCHEMA_PREFIX_CONST + 'get-aws-state-response.json#',
+  title:          "List Worker Types",
+  description: [
+    "List all known WorkerType names",
+  ].join('\n')
+}, function(req, res) {
+  throw new Error('FIX ME!');
+  var ctx         = this;
+
+  var p = ctx.awsStateCache.get();
+
+  p = p.then(function(state) {
+    res.reply({
+      running: state.listRunningInstanceIds(),
+      pending: state.listPendingInstanceIds(),
+      spotReq: state.listSpotRequestIds(),
+    });
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, 'showing aws state');
+    return err;
+  });
+
+
+  return p;
+
+});
+
+
+api.declare({
+  method:         'get',
+  route:          '/aws-state',
+  name:           'awsState',
+  scopes:         [
+      'aws-provisioner:show-state',
+  ],
+  input:          undefined,  // No input
+  output:         SCHEMA_PREFIX_CONST + 'get-aws-state-response.json#',
+  title:          "List Worker Types",
+  description: [
+    "List all known WorkerType names",
+  ].join('\n')
+}, function(req, res) {
+  var ctx         = this;
+  var workerType  = req.params.workerType;
+
+  var p = ctx.awsManager.update();
+
+  p = p.then(function() {
+    res.reply({
+      api: ctx.awsManager.getApi(),
+      internal: ctx.awsManager.getInternal(),
+    });
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, 'showing aws state');
+    return err;
+  });
+
+
+  return p;
+
+});
+
+
+api.declare({
+  method:   'get',
+  route:    '/ping',
+  name:     'ping',
+  title:    "Ping Server",
+  description: [
+    "Documented later...",
+    "",
+    "**Warning** this api end-point is **not stable**."
+  ].join('\n')
+}, function(req, res) {
+  res.status(200).json({
+    alive:    true,
+    uptime:   process.uptime()
+  });
+});
+
+api.declare({
+  method:   'get',
+  route:    '/api-reference',
+  name:     'apiReference',
+  title:    "api reference",
+  description: [
+    "Get an API reference!",
+    "",
+    "**Warning** this api end-point is **not stable**."
+  ].join('\n')
+}, function(req, res) {
+  var host = req.get('host');
+  var proto = req.connection.encrypted ? 'https' : 'http';
+  res.status(200).json(api.reference({
+    baseUrl: proto + '://' + host + '/v1'
+  }));
+});
+
 
 
