@@ -52,7 +52,7 @@ function Provisioner(cfg) {
   this.__provRunId = 0;
 
   this.__keepRunning = false;
-  this.__watchDog = new WatchDog(MAX_PROVISION_ITERATION, '[alert-operator] Provisioner is stuck');
+  this.__watchDog = new WatchDog(MAX_PROVISION_ITERATION);
 }
 
 module.exports.Provisioner = Provisioner;
@@ -74,6 +74,10 @@ Provisioner.prototype.run = function () {
   var that = this;
 
   this.__keepRunning = true;
+  this.__watchDog.on('expired', function() {
+    debug('[alert-operator] Provisioner is stuck, killing');
+    throw new Error('WatchDog expired');
+  });
   this.__watchDog.start();
 
   function provisionIteration() {
