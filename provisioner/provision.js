@@ -8,8 +8,9 @@ var uuid = require('node-uuid');
 var util = require('util');
 var data = require('./data');
 var assert = require('assert');
+var WatchDog = require('../watchdog');
 
-var MAX_PROVISION_ITERATION = 1000 * 60 * 20; // 20 minutes
+var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -49,10 +50,22 @@ function Provisioner(cfg) {
   this.provisionIterationInterval = cfg.provisionIterationInterval;
 
   this.__provRunId = 0;
+
+  this.__keepRunning = false;
+  this.__watchDog = new WatchDog(MAX_PROVISION_ITERATION, '[alert-operator] Provisioner is stuck');
 }
 
 module.exports.Provisioner = Provisioner;
 
+
+/**
+ * Store basic stats of each iteration
+ */
+var stats = {
+  iterations: 0,
+  success: 0,
+  failure: 0,
+};
 
 /**
  * Start running a provisioner.
@@ -61,24 +74,31 @@ Provisioner.prototype.run = function () {
   var that = this;
 
   this.__keepRunning = true;
+  this.__watchDog.start();
 
   function provisionIteration() {
-    // We should cancel the last iteration's watch dog
-    if (that.__watchdog) {
-      clearTimeout(that.__watchdog);
+    debug('starting iteration %d, successes %d, failures %d',
+          stats.iterations++,
+          stats.success,
+          stats.failure);
+
+    that.__watchDog.touch();
+
+    // We should make sure that we're not just permanently failing
+    // We also don't want to 
+    if (stats.iterations > 20 && (stats.failures > 2 * stats.success)) {
+      debug('[alert-operator] killing provisioner because it has run ' +
+            'for a while but has failed lots of iterations');
+      throw new Error('provisioner is failing a lot');
     }
-    // And make sure we set this one!
-    that.__watchdog = setTimeout(function() {
-      debug('KILLING PROVISIONER BECAUSE IT APPEARS TO BE STUCK...');
-      // Hmm, should I instead just process.exit(1);
-      throw new Error('PROVISIONER HAS FALLEN AND CAN\'T GET BACK UP');
-    }, MAX_PROVISION_ITERATION);
 
     var p = that.runAllProvisionersOnce();
 
     p = p.then(function() {
+      stats.success++;
       if (that.__keepRunning && !process.env.PROVISION_ONCE) {
-        debug('Done! Scheduling another provisioning iteration');
+        debug('success. next iteration in %d seconds', 
+          Math.round(that.provisionIterationInterval / 1000));
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
         debug('Done! Not scheduling another provisioning iteration');
@@ -86,12 +106,18 @@ Provisioner.prototype.run = function () {
     });
 
     p = p.catch(function(err) {
-      debug('Error running a provisioning iteration');
-      console.error(err, err.stack);
+      stats.failure++;
+      debug('[alert-operator] failure in provisioning');
+      if (err.stack) {
+        debug('[alert-operator] %s', err.stack.replace('\n', '\\n'));
+      }
+      setTimeout(provisionIteration, that.provisionIterationInterval);
     });
   }
 
-  provisionIteration();
+  // To ensure that the first iteration is not called differently that
+  // subsequent ones, we'll call it with a zero second timeout
+  setTimeout(provisionIteration, 0);
 
 };
 
@@ -102,9 +128,10 @@ Provisioner.prototype.run = function () {
  */
 Provisioner.prototype.stop = function () {
   this.__keepRunning = false;
-  if (this.__watchdog) {
-    clearTimeout(this.__watchdog);
-  }
+  this.__watchDog.stop();
+  stats.iterations = 0;
+  stats.success = 0;
+  stats.failure = 0;
 };
 
 
@@ -114,7 +141,6 @@ Provisioner.prototype.stop = function () {
 Provisioner.prototype.runAllProvisionersOnce = function() {
   var that = this;
 
-  debug('%s Beginning provisioning iteration %d', this.provisionerId, ++this.__provRunId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
     this.awsManager.update(),
@@ -132,7 +158,6 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       return x.workerType;
     });
 
-    debugger;
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
     
     // Remember that this thing caches stuff inside itself
@@ -150,24 +175,9 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   p = p.then(function(res) {
     var workerTypes = res[0];
     var pricing = res[2];
-
-    var knownWorkerTypes = that.awsManager.knownWorkerTypes();
-    
-    debug('Provisioning for these worker types:');
-
-    workerTypes.forEach(function(workerType) {
-      var name = workerType.workerType;
-      debug('  * %s', name);
-    });
-
     return Promise.all(workerTypes.map(function(workerType) {
       return that.provisionType(workerType, pricing);
     }));
-  });
-
-  p = p.then(function(res) {
-    debug('Completed provisioning iteration %d', that.__provRunId);
-    return res;
   });
 
   return p;
