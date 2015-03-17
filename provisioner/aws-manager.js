@@ -293,7 +293,7 @@ AwsManager.prototype.listSpotRequestIds = function() {
 
 /**
  * Count the capacity of this workerType that are in the states specified
- * by `states`.  Doing this uses the Capcity key from the workerType's
+ * by `states`.  Doing this uses the Capacity key from the workerType's
  * types dictionary.  Remember that capacity is the number of tasks
  * that this instance/request will be able to service.
  * If specified, `extraSpotRequests` is a dictionary which contains a region
@@ -308,7 +308,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
     states = ['running', 'pending', 'spotReq'];
   }
 
-  // Find instances in the retrevied state and add them to the capacity
+  // Find instances in the retrieved state and add them to the capacity
   // according to their declared capacity
   this.ec2.regions.forEach(function(region) {
     var rState = that.getApi(region);
@@ -511,37 +511,36 @@ AwsManager.prototype.createKeyPair = function(workerName) {
     // a promise so this cache is invisible to the
     // calling function from a non-cached instance
     return Promise.resolve();
-  } else {
-    var p = this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
-      Filters: [{
-        Name: 'key-name',
-        Values: [keyName]
-      }] 
-    });
-
-    p = p.then(function(res) {
-      var toCreate = [];
-
-      that.ec2.regions.forEach(function(region) {
-        var matchingKey = res[region].KeyPairs[0];
-        if (!matchingKey) {
-          debug('creating missing key %s in %s', keyName, region);
-          toCreate.push(that.ec2.importKeyPair.inRegion(region, {
-            KeyName: keyName,
-            PublicKeyMaterial: that.pubKey,
-          }));
-        } 
-      });
-      return Promise.all(toCreate);
-    });
-    
-    p = p.then(function() {
-      that.__knownKeyPairs.push(workerName);
-    });
-
-    return p;
   }
 
+  var p = this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
+    Filters: [{
+      Name: 'key-name',
+      Values: [keyName]
+    }]
+  });
+
+  p = p.then(function(res) {
+    var toCreate = [];
+
+    that.ec2.regions.forEach(function(region) {
+      var matchingKey = res[region].KeyPairs[0];
+      if (!matchingKey) {
+        debug('creating missing key %s in %s', keyName, region);
+        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
+          KeyName: keyName,
+          PublicKeyMaterial: that.pubKey,
+        }));
+      }
+    });
+    return Promise.all(toCreate);
+  });
+
+  p = p.then(function() {
+    that.__knownKeyPairs.push(workerName);
+  });
+
+  return p;
 };
 
 
