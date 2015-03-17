@@ -21,8 +21,7 @@
     "promise": "6.0.1",
     "sinon": "^1.12.2",
     "taskcluster-base": "0.7.6",
-    "taskcluster-client": "0.19.4",
-    "when": "^3.7.1"
+    "taskcluster-client": "0.19.4"
   },
   "devDependencies": {
     "mocha": "2.0.1",
@@ -30,6 +29,6 @@
     "slugid": "1.0.3"
   },
   "engines": {
-    "node": "0.10.x"
+    "node": "0.12.x"
   }
 }
