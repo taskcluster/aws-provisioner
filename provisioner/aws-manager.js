@@ -293,7 +293,7 @@ AwsManager.prototype.listSpotRequestIds = function() {
 
 /**
  * Count the capacity of this workerType that are in the states specified
- * by `states`.  Doing this uses the Capcity key from the workerType's
+ * by `states`.  Doing this uses the Capacity key from the workerType's
  * types dictionary.  Remember that capacity is the number of tasks
  * that this instance/request will be able to service.
  * If specified, `extraSpotRequests` is a dictionary which contains a region
