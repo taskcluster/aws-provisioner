@@ -3,7 +3,7 @@
 var debug = require('debug')('cache:test');
 var sinon = require('sinon');
 
-var subject = require('../cache');
+var subject = require('../lib/cache');
 
 describe('basic cache functionality', function() {
   function A() { }

@@ -1,3 +1,4 @@
 --require should
+--require test/babel-register
 --ui tdd
 --timeout 30s
