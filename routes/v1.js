@@ -262,7 +262,7 @@ api.declare({
   name:           'removeWorkerType',
   deferAuth:      true,
   // TODO: Should we have a special scope for workertype removal?
-  scopes:         ['aws-provisioner:get-worker-type:<workerType>'],
+  scopes:         ['aws-provisioner:remove-worker-type:<workerType>'],
   input:          undefined,  // No input
   output:         undefined,  // No output
   title:          "Delete Worker Type",
@@ -310,7 +310,6 @@ api.declare({
   method:         'get',
   route:          '/list-worker-types',
   name:           'listWorkerTypes',
-  deferAuth:      true, // I don't think we need this unless we do parameterized scopes
   scopes:         [
       'aws-provisioner:list-worker-types',
   ],
@@ -323,12 +322,6 @@ api.declare({
 }, function(req, res) {
   var ctx         = this;
   var workerType  = req.params.workerType;
-
-  if(!req.satisfies({
-    workerType:       workerType
-  })) {
-    return; // by default req.satisfies() sends a response on failure, so we're done
-  }
 
   var p = this.WorkerType.listWorkerTypes()
 
