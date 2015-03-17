@@ -114,8 +114,6 @@ function(req, res) {
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
   //       that the caller has this scopes to avoid scope elevation.
-  // TODO: ^ do this.  not entirely sure what this means, are LaunchSpecification
-  //       security groups the same as scopes?
 
   // We want to make sure that every single possible generated LaunchSpec
   // would be valid before we even try to store it
