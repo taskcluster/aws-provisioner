@@ -50,7 +50,7 @@ function errorHandler(err, res, workerType) {
   switch(err.code) {
     case 'ResourceNotFound':
       return res.status(404).json({
-        message: workerType + ': ' + err.body.message.value,
+        message: workerType + ': not found',
         error: {
           workerType: workerType,
           reason: err.code,
@@ -59,7 +59,7 @@ function errorHandler(err, res, workerType) {
       break; // I guess I don't need this because of the return...
     case 'EntityAlreadyExists':
       return res.status(409).json({
-        message: workerType + ': ' + err.body.message.value,
+        message: workerType + ': already exists',
         error: {
           workerType: workerType,
           reason: err.code,

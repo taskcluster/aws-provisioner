@@ -399,6 +399,11 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     'SubnetId',
   ]);
 
+  // Now check that there are no unknown keys
+  Object.keys(launchSpec).forEach(function(key) {
+    assert(allowedKeys.indexOf(key) !== -1, 'Your launch spec has invalid key ' + key);
+  });
+
   // These are keys which we do not allow in the generated launch spec
   var disallowedKeys = [
     'Placement',
@@ -406,12 +411,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   disallowedKeys.forEach(function(key) {
     assert(!launchSpec[key], 'Your launch spec must not have key ' + key);
-  });
-
-  // Now check that there are no unknown keys
-  Object.keys(launchSpec).forEach(function(key) {
-    assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
-  });
+  }); 
 
   return launchSpec;
 };
