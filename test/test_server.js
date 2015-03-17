@@ -16,13 +16,14 @@ describe('provisioner api server', function() {
   var invalidLaunchSpecs =
     JSON.parse(fs.readFileSync(__dirname + '/invalidLaunchSpecOptions.json'));
 
-  var wDefinitionForCreate = _.clone(wDefinition);
+  var wDefinitionForCreate = _.cloneDeep(wDefinition);
   delete wDefinitionForCreate['workerType'];
 
   it('should respond to ping', function() {
     return subject.awsProvisioner.ping();
   });
 
+  /*
   describe('bad input', function() {
     it('should cause failure when creating', function () {
       var wName = 'createBadInput';
@@ -105,23 +106,24 @@ describe('provisioner api server', function() {
     
     return p;;
   })
-    
+  */
+
   describe('be able to create, fetch, update and delete a worker type', function() {
     it('should work', function () {
 
       var wName = slugid.v4();
 
       // Expected object before modification
-      var expectedBefore = _.clone(wDefinitionForCreate, true);
+      var expectedBefore = _.cloneDeep(wDefinitionForCreate, true);
       expectedBefore.workerType = wName;
 
       // Expected object after modification
-      var expectedAfter = _.clone(wDefinitionForCreate, true);
+      var expectedAfter = _.cloneDeep(wDefinitionForCreate, true);
       expectedAfter.workerType = wName;
       expectedAfter.scalingRatio = 2;
 
       // Object to submit as the modification
-      var mod = _.clone(wDefinitionForCreate, true);
+      var mod = _.cloneDeep(wDefinitionForCreate, true);
       mod.scalingRatio = 2;
         
       var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
@@ -171,20 +173,6 @@ describe('provisioner api server', function() {
       p = p.then(function(result) {
         result.should.be.an.Array;  
         return result;
-      });
-
-      return p;
-    });
-  });
-
-  describe('showing aws state', function() {
-    it('should return a list', function() {
-      var p = subject.awsProvisioner.awsState();
-
-      p = p.then(function(result) {
-        result.should.be.an.Object;
-        result.should.have.property('api');
-        result['api'].should.be.an.Object;
       });
 
       return p;
