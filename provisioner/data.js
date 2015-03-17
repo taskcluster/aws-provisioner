@@ -35,11 +35,12 @@ var WorkerType = base.Entity.configure({
     minCapacity: base.Entity.types.Number,
     /* This is the maximum capacity which we will ever run */
     maxCapacity: base.Entity.types.Number,
-    /* Scaling ratio a ratio of pending jobs to capacity.  A number
-     * which is between 0 and 1 will ensure that there is always 
-     * idle capacity and a number greater than 1 will ensure that
-     * some percentage of tasks will remain pending before we spawn
-     * instances. */
+    /* Scaling ratio a ratio of pending jobs to capacity.
+     * The provisioner will aim to keep `runningCapacity * scalingRatio` number
+     * of pending tasks around. A scaling ratio of 0.2 is equivalent to keeping
+     * pending tasks around 20% of the running capacity, resulting in tasks
+     * waiting 20% of the average task execution time before starting to run.
+     */
     scalingRatio: base.Entity.types.Number,
     /* This is the minimum spot bid... It isn't actually read
      * and should be moved to the instance type definition... */
@@ -471,40 +472,31 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
 
-  // We need to know how many total capacity units are extant
-  var totalCapacity = pendingCapacity + runningCapacity;
+  // scalingRatio = 0.2   => keep pending tasks as 20% of runningCapacity
+  // scalingRatio = 0     => keep pending tasks as  0% of runningCapacity
+  var desiredPending = Math.round(this.scalingRatio * runningCapacity);
 
-  // We need to know the current ratio of capacity to pending
-  var percentPending = 1 + pending / totalCapacity;
+  // desiredPending < pending - pendingCapacity    =>   Create spot requests
+  //                                        , otherwise Cancel spot requests
+  var capacityChange = (pending - pendingCapacity) - desiredPending;
 
-  var change = 0;
+  // capacityChange > 0  => Create spot requests for capacityChange
+  // capacityChange < 0  => cancel spot requests for capacityChange
+  var capacityAfterChange =  capacityChange + pendingCapacity + runningCapacity;
 
-  // We only want to scale anything once we have a pending
-  // percentage that exceeds the scalingRatio
-  if (percentPending > this.scalingRatio) {
-    // But when we do, let's submit enough requests that
-    // we end up in an ideal state if all are fulfilled
-    var ideal = (totalCapacity + pending) / this.scalingRatio;
-    change = ideal - totalCapacity;
+  // Ensure we are within limits
+  if (totalCapacityAfterChange > this.maxCapacity) {
+    // If there is more than max capacity we should always aim for maxCapacity
+    return this.maxCapacity - runningCapacity - pendingCapacity;
+  } else if(totalCapacityAfterChange < this.minCapacity) {
+    // if there is less minCapacity we should always aim for minCapacity
+    return this.minCapacity - runningCapacity - pendingCapacity;
   }
 
-  // We need to offset the number of pending jobs by the
-  // number of units that can't yet start running tasks
-  change = change - pendingCapacity;
-
-  debug('"%s" change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d)',
-        this.workerType, change, runningCapacity, pendingCapacity, pending);
-
-  if (totalCapacity + change > this.maxCapacity) {
-    change = this.maxCapacity - totalCapacity;
-    debug('%s, would exceed max, using %d instead', this.workerType, change);
-  } else if (totalCapacity + change < this.minCapacity) {
-    change = this.minCapacity - totalCapacity;
-    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
-  } 
-
-  return Math.round(change);
-  
+  // If we're not hitting limits, we should aim for the capacity change that
+  // fits with the scalingRatio, to keep pending tasks around as a percentage
+  // of the running capacity.
+  return capacityChange;
 };
 
 
@@ -528,6 +520,10 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
   var that = this;
   
   var change = this.determineCapacityChange(runningCapacity, pendingCapacity, pending);
+
+  // TODO: If change is negative we should cancel spot requests... This should
+  // go through the aws-manager. IMO this method belongs in the provision.js
+  // file...
 
   var spotBids = [];
 
