@@ -1,16 +1,12 @@
 'use strict';
+/* eslint no-undef: 0, no-unused-expressions: 0, new-cap: 0 */
 
-var debug = require('debug')('cache:test');
 var sinon = require('sinon');
 
-var subject = require('../lib/cache');
+var Cache = require('../lib/cache');
 
 describe('basic cache functionality', function() {
   function A() { }
-
-  A.prototype.testFunc = function() {
-    return rv;
-  }
 
   var clock;
   var cache;
@@ -18,10 +14,15 @@ describe('basic cache functionality', function() {
   var sandbox = new sinon.sandbox.create();
   var inst;
 
+  A.prototype.testFunc = function() {
+    return rv;
+  };
+
+
   beforeEach(function() {
     inst = new A();
     rv = new Date();  // Just any object will do
-    cache = new subject(20, inst, inst.testFunc); 
+    cache = new Cache(20, inst, inst.testFunc);
     clock = sinon.useFakeTimers();
   });
 
@@ -35,7 +36,7 @@ describe('basic cache functionality', function() {
   });
 
   it('should return the correct value on first .get()', function() {
-    var result = cache.get()
+    var result = cache.get();
     result.should.equal(rv);
   });
 
@@ -106,9 +107,9 @@ describe('cache function calling behaviour', function () {
     var callCount = 0;
     var func = function() {
       callCount++;
-      return a
-    }; 
-    var cache = new subject(20, func);
+      return a;
+    };
+    var cache = new Cache(20, func);
     cache.get().should.equal(a);
     callCount.should.eql(1);
   });
@@ -120,11 +121,11 @@ describe('cache function calling behaviour', function () {
     var func = function(x) {
       callCount++;
       valuePassedToX = x;
-      return a
-    }; 
-    var cache = new subject(20, func, 'johnissupercool');
+      return a;
+    };
+    var cache = new Cache(20, func, 'johnissupercool');
     cache.get().should.equal(a);
-    callCount.should.eql(1);  
+    callCount.should.eql(1);
     valuePassedToX.should.eql('johnissupercool');
   });
 
@@ -141,10 +142,10 @@ describe('cache function calling behaviour', function () {
       return this.val;
     };
     var inst = new B(a);
-    var cache = new subject(20, inst, inst.func, 'johnissupercool');
+    var cache = new Cache(20, inst, inst.func, 'johnissupercool');
 
     cache.get().should.equal(a);
-    inst.callCount.should.eql(1);  
+    inst.callCount.should.eql(1);
   });
 
   it('should call a paramful func on object', function() {
@@ -161,10 +162,10 @@ describe('cache function calling behaviour', function () {
       return this.val;
     };
     var inst = new C(a);
-    var cache = new subject(20, inst, inst.func, 'johnissupercool');
+    var cache = new Cache(20, inst, inst.func, 'johnissupercool');
 
     cache.get().should.equal(a);
-    inst.callCount.should.eql(1);  
+    inst.callCount.should.eql(1);
     inst.valuePassedToX.should.eql('johnissupercool');
   });
 
@@ -183,10 +184,10 @@ describe('cache function calling behaviour', function () {
     };
 
     var inst = new D(a);
-    var cache = new subject(20, inst, 'func', 'johnissupercool');
+    var cache = new Cache(20, inst, 'func', 'johnissupercool');
 
     cache.get().should.equal(a);
-    inst.callCount.should.eql(1);  
+    inst.callCount.should.eql(1);
     inst.valuePassedToX.should.eql('johnissupercool');
   });
 });

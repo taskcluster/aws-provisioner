@@ -1,18 +1,12 @@
 'use strict';
-process.env.DEBUG='';
+process.env.DEBUG = '';
 
 var fs = require('fs');
-var debug = require('debug')('bin:createWorker');
 var base = require('taskcluster-base');
 var tc = require('taskcluster-client');
 var api = require('../routes/v1');
 var Promise = require('promise');
 var program = require('commander');
-
-var references;
-var AwsProvisioner;
-var client;
-
 var pkgData = require('../package.json');
 
 function errorHandler(err) {
@@ -23,7 +17,7 @@ function errorHandler(err) {
   }, null, 2));
 
   // This is pretty ugly...
-  process.exit(1);
+  throw err;
 }
 
 
@@ -32,11 +26,11 @@ function classifyNames(client, names) {
 
   p = p.then(function(listing) {
     var existing = names.filter(function(name) {
-      return -1 !== listing.indexOf(name);
+      return listing.indexOf(name) !== -1;
     });
 
     var notExisting = names.filter(function(name) {
-      return -1 === listing.indexOf(name);
+      return listing.indexOf(name) === -1;
     });
 
     return {present: existing, absent: notExisting};
@@ -61,7 +55,7 @@ function writeWorkerTypes(client, workerTypes) {
   var p = Promise.all(workerTypes.map(function(name) {
     return client.workerType(name);
   }));
-  
+
   p = p.then(function(res) {
     var filenames = [];
     res.forEach(function(worker) {
@@ -87,7 +81,7 @@ function createClient() {
 program
   .version(pkgData.version || 'unknown')
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
-  .option('-u, --url [url]', 'URL for the API to work against', "https://aws-provisioner2.herokuapp.com/v1");
+  .option('-u, --url [url]', 'URL for the API to work against', 'https://aws-provisioner2.herokuapp.com/v1');
 
 
 program
@@ -102,7 +96,7 @@ program
   .command('list')
   .description('list worker types known to the host')
   .action(function() {
-    var p = createClient().listWorkerTypes()
+    var p = createClient().listWorkerTypes();
 
     p = p.then(function(workerTypes) {
       if (workerTypes.length > 0) {
@@ -135,12 +129,12 @@ program
       var promises = [];
 
       classified.present.forEach(function(name) {
-        delete files[name]['workerType'];
-        promises.push(client.updateWorkerType(name, files[name])); 
+        delete files[name].workerType;
+        promises.push(client.updateWorkerType(name, files[name]));
       });
 
       classified.absent.forEach(function(name) {
-        delete files[name]['workerType'];
+        delete files[name].workerType;
         promises.push(client.createWorkerType(name, files[name]));
       });
 
@@ -171,10 +165,10 @@ program
       workerTypes = workerTypes_;
       return Promise.all(workerTypes.present.map(function(workerType) {
         return client.removeWorkerType(workerType);
-      }))
+      }));
     });
 
-    p = p.then(function(outcome) {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         deleted: workerTypes.present || [],
@@ -200,9 +194,9 @@ program
       return Promise.all(workerTypes.map(function(workerType) {
         return client.removeWorkerType(workerType);
       }));
-    })
+    });
 
-    p = p.then(function(deletions) {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         deleted: workerTypeNames,
@@ -223,12 +217,12 @@ program
 
     p = p.then(function(names) {
       return writeWorkerTypes(client, names);
-    })
+    });
 
     p = p.then(function(filenames) {
       console.log(JSON.stringify({
         outcome: 'success',
-        wrote: filenames
+        wrote: filenames,
       }, null, 2));
     });
 
@@ -247,7 +241,7 @@ program
     p = p.then(function(worker) {
       console.log(JSON.stringify(worker, null, 2));
     });
-    
+
     p = p.catch(errorHandler);
   });
 
@@ -263,7 +257,7 @@ program
     p = p.then(function(specs) {
       console.log(JSON.stringify(specs, null, 2));
     });
-    
+
     p = p.catch(errorHandler);
   });
 
@@ -279,10 +273,10 @@ program
     p = p.then(function(filenames) {
       console.log(JSON.stringify({
         outcome: 'success',
-        wrote: filenames
+        wrote: filenames,
       }, null, 2));
     });
-    
+
     p = p.catch(errorHandler);
   });
 
@@ -315,7 +309,7 @@ program
         'provisioner_workerTypeTableName',
         'azure_accountName',
       ],
-      filename: 'taskcluster-aws-provisioner'
+      filename: 'taskcluster-aws-provisioner',
     });
 
     var accountName = cfg.get('azure:accountName');

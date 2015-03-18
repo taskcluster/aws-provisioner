@@ -1,17 +1,17 @@
-var assert      = require('assert');
-var Promise     = require('promise');
-var path        = require('path');
-var _           = require('lodash');
-var base        = require('taskcluster-base');
-var v1          = require('../routes/v1');
+'use strict';
+var Promise = require('promise');
+var path = require('path');
+var _ = require('lodash');
+var base = require('taskcluster-base');
+var v1 = require('../routes/v1');
 //var exchanges   = require('../auth/exchanges');
 var taskcluster = require('taskcluster-client');
 
 // Load configuration
 var cfg = base.config({
-  defaults:     require('../config/defaults'),
-  profile:      require('../config/test'),
-  filename:         'test-config'
+  defaults: require('../config/defaults'),
+  profile: require('../config/test'),
+  filename: 'test-config',
 });
 
 /** Return a promise that sleeps for `delay` ms before resolving */
@@ -19,36 +19,34 @@ exports.sleep = function(delay) {
   return new Promise(function(accept) {
     setTimeout(accept, delay);
   });
-}
+};
 
 exports.cfg = cfg;
+
+/* eslint no-undef: 0, no-unused-expressions: 0 */
 
 /** Setup testing */
 exports.setup = function(options) {
   // Provide default configuration
-  options = _.defaults(options || {}, {
-    title:      'untitled test'
-  });
+  options = _.defaults(options || {}, {title: 'untitled test'});
 
   // Create subject to be tested by test
   var subject = {};
 
-  // Skip tests if no AWS credentials is configured
+  // It's an error to run tests without credentials
   if (!cfg.get('azure:accountKey') ||
       !cfg.get('influx:connectionString')) {
-    console.log("Skip tests for " + options.title +
-                " due to missing credentials!");
-    return;
+    throw new Error('Cannot configure helper for ' + options.title);
   }
 
 
   // TODO: Switch from development config to test one!
   // Configure server
   var server = new base.testing.LocalApp({
-    command:      path.join(__dirname, '..', 'bin', 'server.js'),
-    args:         ['test'],
-    name:         'server.js',
-    baseUrlPath:  '/v1'
+    command: path.join(__dirname, '..', 'bin', 'server.js'),
+    args: ['test'],
+    name: 'server.js',
+    baseUrlPath: '/v1',
   });
 
   // Hold reference to all listeners created with `subject.listenFor`
@@ -65,8 +63,8 @@ exports.setup = function(options) {
     subject.listenFor = function(binding) {
       // Create listener
       var listener = new taskcluster.PulseListener({
-        username:   cfg.get('pulse:username'),
-        password:   cfg.get('pulse:password'),
+        username: cfg.get('pulse:username'),
+        password: cfg.get('pulse:password'),
       });
       // Track it, so we can close it in teardown()
       listeners.push(listener);
@@ -78,8 +76,8 @@ exports.setup = function(options) {
         listener.on('error', reject);
       });
       return {
-        ready:      listener.resume(),
-        message:    gotMessage
+        ready: listener.resume(),
+        message: gotMessage,
       };
     };
     // Set root credentials on subject
@@ -90,12 +88,12 @@ exports.setup = function(options) {
       var reference = v1.reference({baseUrl: baseUrl});
       subject.AwsProvisioner = taskcluster.createClient(reference);
       subject.awsProvisioner = new subject.AwsProvisioner({
-        baseUrl:          baseUrl,
+        baseUrl: baseUrl,
       });
 
       subject.badCred = new subject.AwsProvisioner({
-        baseUrl:  baseUrl,
-        credentials: {clientId: 'c', accessToken: 'a'}
+        baseUrl: baseUrl,
+        credentials: {clientId: 'c', accessToken: 'a'},
       });
 
     });

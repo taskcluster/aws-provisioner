@@ -1,22 +1,20 @@
 #!/usr/bin/env node
-var path        = require('path');
-var Promise     = require('promise');
-var debug       = require('debug')('aws-provisioner:bin:server');
-var base        = require('taskcluster-base');
-var taskcluster = require('taskcluster-client');
-var data        = require('../provisioner/data');
-var exchanges   = require('../provisioner/exchanges');
-var AwsManager    = require('../provisioner/aws-manager');
-var v1          = require('../routes/v1');
-var aws         = require('multi-region-promised-aws');
-var Cache       = require('../lib/cache');
+'use strict';
+var path = require('path');
+var debug = require('debug')('aws-provisioner:bin:server');
+var base = require('taskcluster-base');
+var data = require('../provisioner/data');
+var exchanges = require('../provisioner/exchanges');
+var AwsManager = require('../provisioner/aws-manager');
+var v1 = require('../routes/v1');
+var Aws = require('multi-region-promised-aws');
 
 /** Launch server */
 var launch = function(profile) {
   // Load configuration
   var cfg = base.config({
-    defaults:     require('../config/defaults'),
-    profile:      require('../config/' + profile),
+    defaults: require('../config/defaults'),
+    profile: require('../config/' + profile),
     envs: [
       'provisioner_publishMetaData',
       'provisioner_awsInstancePubkey',
@@ -31,15 +29,9 @@ var launch = function(profile) {
       'aws_secretAccessKey',
       'azure_accountName',
       'azure_accountKey',
-      'influx_connectionString'
+      'influx_connectionString',
     ],
-    filename:     'taskcluster-aws-provisioner'
-  });
-
-  // Configure queue
-  var queue = new taskcluster.Queue({
-    baseUrl:        cfg.get('taskcluster:queueBaseUrl'),
-    credentials:    cfg.get('taskcluster:credentials')
+    filename: 'taskcluster-aws-provisioner',
   });
 
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
@@ -48,31 +40,31 @@ var launch = function(profile) {
 
   // Create InfluxDB connection for submitting statistics
   var influx = new base.stats.Influx({
-    connectionString:   cfg.get('influx:connectionString'),
-    maxDelay:           cfg.get('influx:maxDelay'),
-    maxPendingPoints:   cfg.get('influx:maxPendingPoints')
+    connectionString: cfg.get('influx:connectionString'),
+    maxDelay: cfg.get('influx:maxDelay'),
+    maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
   // Configure me an EC2 API instance.  This one should be able
   // to run in any region, which we'll limit by the ones
   // store in the worker definition
   // NOTE: Should we use ec2.describeRegions? meh
-  var ec2 = new aws('EC2', cfg.get('aws'), [
+  var ec2 = new Aws('EC2', cfg.get('aws'), [
     'us-east-1', 'us-west-1', 'us-west-2',
     'eu-west-1', 'eu-central-1',
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
-    'sa-east-1'
+    'sa-east-1',
   ]);
-  
+
   // We want an AwsManger here as well since we want to be
   // able to inspect what goes on there from here
   var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
-    drain:      influx,
-    component:  cfg.get('provisioner:statsComponent'),
-    process:    'server'
+    drain: influx,
+    component: cfg.get('provisioner:statsComponent'),
+    process: 'server',
   });
 
   // Configure WorkerType entities
@@ -94,28 +86,28 @@ var launch = function(profile) {
   var publisher = null;
 
   var p = base.validator({
-    folder:           path.join(__dirname, '..', 'schemas'),
-    constants:        require('../schemas/constants'),
-    publish:          cfg.get('provisioner:publishMetaData') === 'true',
-    schemaPrefix:     'aws-provisioner/v1/',
-    aws:              cfg.get('aws')
+    folder: path.join(__dirname, '..', 'schemas'),
+    constants: require('../schemas/constants'),
+    publish: cfg.get('provisioner:publishMetaData') === 'true',
+    schemaPrefix: 'aws-provisioner/v1/',
+    aws: cfg.get('aws'),
   });
 
   p = p.then(function(validator_) {
     validator = validator_;
     return exchanges.setup({
-      credentials:        cfg.get('pulse'),
-      exchangePrefix:     cfg.get('provisioner:exchangePrefix'),
-      validator:          validator,
-      referencePrefix:    'aws-provisioner/v1/exchanges.json',
-      publish:            cfg.get('provisioner:publishMetaData') === 'true',
-      aws:                cfg.get('aws'),
-      drain:              influx,
-      component:          cfg.get('provisioner:statsComponent'),
-      process:            'server'
+      credentials: cfg.get('pulse'),
+      exchangePrefix: cfg.get('provisioner:exchangePrefix'),
+      validator: validator,
+      referencePrefix: 'aws-provisioner/v1/exchanges.json',
+      publish: cfg.get('provisioner:publishMetaData') === 'true',
+      aws: cfg.get('aws'),
+      drain: influx,
+      component: cfg.get('provisioner:statsComponent'),
+      process: 'server',
     });
   });
-  
+
   // Store the publisher to inject it as context into the API
   p = p.then(function(publisher_) {
     publisher = publisher_;
@@ -131,31 +123,31 @@ var launch = function(profile) {
     // Create API router and publish reference if needed
     return v1.setup({
       context: {
-        WorkerType:     WorkerType,
-        publisher:      publisher,
-        awsManager:     awsManager,
-        keyPrefix:      keyPrefix,
-        provisionerId:  provisionerId,
+        WorkerType: WorkerType,
+        publisher: publisher,
+        awsManager: awsManager,
+        keyPrefix: keyPrefix,
+        provisionerId: provisionerId,
       },
-      validator:        validator,
-      authBaseUrl:      cfg.get('taskcluster:authBaseUrl'),
-      credentials:      cfg.get('taskcluster:credentials'),
-      publish:          cfg.get('provisioner:publishMetaData') === 'true',
-      baseUrl:          cfg.get('server:publicUrl') + '/v1',
-      referencePrefix:  'aws-provisioner/v1/api.json',
-      aws:              cfg.get('aws'),
-      component:        cfg.get('provisioner:statsComponent'),
-      drain:            influx
+      validator: validator,
+      authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
+      credentials: cfg.get('taskcluster:credentials'),
+      publish: cfg.get('provisioner:publishMetaData') === 'true',
+      baseUrl: cfg.get('server:publicUrl') + '/v1',
+      referencePrefix: 'aws-provisioner/v1/api.json',
+      aws: cfg.get('aws'),
+      component: cfg.get('provisioner:statsComponent'),
+      drain: influx,
     });
   });
 
   p = p.then(function(router) {
     // Create app
     var app = base.app({
-      port:           Number(process.env.PORT || cfg.get('server:port')),
-      env:            cfg.get('server:env'),
-      forceSSL:       cfg.get('server:forceSSL'),
-      trustProxy:     cfg.get('server:trustProxy')
+      port: Number(process.env.PORT || cfg.get('server:port')),
+      env: cfg.get('server:env'),
+      forceSSL: cfg.get('server:forceSSL'),
+      trustProxy: cfg.get('server:trustProxy'),
     });
 
     // Mount API router
@@ -171,18 +163,18 @@ var launch = function(profile) {
 // If server.js is executed start the server
 if (!module.parent) {
   // Find configuration profile
-  var profile = process.argv[2] || process.env.NODE_ENV;
-  if (!profile) {
-    console.log("Usage: server.js [profile]")
-    console.error("ERROR: No configuration profile is provided");
+  var profile_ = process.argv[2] || process.env.NODE_ENV;
+  if (!profile_) {
+    console.log('Usage: server.js [profile]');
+    console.error('ERROR: No configuration profile is provided');
   }
   // Launch with given profile
-  launch(profile).then(function() {
-    debug("launched server successfully");
+  launch(profile_).then(function() {
+    debug('launched server successfully');
   }).catch(function(err) {
-    debug("failed to start server, err: %s, as JSON: %j", err, err, err.stack);
+    debug('failed to start server, err: %s, as JSON: %j', err, err, err.stack);
     // If we didn't launch the server we should crash
-    process.exit(1);
+    throw new Error('failed to start server');
   });
 }
 

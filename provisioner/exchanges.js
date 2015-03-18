@@ -1,12 +1,12 @@
-var base    = require('taskcluster-base');
-var assert  = require('assert');
+'use strict';
+var base = require('taskcluster-base');
 
 /** Declaration of exchanges offered by the aws-provisioner */
 var exchanges = new base.Exchanges({
-  title:      "AWS Provisioner Pulse Exchanges",
+  title: 'AWS Provisioner Pulse Exchanges',
   description: [
     // TODO: Write docs
-  ].join('\n')
+  ].join('\n'),
 });
 
 // Export exchanges
@@ -18,24 +18,24 @@ var commonRoutingKey = [
     // Let's keep the "primary." prefix, so we can support custom routing keys
     // in the future, I don't see a need for it here. But it's nice to have the
     // option of adding it later...
-    name:             'routingKeyKind',
-    summary:          "Identifier for the routing-key kind. This is " +
-                      "always `'primary'` for the formalized routing key.",
-    constant:         'primary',
-    required:         true
+    name: 'routingKeyKind',
+    summary: 'Identifier for the routing-key kind. This is ' +
+             'always `\'primary\'` for the formalized routing key.',
+    constant: 'primary',
+    required: true,
   }, {
-    name:             'workerType',
-    summary:          "WorkerType that this message concerns.",
-    required:         true,
-    maxSize:          22
+    name: 'workerType',
+    summary: 'WorkerType that this message concerns.',
+    required: true,
+    maxSize: 22,
   }, {
-    name:             'reserved',
-    summary:          "Space reserved for future routing-key entries, you " +
-                      "should always match this entry with `#`. As " +
-                      "automatically done by our tooling, if not specified.",
-    multipleWords:    true,
-    maxSize:          1
-  }
+    name: 'reserved',
+    summary: 'Space reserved for future routing-key entries, you ' +
+             'should always match this entry with `#`. As ' +
+             'automatically done by our tooling, if not specified.',
+    multipleWords: true,
+    maxSize: 1,
+  },
 ];
 
 /** Build an pulse compatible message from a message */
@@ -46,9 +46,7 @@ var commonMessageBuilder = function(message) {
 
 /** Build a routing-key from message */
 var commonRoutingKeyBuilder = function(message) {
-  return {
-    workerType:       message.workerType
-  };
+  return { workerType: message.workerType };
 };
 
 /** Build a list of routes to CC */
@@ -61,18 +59,18 @@ var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
 
 /** Task-graph running exchange */
 exchanges.declare({
-  exchange:           'worker-type-created',
-  name:               'workerTypeCreated',    // Method to call on publisher
-  title:              "WorkerType Created Message",
+  exchange: 'worker-type-created',
+  name: 'workerTypeCreated',    // Method to call on publisher
+  title: 'WorkerType Created Message',
   description: [
-    "When a new `workerType` is created a message will be published to this",
-    "exchange."
+    'When a new `workerType` is created a message will be published to this',
+    'exchange.',
   ].join('\n'),
-  routingKey:         commonRoutingKey,
-  schema:             SCHEMA_PREFIX_CONST + 'worker-type-created-message.json#',
-  messageBuilder:     commonMessageBuilder,
-  routingKeyBuilder:  commonRoutingKeyBuilder,
-  CCBuilder:          commonCCBuilder
+  routingKey: commonRoutingKey,
+  schema: SCHEMA_PREFIX_CONST + 'worker-type-created-message.json#',
+  messageBuilder: commonMessageBuilder,
+  routingKeyBuilder: commonRoutingKeyBuilder,
+  CCBuilder: commonCCBuilder,
 });
 
 

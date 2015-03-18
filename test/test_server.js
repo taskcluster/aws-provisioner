@@ -1,36 +1,32 @@
+'use strict';
+var helper = require('./helper');
+var slugid = require('slugid');
+var _ = require('lodash');
+var fs = require('fs');
+var path = require('path');
+
+/* eslint no-undef: 0, no-unused-expressions: 0 */
 describe('provisioner api server', function() {
-  var Promise = require('promise');
-  var assert = require('assert');
-  var debug = require('debug')('auth:test:api');
-  var helper = require('./helper');
-  var slugid = require('slugid');
-  var should = require('should');
-  var _ = require('lodash');
-  var data = require('../provisioner/data.js');
-  var fs = require('fs');
+  var subject = helper.setup({title: 'api-tests'});
 
-  var subject = helper.setup({title: "api-tests"});
-
-
-  var wDefinition = JSON.parse(fs.readFileSync(__dirname + '/sampleWorkerType.json'));
+  var wDefinition = JSON.parse(fs.readFileSync(path.join(__dirname, 'sampleWorkerType.json')));
   var invalidLaunchSpecs =
-    JSON.parse(fs.readFileSync(__dirname + '/invalidLaunchSpecOptions.json'));
+    JSON.parse(fs.readFileSync(path.join(__dirname, 'invalidLaunchSpecOptions.json')));
 
   var wDefinitionForCreate = _.cloneDeep(wDefinition);
-  delete wDefinitionForCreate['workerType'];
+  delete wDefinitionForCreate.workerType;
 
   it('should respond to ping', function() {
     return subject.awsProvisioner.ping();
   });
 
-  /*
   describe('bad input', function() {
     it('should cause failure when creating', function () {
       var wName = 'createBadInput';
 
       var p = subject.awsProvisioner.createWorkerType(wName, {bad: 'worker'});
 
-      p = p.then(function(result) {
+      p = p.then(function() {
         throw new Error('should have failed here');
       });
 
@@ -46,7 +42,7 @@ describe('provisioner api server', function() {
 
       var p = subject.awsProvisioner.updateWorkerType(wName, {bad: 'worker'});
 
-      p = p.then(function(result) {
+      p = p.then(function() {
         throw new Error('should have failed here');
       });
 
@@ -60,12 +56,12 @@ describe('provisioner api server', function() {
     it('should fail when launch specs cannot be generated on create', function() {
       var p = subject.awsProvisioner.createWorkerType('invalid', invalidLaunchSpecs);
 
-      p = p.then(function(result) {
-        throw new Error('should have failed here'); 
+      p = p.then(function() {
+        throw new Error('should have failed here');
       });
 
       p = p.catch(function(err) {
-        err.should.be.an.Error; 
+        err.should.be.an.Error;
         err.body.reason.should.be.an.Array;
         err.body.reason.length.should.equal(4);
       });
@@ -102,11 +98,10 @@ describe('provisioner api server', function() {
 
     p = p.catch(function(err) {
       err.should.be.an.Error;
-    })
-    
-    return p;;
-  })
-  */
+    });
+
+    return p;
+  });
 
   describe('be able to create, fetch, update and delete a worker type', function() {
     it('should work', function () {
@@ -125,7 +120,7 @@ describe('provisioner api server', function() {
       // Object to submit as the modification
       var mod = _.cloneDeep(wDefinitionForCreate, true);
       mod.scalingRatio = 2;
-        
+
       var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
 
       p = p.then(function(result) {
@@ -163,7 +158,7 @@ describe('provisioner api server', function() {
       });
 
       return p;
-    }); 
+    });
   });
 
   describe('listing worker types', function() {
@@ -171,7 +166,7 @@ describe('provisioner api server', function() {
       var p = subject.awsProvisioner.listWorkerTypes();
 
       p = p.then(function(result) {
-        result.should.be.an.Array;  
+        result.should.be.an.Array;
         return result;
       });
 
@@ -182,7 +177,7 @@ describe('provisioner api server', function() {
   describe('showing all launch specs', function() {
     it('should show all launch specs', function() {
       var wName = slugid.v4();
-        
+
       var p = subject.awsProvisioner.createWorkerType(wName, wDefinitionForCreate);
 
       p = p.then(function() {
@@ -190,6 +185,7 @@ describe('provisioner api server', function() {
       });
 
       p.then(function(result) {
+        result.should.be.ok;
         result.should.be.an.Object;
         result.should.have.property('us-west-1');
         result.should.have.property('us-west-2');
@@ -207,4 +203,4 @@ describe('provisioner api server', function() {
     });
   });
 
-})
+});

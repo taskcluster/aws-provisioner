@@ -1,9 +1,9 @@
 'use strict';
-var base        = require('taskcluster-base');
-var assert      = require('assert');
-var Promise     = require('promise');
-var lodash      = require('lodash');
-var debug       = require('debug')('aws-provisioner:WorkerType');
+var base = require('taskcluster-base');
+var assert = require('assert');
+var Promise = require('promise');
+var lodash = require('lodash');
+var debug = require('debug')('aws-provisioner:WorkerType');
 
 var KEY_CONST = 'worker-type';
 
@@ -19,8 +19,10 @@ var KEY_CONST = 'worker-type';
  */
 var WorkerType = base.Entity.configure({
   version: 1,
+  /* eslint-disable new-cap */
   partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
   rowKey: base.Entity.keys.StringKey('workerType'),
+  /* eslint-enable new-cap */
   properties: {
     /* This is a string identifier of the Worker Type.  It
      * is what we give to the Queue to figure out whether there
@@ -36,7 +38,7 @@ var WorkerType = base.Entity.configure({
     /* This is the maximum capacity which we will ever run */
     maxCapacity: base.Entity.types.Number,
     /* Scaling ratio a ratio of pending jobs to capacity.  A number
-     * which is between 0 and 1 will ensure that there is always 
+     * which is between 0 and 1 will ensure that there is always
      * idle capacity and a number greater than 1 will ensure that
      * some percentage of tasks will remain pending before we spawn
      * instances. */
@@ -109,7 +111,7 @@ WorkerType.loadAll = function() {
   var p = base.Entity.scan.call(this, {}, {
     handler: function (item) {
       workers.push(item);
-    }
+    },
   });
 
   p = p.then(function() {
@@ -128,7 +130,7 @@ WorkerType.listWorkerTypes = function() {
   var p = base.Entity.scan.call(this, {}, {
     handler: function (item) {
       names.push(item.workerType);
-    }
+    },
   });
 
   p = p.then(function() {
@@ -173,10 +175,12 @@ WorkerType.prototype.createKeyPair = function() {
   var keyName = this.keyPrefix + this.workerType;
 
   var p = this.ec2.describeKeyPairs.inRegions(this.listRegions(), {
-    Filters: [{
-      Name: 'key-name',
-      Values: [keyName]
-    }] 
+    Filters: [
+      {
+        Name: 'key-name',
+        Values: [keyName],
+      },
+    ],
   });
 
   p = p.then(function(res) {
@@ -189,7 +193,7 @@ WorkerType.prototype.createKeyPair = function() {
           KeyName: keyName,
           PublicKeyMaterial: that.pubKey,
         }));
-      } 
+      }
     });
     return Promise.all(toCreate);
   });
@@ -210,10 +214,12 @@ WorkerType.prototype.deleteKeyPair = function() {
   var keyName = this.keyPrefix + this.workerType;
 
   var p = this.ec2.describeKeyPairs({
-    Filters: [{
-      Name: 'key-name',
-      Values: [keyName]
-    }] 
+    Filters: [
+      {
+        Name: 'key-name',
+        Values: [keyName],
+      },
+    ],
   });
 
   p = p.then(function(res) {
@@ -225,7 +231,7 @@ WorkerType.prototype.deleteKeyPair = function() {
         toDelete.push(that.ec2.deleteKeyPair.inRegion(region, {
           KeyName: keyName,
         }));
-      } 
+      }
     });
     return Promise.all(toDelete);
   });
@@ -244,7 +250,7 @@ WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
   assert(region);
   assert(instanceType);
   return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix, this.provisionerId);
-}
+};
 
 
 /**
@@ -254,7 +260,7 @@ WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
  */
 WorkerType.prototype.testLaunchSpecs = function() {
   return WorkerType.testLaunchSpecs(this, this.keyPrefix, this.provisionerId);
-}
+};
 
 
 /**
@@ -308,14 +314,12 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // Make sure that this worker allows the requested workerType
   if (!worker.types[instanceType]) {
-    var e = worker.workerType + ' does not allow instance type ' + instanceType;
-    throw new Error(e);
+    throw new Error(worker.workerType + ' does not allow instance type ' + instanceType);
   }
 
   // Make sure that this worker allows the requested region
   if (!worker.regions[region]) {
-    var e = worker.workerType + ' does not allow region ' + region;
-    throw new Error(e);
+    throw new Error(worker.workerType + ' does not allow region ' + region);
   }
 
   // Start with the general options
@@ -359,7 +363,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   // include it verbatim as a key
   var hardCodedUserData = {};
   try {
-    var hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
+    hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
   } catch(e) {
     generatedUserData.originalUserData = launchSpec.UserData;
     debug('%s stored user data is not base64 encoded JSON', worker.workerType);
@@ -412,7 +416,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   disallowedKeys.forEach(function(key) {
     assert(!launchSpec[key], 'Your launch spec must not have key ' + key);
-  }); 
+  });
 
   return launchSpec;
 };
@@ -436,7 +440,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
         var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
         launchSpecs[region][type] = x;
       } catch (e) {
-        errors.push(e)
+        errors.push(e);
       }
     });
   });
@@ -490,7 +494,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   // We need to offset the number of pending jobs by the
   // number of units that can't yet start running tasks
-  change = change - pendingCapacity;
+  change -= pendingCapacity;
 
   debug('"%s" change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d)',
         this.workerType, change, runningCapacity, pendingCapacity, pending);
@@ -501,10 +505,10 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   } else if (totalCapacity + change < this.minCapacity) {
     change = this.minCapacity - totalCapacity;
     debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
-  } 
+  }
 
   return Math.round(change);
-  
+
 };
 
 
@@ -512,27 +516,28 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
  * Select region, instance type and spot bids based on the amount of capacity units needed.
  * The region is picked randomly to distribute load but in future we could do smart things
  * like say no region can use more than X% of instances.  We use the utility factor to
- * determine which instance type to bid on.  Utility factor is a relative performance 
+ * determine which instance type to bid on.  Utility factor is a relative performance
  * indicator.  If we say that a large is worth 2 and a small is worth 1, we'll bid on
  * smalls unless the price of a large is less than double that of a small.  Utility factors
  * are currently hardcoded, but in the future we could do smart things like compare runtimes
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapacity, pendingCapacity, pending) {
-  assert(regions);
+WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runningCapacity, pendingCapacity, pending) {
+  assert(managedRegions);
   assert(pricing);
   assert(typeof runningCapacity === 'number');
   assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
   var that = this;
-  
+
   var change = this.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
   var spotBids = [];
 
   var pricingData = pricing.maxPrices();
 
+  /* eslint-disable no-loop-func */
   while (change > 0) {
     var cheapestType;
     var cheapestPrice;
@@ -542,13 +547,15 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
 
     // Utility Factors, by instance type
     var uf = {};
-    
+
     var types = Object.keys(that.types).map(function(type) {
       uf[type] = that.utilityOfType(type) || 1;
       return type;
     });
 
-    var regions = Object.keys(that.regions);
+    var regions = Object.keys(that.regions).filter(function(r) {
+      return managedRegions.includes(r);
+    });
 
     regions.forEach(function(region) {
       var zones = pricing.__zoneInfo[region];
@@ -556,7 +563,7 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
         zones.forEach(function(zone) {
           var potentialBid = pricingData[region][type][zone];
           var potentialPrice = uf[type] * potentialBid;
-          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxSpotBid) { 
+          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxSpotBid) {
             cheapestPrice = potentialPrice;
             cheapestRegion = region;
             cheapestType = type;
@@ -593,8 +600,9 @@ WorkerType.prototype.determineSpotBids = function(regions, pricing, runningCapac
       throw new Error('Spot bid really shouldn\'t be higher than $20');
     }
   }
+  /* eslint-enable no-loop-func */
 
-  return spotBids;    
+  return spotBids;
 };
 
 
