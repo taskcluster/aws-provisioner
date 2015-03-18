@@ -10,8 +10,8 @@
   "minCapacity": 4,
   "maxCapacity": 30,
   "scalingRatio": 1.1,
-  "minSpotBid": 0.2,
-  "maxSpotBid": 1,
+  "minPrice": 0.2,
+  "maxPrice": 1,
   "canUseOndemand": false,
   "canUseSpot": true,
   "instanceTypes": {
