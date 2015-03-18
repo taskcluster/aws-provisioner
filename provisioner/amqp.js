@@ -13,6 +13,7 @@ var PREFIX = 'worker/v1/aws-provisioner/';
  * Bind to a predefined set of exchanges for worker creations.
  */
 exports.bind = function(workerType) {
+  return Promise.from(null);  // Stop this code from running
   var queueEvents      = new taskcluster.QueueEvents();
   var queueName        = PREFIX + workerType;
   // Initialize the listener which will bind the queue.
@@ -38,6 +39,7 @@ exports.bind = function(workerType) {
 
 /** delete named queue */
 exports.unbind = function(workerType) {
+  return Promise.from(null);  // Stop this code from running
   var queueEvents      = new taskcluster.QueueEvents();
   var queueName        = PREFIX + workerType;
   // Initialize the listener which will bind the queue.

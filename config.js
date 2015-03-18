@@ -21,6 +21,11 @@ var DEFAULT_CONFIG_VALUES = {
     password:                            null,
   },
 
+  taskcluster: {
+    clientId:                           null,
+    accessToken:                        null
+  },
+
   // Provisioner settings
   provisioner: {
     // Provisioner identifier
