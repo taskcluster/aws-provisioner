@@ -28,5 +28,8 @@
   "devDependencies": {
     "mocha-as-promised": "~2.0.0",
     "mocha": "~1.17.1"
+  },
+  "engines": {
+    "node": "0.10"
   }
 }
