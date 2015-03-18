@@ -13,32 +13,30 @@
   "maxPrice": 1,
   "canUseOndemand": false,
   "canUseSpot": true,
-  "instanceTypes": {
-    "m3.medium": {
-      "capacity": 1,
-      "utility": 1,
-      "overwrites": {
-        "UserData": "eyJhIjoxfQ=="
-      }
-    },
-    "m3.large": {
-      "capacity": 1,
-      "utility": 2,
-      "overwrites": {
-        "UserData": "eyJhIjoxfQ=="
-      }
+  "instanceTypes": [{
+    "instanceType": "m3.medium",
+    "capacity": 1,
+    "utility": 1,
+    "overwrites": {
+      "UserData": "eyJhIjoxfQ=="
     }
-  },
-  "regions": {
-    "us-west-1": {
-      "overwrites": {
-        "ImageId": "ami-42908907"
-      }
-    },
-    "us-west-2": {
-      "overwrites": {
-        "ImageId": "ami-dfc39aef"
-      }
+  }, {
+    "instanceType": "m3.large",
+    "capacity": 1,
+    "utility": 2,
+    "overwrites": {
+      "UserData": "eyJhIjoxfQ=="
     }
-  }
+  }],
+  "regions": [{
+    "region": "us-west-1",
+    "overwrites": {
+      "ImageId": "ami-42908907"
+    }
+  }, {
+    "region": "us-west-2",
+    "overwrites": {
+      "ImageId": "ami-dfc39aef"
+    }
+  }]
 }

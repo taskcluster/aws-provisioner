@@ -1,7 +1,6 @@
 'use strict';
 var base = require('taskcluster-base');
 var assert = require('assert');
-var Promise = require('promise');
 var lodash = require('lodash');
 var debug = require('debug')('aws-provisioner:WorkerType');
 
@@ -160,6 +159,43 @@ WorkerType.prototype.json = function() {
   return lodash.clone(this.__properties);
 };
 
+/**
+ * Retreive the InstanceType data for a given instanceType
+ * and optionally a single property from it.
+ */
+WorkerType.prototype.getInstanceType = function(instanceType) {
+  var types = this.instanceTypes.filter(function(t) {
+    return t.instanceType === instanceType;
+  });
+  assert(types.length === 1);
+  return types[0];
+};
+
+/**
+ * Retreive the Region data for a given region and optionally a
+ * single property from it.
+ */
+WorkerType.prototype.getRegion = function(region) {
+  var regions = this.regions.filter(function(r) {
+    return r.region === region;
+  });
+  assert(regions.length === 1);
+  return regions[0];
+};
+
+/**
+ * Return the capacity for a given type
+ */
+WorkerType.prototype.utilityOfType = function(instanceType) {
+  return this.getInstanceType(instanceType).utility;
+};
+
+/**
+ * Return the capacity for a given type
+ */
+WorkerType.prototype.capacityOfType = function(instanceType) {
+  return this.getInstanceType(instanceType).capacity;
+};
 
 /**
  * Create an AWS LaunchSpecification for this workerType.  This method
@@ -191,11 +227,30 @@ WorkerType.prototype.testLaunchSpecs = function() {
  */
 WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, provisionerId) {
   // These are the keys which are only applicable to a given region.
+  assert(region);
+  assert(instanceType);
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
-  assert(worker.regions[region], region + ' is not configured');
-  assert(worker.instanceTypes[instanceType], instanceType + ' is not configured');
+
+  var hasRegion = false;
+  worker.regions.forEach(function(r) {
+    if (r.region === region) {
+      hasRegion = true;
+    }
+  });
+  if (!hasRegion) {
+    throw new Error('workerType not configured for ' + region);
+  }
+  var hasType = false;
+  worker.instanceTypes.forEach(function(r) {
+    if (r.instanceType === instanceType) {
+      hasType = true;
+    }
+  });
+  if (!hasType) {
+    throw new Error('workerType not configured for ' + instanceType);
+  }
 
   // These are keys that are only allowable in the set of type specific
   // overwrites.  Only keys which are strictly related to instance type
@@ -212,12 +267,32 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     'ImageId', // AMI IDs (ImageId) are created and are different per-region
   ];
 
+  // Find the region overwrites object
+  var regionOverwrites;
+  worker.regions.forEach(function(r) {
+    if (r.region === region) {
+      assert(!regionOverwrites, 'regions must be unique');
+      regionOverwrites = r.overwrites;
+    }
+  });
+  assert(regionOverwrites);
+
+  // Find the instanceType overwrites object
+  var typeOverwrites;
+  worker.instanceTypes.forEach(function(t) {
+    if (t.instanceType === instanceType) {
+      assert(!typeOverwrites, 'instanceTypes must be unique');
+      typeOverwrites = t.overwrites;
+    }
+  });
+  assert(typeOverwrites);
+
   // Check for type specific keys in the general keys and region keys
   typeSpecificKeys.forEach(function(key) {
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is type specific, not general');
     }
-    if (worker.regions[region][key]) {
+    if (regionOverwrites[key]) {
       throw new Error(key + ' is type specific, not type specific');
     }
   });
@@ -227,38 +302,24 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is region specific, not general');
     }
-    if (worker.instanceTypes[instanceType][key]) {
+    if (typeOverwrites[key]) {
       throw new Error(key + ' is type specific, not region specific');
     }
   });
 
-  // Make sure that this worker allows the requested workerType
-  if (!worker.instanceTypes[instanceType]) {
-    throw new Error(worker.workerType + ' does not allow instance type ' + instanceType);
-  }
-
-  // Make sure that this worker allows the requested region
-  if (!worker.regions[region]) {
-    throw new Error(worker.workerType + ' does not allow region ' + region);
-  }
-
   // Start with the general options
   var launchSpec = lodash.cloneDeep(worker.launchSpecification);
 
-  // Now overwrite the ones that are region specific
-  Object.keys(worker.regions[region].overwrites).forEach(function(regionKey) {
-    launchSpec[regionKey] = worker.regions[region].overwrites[regionKey];
-  });
-
-  // Now overwrite the ones that are type specific
-  Object.keys(worker.instanceTypes[instanceType].overwrites).forEach(function(typeKey) {
-    launchSpec[typeKey] = worker.instanceTypes[instanceType].overwrites[typeKey];
-  });
+  // Now overwrite things
+  lodash.assign(launchSpec, regionOverwrites);
+  lodash.assign(launchSpec, typeOverwrites);
 
   // set the KeyPair and InstanceType correctly
   launchSpec.KeyName = keyPrefix + worker.workerType;
   launchSpec.InstanceType = instanceType;
 
+  // We want to make sure that whatever UserData is in there is in
+  // base64
   if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
     throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
   }
@@ -266,8 +327,17 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
+  var capacity;
+  worker.instanceTypes.forEach(function(t) {
+    if (t.instanceType === instanceType) {
+      assert(!capacity, 'instanceTypes must be unique');
+      capacity = t.capacity;
+    }
+  });
+  assert(capacity);
+
   var generatedUserData = {
-    capacity: worker.instanceTypes[instanceType].capacity,
+    capacity: capacity,
     workerType: worker.workerType,
     provisionerId: provisionerId,
     region: region,
@@ -353,9 +423,11 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
   assert(provisionerId);
   var errors = [];
   var launchSpecs = {};
-  Object.keys(worker.regions).forEach(function(region) {
+  worker.regions.forEach(function(r) {
+    var region = r.region;
     launchSpecs[region] = {};
-    Object.keys(worker.instanceTypes).forEach(function(type) {
+    worker.instanceTypes.forEach(function(t) {
+      var type = t.instanceType;
       try {
         var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
         launchSpecs[region][type] = x;
@@ -468,13 +540,15 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
     // Utility Factors, by instance type
     var uf = {};
 
-    var types = Object.keys(that.instanceTypes).map(function(type) {
-      uf[type] = that.utilityOfType(type) || 1;
-      return type;
+    var types = this.instanceTypes.map(function(t) {
+      uf[t.instanceType] = that.utilityOfType(t.instanceType) || 1;
+      return t.instanceType;
     });
 
-    var regions = Object.keys(that.regions).filter(function(r) {
-      return managedRegions.includes(r);
+    var regions = that.regions.filter(function(r) {
+      return managedRegions.includes(r.region);
+    }).map(function(r) {
+      return r.region;  
     });
 
     regions.forEach(function(region) {
@@ -526,18 +600,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
 };
 
 
-/**
- * Return the capacity for a given type
- */
-WorkerType.prototype.utilityOfType = function(type) {
-  return this.instanceTypes[type].utility;
-};
 
-/**
- * Return the capacity for a given type
- */
-WorkerType.prototype.capacityOfType = function(type) {
-  return this.instanceTypes[type].capacity;
-};
 
 exports.WorkerType = WorkerType;

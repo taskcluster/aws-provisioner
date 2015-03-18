@@ -23,7 +23,6 @@ function AwsManager(ec2, keyPrefix, pubKey) {
 
 module.exports = AwsManager;
 
-
 /**
  * Update the state from the AWS API and return a promise
  * with no resolution value when completed.
@@ -174,7 +173,6 @@ AwsManager.prototype.typesForRegion = function(region) {
   return Object.keys(this.__apiState[region]);
 };
 
-
 /**
  * List the regions that this Manager is configured to
  * manage
@@ -192,7 +190,7 @@ AwsManager.prototype.knownWorkerTypes = function() {
 
   this.managedRegions().forEach(function(region) {
     that.typesForRegion(region).forEach(function(workerType) {
-      if (workerTypes.includes(workerType)) {
+      if (!workerTypes.includes(workerType)) {
         workerTypes.push(workerType);
       }
     });
@@ -200,7 +198,6 @@ AwsManager.prototype.knownWorkerTypes = function() {
 
   return workerTypes;
 };
-
 
 /**
  * Return a list of all running Instance Ids that are known in this AWS State
@@ -447,9 +444,12 @@ AwsManager.prototype.reconcileInternalState = function() {
 AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   var that = this;
   assert(bid, 'Must specify a spot bid');
-  assert(workerType.regions[bid.region], 'Must specify an allowed region');
-  assert(workerType.instanceTypes[bid.type], 'Must specify an allowed instance type');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
+
+  assert(workerType.getRegion(bid.region));
+  assert(workerType.getInstanceType(bid.type));
+
+  assert(this.managedRegions().includes(bid.region));
 
   var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
 
@@ -617,6 +617,10 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
   var that = this;
   var workersInState = this.knownWorkerTypes();
   var rouge = [];
+  console.dir(this.getApi());
+  debug(workersInState);
+  debug(configuredWorkers);
+
   workersInState.filter(function(name) {
     return !configuredWorkers.includes(name);
   }).forEach(function(name) {

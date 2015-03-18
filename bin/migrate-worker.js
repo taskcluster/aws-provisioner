@@ -84,20 +84,24 @@ function migrate(allData) {
   x.maxPrice = parseFloat(data.spotBid);
   x.canUseOndemand = false;
   x.canUseSpot = true;
-  x.types = {}
-  x.types[data.launchSpecification.InstanceType] = {
+  x.types = [{  
+    instanceType: data.launchSpecification.InstanceType,
     capacity: 1,
     utility: 1,
     overwrites: {
       UserData: data.launchSpecification.UserData,
     },
-  },
+  }];
+  x.regions = [{
+    region: 'us-west-2',
+    overwrites: {
+      ImageId: data.launchSpecification.ImageId,
+    }
+  }];
+  
+
+
   x.regions = {
-    'us-west-2': {
-      overwrites: {
-        ImageId: data.launchSpecification.ImageId,
-      }
-    },
   };
   return x;
 }
