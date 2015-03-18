@@ -57,7 +57,10 @@ AwsManager.prototype.update = function() {
   ]);
 
   p = p.then(function(res) {
-    that.__apiState = that._classify(res[0], res[1]);
+    var filteredSpotRequests = that._filterSpotRequests(res[1]);
+    that.__apiState = that._classify(res[0], filteredSpotRequests.good);
+    debugger;
+    return that.handleStalledRequests(filteredSpotRequests.stalled);
   });
 
   p = p.then(function() {
@@ -69,6 +72,66 @@ AwsManager.prototype.update = function() {
   return p;
 };
 
+
+/**
+ * Handle SpotRequests that we consider to have stalled.
+ * For now, this means just cancel them.  In future this
+ * will do nifty things like maintaining state about which
+ * type/region/zone combinations are not working well right
+ * now
+ */
+AwsManager.prototype.handleStalledRequests = function(spotReqs) {
+  var that = this;
+  return Promise.all(Object.keys(spotReqs).map(function(region) {
+    return that.killCancel(region, [], spotReqs[region].map(function(sr) {
+      debug('killing ' + sr.SpotInstanceRequestId);
+      return sr.SpotInstanceRequestId;
+    }));
+  }));
+};
+
+
+/**
+ * We want to separate spot requests into two buckets:
+ *   * those which are going to be fulfilled quickly
+ *   * those which should be canceled because of AWS
+ * This function returns an object with the spot requests sorted
+ * into these buckets.
+ */
+AwsManager.prototype._filterSpotRequests = function(spotReqs) {
+  var data = {
+    good: {},
+    stalled: {},
+  }
+  Object.keys(spotReqs).forEach(function(region) {
+    data.good[region] = [];
+    data.stalled[region] = [];
+
+    spotReqs[region].SpotInstanceRequests.forEach(function(sr) {
+      // These are states which have a state of 'open' but which
+      // are likely not to be fulfilled expeditiously
+      var stalledStates = [
+        'capacity-not-available',
+        'capacity-oversubscribed',
+        'price-too-low',
+        'not-scheduled-yet',
+        'launch-group-constraint',
+        'az-group-constraint',
+        'placement-group-constraint',
+        'constraint-not-fulfillable ',
+      ];
+
+      if (stalledStates.includes(sr.Status.Code)) {
+        data.stalled[region].push(sr);
+      } else {
+        data.good[region].push(sr);
+      }
+
+    });
+  });
+
+  return data;
+};
 
 /**
  * Classify the state received from AWS into something in the shape:
@@ -86,6 +149,7 @@ AwsManager.prototype.update = function() {
  * feature right now.
  */
 AwsManager.prototype._classify = function(instanceState, spotReqs) {
+  debugger;
   var that = this;
   var state = {};
 
@@ -110,7 +174,7 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
       });
     });
 
-    spotReqs[region].SpotInstanceRequests.forEach(function(request) {
+    spotReqs[region].forEach(function(request) {
       var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
       x(workerType);
       rState[workerType].spotReq.push(request);
