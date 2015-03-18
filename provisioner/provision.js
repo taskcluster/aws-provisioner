@@ -85,7 +85,7 @@ Provisioner.prototype.run = function () {
 
     // We should make sure that we're not just permanently failing
     // We also don't want to
-    if (stats.iterations > 20 && (stats.failures > 2 * stats.success)) {
+    if (stats.iterations > 20 && stats.failures > 2 * stats.success) {
       debug('[alert-operator] killing provisioner because it has run ' +
             'for a while but has failed lots of iterations');
       throw new Error('provisioner is failing a lot');
