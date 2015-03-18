@@ -90,41 +90,15 @@ exports.updatePendingTasks = function() {
   // Find number of pending tasks
   debug("Get pending tasks");
   var provisionerId = nconf.get('provisioner:provisionerId');
-  var got_pending_tasks = request.get(
-      nconf.get('queue:baseUrl') + '/v1/pending-tasks/' + provisionerId
-    ).end();
 
-  // Update state and extra pending tasks
-  return got_pending_tasks.then(function(res) {
-    // Check status code
-    if (!res.ok) {
-      throw new Error("Failed to fetch tasks!");
-    }
-    // Read tasks from queue
-    var tasks = res.body.tasks.filter(function(task) {
-      // Filter out tasks that isn't for this provisioner
-      if (task.provisionerId != provisionerId) {
-        debug("Got task for provisionerId: %s", task.provisionerId);
-        return false;
-      }
-      return true;
+  var queue = new taskcluster.Queue({credentials: nconf.get('taskcluster')});
+  return Promise.all(_wTypes.map(function(wType) {
+    return queue.pendingTasks(
+      provisionerId, wType.workerType
+    ).then(function(result) {
+      wType.pendingTasks = result.pendingTasks;
     });
-    // Log response from queue
-    debug("got %s tasks", tasks.length);
-    // Clear pending tasks for all WorkerTypes
-    _wTypes.forEach(function(wType) {
-      wType.pendingTasks = [];
-    });
-    // Add pending tasks to state for WorkerTypes
-    tasks.forEach(function(task) {
-      var wType = _nameToWType[task.workerType];
-      if (!wType) {
-        return debug("Critical: unknown workerType: '%s'", task.workerType);
-      }
-      wType.pendingTasks.push(task);
-    });
-    return tasks;
-  });
+  }));
 };
 
 /** Update list of running instances

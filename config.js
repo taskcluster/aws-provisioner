@@ -91,7 +91,9 @@ exports.load = function() {
       'aws__accessKeyId',
       'aws__secretAccessKey',
       'pulse__username',
-      'pulse__password'
+      'pulse__password',
+      'taskcluster__clientId',
+      'taskcluster__accessToken'
     ]
   });
 

@@ -26,7 +26,7 @@ var provisionWorkerType = function(wType) {
   // naive, we just assume we want a spot request for each pending task
   var nExcessRequests = Math.max(
     0,
-    wType.pendingSpotRequests.length - wType.pendingTasks.length,
+    wType.pendingSpotRequests.length - wType.pendingTasks,
     potentialRunning - maxInstances
   );
 
@@ -59,7 +59,7 @@ var provisionWorkerType = function(wType) {
   // just assume we want one for each pending task
   var nRequestsNeeded = Math.min(Math.max(
       0,
-      wType.pendingTasks.length - wType.pendingSpotRequests.length
+      wType.pendingTasks - wType.pendingSpotRequests.length
     ),
     maxInstances - potentialRunning
   );

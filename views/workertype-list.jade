@@ -17,7 +17,7 @@ block content
           td
             code #{wType.workerType}
           td #{wType.pendingSpotRequests.length}
-          td #{wType.pendingTasks.length}
+          td #{wType.pendingTasks}
           td #{wType.runningInstances.length}
           td
             a(href="/worker-type/#{wType.workerType}/view").btn.btn-success.btn-xs

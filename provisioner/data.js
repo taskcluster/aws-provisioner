@@ -448,7 +448,7 @@ var WorkerType = function(entity) {
   // store these properties
   this.pendingSpotRequests = [];
   this.runningInstances = [];
-  this.pendingTasks = [];
+  this.pendingTasks = 0;
 };
 
 // Subclass entity, this declares read-only properties

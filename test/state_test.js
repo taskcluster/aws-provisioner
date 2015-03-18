@@ -29,7 +29,7 @@ suite('State Tests', function() {
     return state.updateAndMurder().then(function() {
       assert(wType.pendingSpotRequests.length == 0);
       assert(wType.runningInstances.length == 0);
-      assert(wType.pendingTasks.length == 0);
+      assert(wType.pendingTasks == 0);
     });
   });
 });
