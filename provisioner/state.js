@@ -6,7 +6,7 @@ var aws         = require('aws-sdk');
 var _           = require('lodash');
 var request     = require('superagent-promise');
 var WorkerType  = require('./data').WorkerType;
-
+var taskcluster = require('taskcluster-client');
 
 // Create ec2 service object
 var ec2 = exports.ec2 = new aws.EC2();
