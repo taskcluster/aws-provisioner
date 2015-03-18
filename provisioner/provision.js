@@ -70,8 +70,10 @@ var provisionWorkerType = function(wType) {
   }, wType.configuration.launchSpecification);
 
   // Create spot instances as needed
-  while(nRequestsNeeded > 0) {
+  if (nRequestsNeeded > 0) {
     debug("Decided to request %s instances of %s", nRequestsNeeded, workerType);
+  }
+  while(nRequestsNeeded > 0) {
     nRequestsNeeded -= 1;
     promises.push(ec2.requestSpotInstances({
       SpotPrice:              '' + wType.configuration.spotBid,
