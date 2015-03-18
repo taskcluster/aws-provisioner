@@ -32,8 +32,8 @@ var program = require('commander');
   "minCapacity": 500,
   "maxCapacity": 3000,
   "scalingRatio": 1.0,
-  "minSpotBid": 0.1,
-  "maxSpotBid": 0.3,
+  "minPrice": 0.1,
+  "maxPrice": 0.3,
   "canUseOndemand": false,
   "canUseSpot": true,
   "types": {
@@ -80,8 +80,8 @@ function migrate(allData) {
   x.minCapacity = 0;
   x.maxCapacity = data.maxInstances;
   x.scalingRatio = 1.0;
-  x.minSpotBid = 0;
-  x.maxSpotBid = parseFloat(data.spotBid);
+  x.minPrice = 0;
+  x.maxPrice = parseFloat(data.spotBid);
   x.canUseOndemand = false;
   x.canUseSpot = true;
   x.types = {}

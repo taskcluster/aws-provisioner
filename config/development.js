@@ -1,7 +1,7 @@
 module.exports = {
   provisioner: {
     id:                   'aws-provisioner2-dev',
-    workerTypeTableName:  'AwsWorkerTypesDev',
+    workerTypeTableName:  'AwsWorkerTypesDev2',
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2-dev',
     awsKeyPrefix:         'aws-provisioner2-dev-managed:',

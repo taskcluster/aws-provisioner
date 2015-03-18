@@ -32,12 +32,12 @@ properties:
       A scaling ratio of 1.1 means that we don't start spawning new machines
       until 10% of our capacity is pending.  A scaling ratio of 0.9 means that
       we spawn enough machines that we always have 10% empty capacity.
-  minSpotBid:
+  minPrice:
     type: number
-    description: global minimum spot instance bid
-  maxSpotBid:
+    description: maximum 'price' we'll pay
+  maxPrice:
     type: number
-    description: global maximum spot instance bid
+    description: maximum 'price' we'll pay
   canUseOndemand:
     type: boolean
     description: |
@@ -106,7 +106,7 @@ required:
   - launchSpecification
   - maxCapacity
   - scalingRatio
-  - minSpotBid
-  - maxSpotBid
+  - minPrice
+  - maxPrice
   - instanceTypes
   - regions

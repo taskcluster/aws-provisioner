@@ -45,8 +45,8 @@ var WorkerType = base.Entity.configure({
     scalingRatio: base.Entity.types.Number,
     /* This is the minimum spot bid... It isn't actually read
      * and should be moved to the instance type definition... */
-    minSpotBid: base.Entity.types.Number,
-    maxSpotBid: base.Entity.types.Number,
+    minPrice: base.Entity.types.Number,
+    maxPrice: base.Entity.types.Number,
     /* Right now this is ineffective */
     canUseOndemand: base.Entity.types.JSON,
     /* Right now this is ineffective */
@@ -563,15 +563,15 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
         zones.forEach(function(zone) {
           var potentialBid = pricingData[region][type][zone];
           var potentialPrice = uf[type] * potentialBid;
-          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxSpotBid) {
+          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxPrice) {
             cheapestPrice = potentialPrice;
             cheapestRegion = region;
             cheapestType = type;
             cheapestZone = zone;
             // We might want to make the overbid configurable
             spotBid = Math.ceil(potentialBid * 1.5 * 1000000) / 1000000;
-            if (spotBid < that.minSpotBid) {
-              spotBid = that.minSpotBid;
+            if (potentialPrice < that.minPrice) {
+              spotBid = Math.ceil(that.minPrice / uf[type] * 1000000) / 1000000;
             }
           }
         });
