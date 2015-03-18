@@ -55,7 +55,7 @@ describe('basic cache functionality', function() {
   it('should not expire before it expires', function() {
     cache.get();
     cache.isValid().should.be.True;
-    clock.tick((1000 * 60 * 20) - 1);
+    clock.tick(1000 * 60 * 20 - 1);
     cache.isValid().should.be.True;
     clock.tick(1);
     cache.isValid().should.be.False;

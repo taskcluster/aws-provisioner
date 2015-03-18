@@ -5,7 +5,9 @@ var _ = require('lodash');
 var fs = require('fs');
 var path = require('path');
 
-/* eslint no-undef: 0, no-unused-expressions: 0 */
+// turn of linting errors caused by should.js
+/* eslint no-unused-expressions: 0 */
+
 describe('provisioner api server', function() {
   var subject = helper.setup({title: 'api-tests'});
 
