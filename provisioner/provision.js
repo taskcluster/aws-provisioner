@@ -157,6 +157,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       return x.workerType;
     });
 
+    debug('configured workers: %j', workerNames);
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
 
     // Remember that this thing caches stuff inside itself

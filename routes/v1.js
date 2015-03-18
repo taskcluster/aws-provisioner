@@ -314,7 +314,7 @@ api.declare({
 
 api.declare({
   method: 'get',
-  route: '/get-launch-specs/:workerType',
+  route: '/worker-type/:workerType/launch-specifications',
   name: 'getLaunchSpecs',
   deferAuth: true,
   scopes: ['aws-provisioner:get-worker-type:<workerType>'],
