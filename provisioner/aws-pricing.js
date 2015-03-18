@@ -1,57 +1,8 @@
 'use strict';
 
 var Promise = require('promise');
-var lodash = require('lodash');
-var util = require('util');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-pricing');
-
-
-function fetchPricing(ec2) {
-  var that = this;
-  var startDate = new Date();
-  startDate.setMinutes(startDate.getMinutes() - 30);
-  var requestObj = {
-    StartTime: startDate,
-    Filters: [{
-      Name: 'product-description',
-      Values: ['Linux/UNIX'],
-    }],
-  }
-
-  var p = Promise.all([
-    ec2.describeSpotPriceHistory(requestObj),
-    ec2.describeAvailabilityZones({
-      Filters: [{
-        Name: 'state',
-        Values: ['available'],
-      }],
-    }),
-  ]);
-
-  p = p.then(function(res) {
-    var pricing = res[0];
-    var availableAvailZones = res[1]
-    var regions = Object.keys(pricing);
-    var fixed = {};
-    var zoneInfo = {};
-
-    // Get rid of the key we don't care about
-    regions.forEach(function(region) {
-      fixed[region] = pricing[region].SpotPriceHistory;
-      zoneInfo[region] = availableAvailZones[region].AvailabilityZones.map(function(x) {
-        return x.ZoneName;
-      });
-    });
-
-
-    return new AwsPricing(ec2.regions, fixed, zoneInfo);
-  })
-
-  return p;
-}
-
-module.exports = fetchPricing;
 
 function AwsPricing(regions, pricing, zoneInfo) {
   assert(regions);
@@ -61,7 +12,6 @@ function AwsPricing(regions, pricing, zoneInfo) {
   this.regions = regions;
   this.__zoneInfo = zoneInfo;
 }
-
 
 /**
  * Get the pricing dictionary... This is a little ugly
@@ -78,7 +28,7 @@ AwsPricing.prototype.availableAvailabilityZones = function() {
   var that = this;
   var zones = [];
   Object.keys(this.__zoneInfo).forEach(function(region) {
-    Array.prototype.push.apply(zones, that.availableAvailabilityZonesInRegion(region)); 
+    Array.prototype.push.apply(zones, that.availableAvailabilityZonesInRegion(region));
   });
   return zones;
 };
@@ -100,7 +50,7 @@ AwsPricing.prototype.availableAvailabilityZonesInRegion = function(region) {
  * consider only the peak pricing.  Since we're only fetching a
  * specified amount of time in the original request, we limit history
  * that way.  Wouldn't it be nifty to have an arg to this function that
- * let you specify (regardless of fetched history) the earliest 
+ * let you specify (regardless of fetched history) the earliest
  * point in time to consider for the max finding
  */
 AwsPricing.prototype.maxPrices = function() {
@@ -122,7 +72,7 @@ AwsPricing.prototype.maxPrices = function() {
       if (!pricing[region][type][zone]) {
         pricing[region][type][zone] = [];
       }
-      pricing[region][type][zone].push(price); 
+      pricing[region][type][zone].push(price);
     });
   });
 
@@ -144,3 +94,52 @@ AwsPricing.prototype.maxPrices = function() {
 
   return maxes;
 };
+
+
+function fetchPricing(ec2) {
+  var startDate = new Date();
+  startDate.setMinutes(startDate.getMinutes() - 30);
+  var requestObj = {
+    StartTime: startDate,
+    Filters: [
+      {
+        Name: 'product-description',
+        Values: ['Linux/UNIX'],
+      },
+    ],
+  };
+
+  var p = Promise.all([
+    ec2.describeSpotPriceHistory(requestObj),
+    ec2.describeAvailabilityZones({
+      Filters: [
+        {
+          Name: 'state',
+          Values: ['available'],
+        },
+      ],
+    }),
+  ]);
+
+  p = p.then(function(res) {
+    var pricing = res[0];
+    var availableAvailZones = res[1];
+    var regions = Object.keys(pricing);
+    var fixed = {};
+    var zoneInfo = {};
+
+    // Get rid of the key we don't care about
+    regions.forEach(function(region) {
+      fixed[region] = pricing[region].SpotPriceHistory;
+      zoneInfo[region] = availableAvailZones[region].AvailabilityZones.map(function(x) {
+        return x.ZoneName;
+      });
+    });
+
+    return new AwsPricing(ec2.regions, fixed, zoneInfo);
+  });
+
+  return p;
+}
+
+module.exports = fetchPricing;

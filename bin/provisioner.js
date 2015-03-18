@@ -1,10 +1,9 @@
 'use strict';
 
 var debug = require('debug')('aws-provisioner:bin:provisioner');
-var Promise = require('promise');
 var base = require('taskcluster-base');
 var provision = require('../provisioner/provision');
-var aws = require('multi-region-promised-aws');
+var Aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
 var AwsManager = require('../provisioner/aws-manager');
 var awsPricing = require('../provisioner/aws-pricing');
@@ -32,8 +31,8 @@ var launch = function(profile) {
         'aws_secretAccessKey',
         'azure_accountName',
         'azure_accountKey',
-        'influx_connectionString'
-    ]
+        'influx_connectionString',
+    ],
   });
 
   var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
@@ -42,9 +41,9 @@ var launch = function(profile) {
   var provisionerId = cfg.get('provisioner:id');
 
   var influx = new base.stats.Influx({
-    connectionString:   cfg.get('influx:connectionString'),
-    maxDelay:           cfg.get('influx:maxDelay'),
-    maxPendingPoints:   cfg.get('influx:maxPendingPoints')
+    connectionString: cfg.get('influx:connectionString'),
+    maxDelay: cfg.get('influx:maxDelay'),
+    maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
   var WorkerType = data.WorkerType.setup({
@@ -58,7 +57,7 @@ var launch = function(profile) {
 
   // Create all the things which need to be injected into the
   // provisioner
-  var ec2 = new aws('EC2', cfg.get('aws'), allowedRegions);
+  var ec2 = new Aws('EC2', cfg.get('aws'), allowedRegions);
   var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
   var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
   var pricingCache = new Cache(15, awsPricing, ec2);
@@ -72,7 +71,7 @@ var launch = function(profile) {
     awsManager: awsManager,
     pricingCache: pricingCache,
     provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
-  }
+  };
 
   var provisioner = new provision.Provisioner(config);
   provisioner.run();
@@ -82,14 +81,14 @@ var launch = function(profile) {
 // Only start up the server if we are running as a script
 if (!module.parent) {
   // Find configuration profile
-  var profile = process.argv[2] || process.env.NODE_ENV;
-  if (!profile) {
-    console.log("Usage: server.js [profile]")
-    console.error("ERROR: No configuration profile is provided");
+  var profile_ = process.argv[2] || process.env.NODE_ENV;
+  if (!profile_) {
+    console.log('Usage: server.js [profile]');
+    console.error('ERROR: No configuration profile is provided');
   }
   // Launch with given profile
-  launch(profile);
-  debug("launched provisioner successfully");
+  launch(profile_);
+  debug('launched provisioner successfully');
 }
 
 module.exports = launch;

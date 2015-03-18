@@ -2,7 +2,6 @@
 
 var Promise = require('promise');
 var lodash = require('lodash');
-var util = require('util');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
 
@@ -34,22 +33,27 @@ AwsManager.prototype.update = function() {
 
   var p = Promise.all([
     that.ec2.describeInstances({
-      Filters: [{
-        Name: 'key-name',
-        Values: [that.keyPrefix + '*']
-      },{
-        Name: 'instance-state-name',
-        Values: ['running', 'pending']
-      }
-    ]}),
+      Filters: [
+        {
+          Name: 'key-name',
+          Values: [that.keyPrefix + '*'],
+        },
+        {
+          Name: 'instance-state-name',
+          Values: ['running', 'pending'],
+        },
+      ],
+    }),
     that.ec2.describeSpotInstanceRequests({
-      Filters: [{
-        Name: 'launch.key-name',
-        Values: [that.keyPrefix + '*']
-      }, {
-        Name: 'state',
-        Values: ['open']
-      }]
+      Filters: [
+        {
+          Name: 'launch.key-name',
+          Values: [that.keyPrefix + '*'],
+        }, {
+          Name: 'state',
+          Values: ['open'],
+        },
+      ],
     }),
   ]);
 
@@ -103,13 +107,15 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
       reservation.Instances.forEach(function(instance) {
         var workerType = instance.KeyName.substr(that.keyPrefix.length);
         x(workerType);
-        rState[workerType][instance.State.Name].push(instance); 
+        rState[workerType][instance.State.Name].push(instance);
       });
     });
 
     spotReqs[region].SpotInstanceRequests.forEach(function(request) {
       var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
-    }); 
+      x(workerType);
+      rState[workerType].spotReq.push(request);
+    });
 
   });
 
@@ -170,7 +176,7 @@ AwsManager.prototype.typesForRegion = function(region) {
 
 
 /**
- * List the regions that this Manager is configured to 
+ * List the regions that this Manager is configured to
  * manage
  */
 AwsManager.prototype.managedRegions = function () {
@@ -316,7 +322,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
     if (!rState[wName]) {
       return;
     }
-    
+
     var wState = rState[wName];
 
     if (states.includes('running')) {
@@ -444,7 +450,7 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   assert(workerType.regions[bid.region], 'Must specify an allowed region');
   assert(workerType.types[bid.type], 'Must specify an allowed instance type');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
-  
+
   var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
 
   // Add the availability zone info
@@ -480,7 +486,7 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
     that.trackNewSpotRequest(info);
   });
 
-  return p;  
+  return p;
 };
 
 
@@ -513,10 +519,12 @@ AwsManager.prototype.createKeyPair = function(workerName) {
     return Promise.resolve();
   } else {
     var p = this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
-      Filters: [{
-        Name: 'key-name',
-        Values: [keyName]
-      }] 
+      Filters: [
+        {
+          Name: 'key-name',
+          Values: [keyName],
+        },
+      ],
     });
 
     p = p.then(function(res) {
@@ -530,11 +538,11 @@ AwsManager.prototype.createKeyPair = function(workerName) {
             KeyName: keyName,
             PublicKeyMaterial: that.pubKey,
           }));
-        } 
+        }
       });
       return Promise.all(toCreate);
     });
-    
+
     p = p.then(function() {
       that.__knownKeyPairs.push(workerName);
     });
@@ -566,10 +574,12 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
   var keyName = this.keyPrefix + workerName;
 
   var p = this.ec2.describeKeyPairs({
-    Filters: [{
-      Name: 'key-name',
-      Values: [keyName]
-    }] 
+    Filters: [
+      {
+        Name: 'key-name',
+        Values: [keyName],
+      },
+    ],
   });
 
   p = p.then(function(res) {
@@ -608,7 +618,7 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
   var workersInState = this.knownWorkerTypes();
   var rouge = [];
   workersInState.filter(function(name) {
-    return !configuredWorkers.includes(name) ;
+    return !configuredWorkers.includes(name);
   }).forEach(function(name) {
     debug('killing rouge instances for type %s', name);
     rouge.push(that.deleteKeyPair(name));

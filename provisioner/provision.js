@@ -2,11 +2,6 @@
 
 var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provision');
-var base = require('taskcluster-base');
-var lodash = require('lodash');
-var uuid = require('node-uuid');
-var util = require('util');
-var data = require('./data');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 
@@ -45,7 +40,7 @@ function Provisioner(cfg) {
 
   // This is the number of milliseconds to wait between completed provisioning runs
   assert(cfg.provisionIterationInterval);
-  assert(typeof cfg.provisionIterationInterval === 'number')
+  assert(typeof cfg.provisionIterationInterval === 'number');
   assert(!isNaN(cfg.provisionIterationInterval));
   this.provisionIterationInterval = cfg.provisionIterationInterval;
 
@@ -89,7 +84,7 @@ Provisioner.prototype.run = function () {
     that.__watchDog.touch();
 
     // We should make sure that we're not just permanently failing
-    // We also don't want to 
+    // We also don't want to
     if (stats.iterations > 20 && (stats.failures > 2 * stats.success)) {
       debug('[alert-operator] killing provisioner because it has run ' +
             'for a while but has failed lots of iterations');
@@ -101,7 +96,7 @@ Provisioner.prototype.run = function () {
     p = p.then(function() {
       stats.success++;
       if (that.__keepRunning && !process.env.PROVISION_ONCE) {
-        debug('success. next iteration in %d seconds', 
+        debug('success. next iteration in %d seconds',
           Math.round(that.provisionIterationInterval / 1000));
         setTimeout(provisionIteration, that.provisionIterationInterval);
       } else {
@@ -163,7 +158,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     });
 
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
-    
+
     // Remember that this thing caches stuff inside itself
     Array.prototype.push.apply(houseKeeping, workerNames.map(function(name) {
       return that.awsManager.createKeyPair(name);
@@ -172,7 +167,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     // We're just intercepting here... we want to pass the
     // resolution value this handler got to the next one!
     return Promise.all(houseKeeping).then(function() {
-      return res; 
+      return res;
     });
   });
 
@@ -224,7 +219,7 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     } else {
       // This is where we should kill excess capacity
       // TODO: Kill all spot requests here
-      return []
+      return [];
     }
 
   });
