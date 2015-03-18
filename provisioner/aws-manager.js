@@ -448,7 +448,7 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   var that = this;
   assert(bid, 'Must specify a spot bid');
   assert(workerType.regions[bid.region], 'Must specify an allowed region');
-  assert(workerType.types[bid.type], 'Must specify an allowed instance type');
+  assert(workerType.instanceTypes[bid.type], 'Must specify an allowed instance type');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
 
   var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);

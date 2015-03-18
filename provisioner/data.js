@@ -71,7 +71,7 @@ var WorkerType = base.Entity.configure({
      *   - overwrites: this object overwrites keys in the general
      *                 launch specification
      */
-    types: base.Entity.types.JSON,
+    instanceTypes: base.Entity.types.JSON,
     /* This is a JSON object which contains the regions which this
      * workerType is allowed to run in as well as the region-specific
      * information.  It is in the shape:
@@ -275,7 +275,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   assert(keyPrefix);
   assert(provisionerId);
   assert(worker.regions[region], region + ' is not configured');
-  assert(worker.types[instanceType], instanceType + ' is not configured');
+  assert(worker.instanceTypes[instanceType], instanceType + ' is not configured');
 
   // These are keys that are only allowable in the set of type specific
   // overwrites.  Only keys which are strictly related to instance type
@@ -307,13 +307,13 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is region specific, not general');
     }
-    if (worker.types[instanceType][key]) {
+    if (worker.instanceTypes[instanceType][key]) {
       throw new Error(key + ' is type specific, not region specific');
     }
   });
 
   // Make sure that this worker allows the requested workerType
-  if (!worker.types[instanceType]) {
+  if (!worker.instanceTypes[instanceType]) {
     throw new Error(worker.workerType + ' does not allow instance type ' + instanceType);
   }
 
@@ -331,8 +331,8 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   });
 
   // Now overwrite the ones that are type specific
-  Object.keys(worker.types[instanceType].overwrites).forEach(function(typeKey) {
-    launchSpec[typeKey] = worker.types[instanceType].overwrites[typeKey];
+  Object.keys(worker.instanceTypes[instanceType].overwrites).forEach(function(typeKey) {
+    launchSpec[typeKey] = worker.instanceTypes[instanceType].overwrites[typeKey];
   });
 
   // set the KeyPair and InstanceType correctly
@@ -347,7 +347,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
   var generatedUserData = {
-    capacity: worker.types[instanceType].capacity,
+    capacity: worker.instanceTypes[instanceType].capacity,
     workerType: worker.workerType,
     provisionerId: provisionerId,
     region: region,
@@ -435,7 +435,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
   var launchSpecs = {};
   Object.keys(worker.regions).forEach(function(region) {
     launchSpecs[region] = {};
-    Object.keys(worker.types).forEach(function(type) {
+    Object.keys(worker.instanceTypes).forEach(function(type) {
       try {
         var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
         launchSpecs[region][type] = x;
@@ -548,7 +548,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
     // Utility Factors, by instance type
     var uf = {};
 
-    var types = Object.keys(that.types).map(function(type) {
+    var types = Object.keys(that.instanceTypes).map(function(type) {
       uf[type] = that.utilityOfType(type) || 1;
       return type;
     });
@@ -610,14 +610,14 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
  * Return the capacity for a given type
  */
 WorkerType.prototype.utilityOfType = function(type) {
-  return this.types[type].utility;
+  return this.instanceTypes[type].utility;
 };
 
 /**
  * Return the capacity for a given type
  */
 WorkerType.prototype.capacityOfType = function(type) {
-  return this.types[type].capacity;
+  return this.instanceTypes[type].capacity;
 };
 
 exports.WorkerType = WorkerType;

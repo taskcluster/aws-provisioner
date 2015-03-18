@@ -14,7 +14,7 @@
   "maxSpotBid": 1,
   "canUseOndemand": false,
   "canUseSpot": true,
-  "types": {
+  "instanceTypes": {
     "m3.medium": {
       "capacity": 1,
       "utility": 1,

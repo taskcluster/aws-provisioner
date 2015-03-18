@@ -46,7 +46,7 @@ properties:
     type: boolean
     description: |
       True if this worker type is allowed spot instances
-  types:
+  instanceTypes:
     type: object
     description: |
       This is a dictionary which contains information about the instance types
@@ -108,5 +108,5 @@ required:
   - scalingRatio
   - minSpotBid
   - maxSpotBid
-  - types
+  - instanceTypes
   - regions
