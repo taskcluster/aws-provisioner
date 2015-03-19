@@ -5,7 +5,6 @@ var lodash = require('lodash');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
 
-
 /**
  * AWS EC2 state at a specific moment in time
  */
@@ -72,7 +71,6 @@ AwsManager.prototype.update = function() {
   return p;
 };
 
-
 /**
  * Handle SpotRequests that we consider to have stalled.
  * For now, this means just cancel them.  In future this
@@ -89,7 +87,6 @@ AwsManager.prototype.handleStalledRequests = function(spotReqs) {
     }));
   }));
 };
-
 
 /**
  * We want to separate spot requests into two buckets:
@@ -185,7 +182,6 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
   return state;
 };
 
-
 /**
  * Get Api State Only
  */
@@ -220,7 +216,6 @@ AwsManager.prototype.getInternal = function(region, type) {
     return this.__internalState;
   }
 };
-
 
 /**
  * List the types known in a given region
@@ -283,7 +278,6 @@ AwsManager.prototype.listRunningInstanceIds = function() {
   return allIds;
 };
 
-
 /**
  * Return a list of all pending Instance Ids that are known in this AWS State
  * These are not categorized by region. It's one list of strings.
@@ -303,7 +297,6 @@ AwsManager.prototype.listPendingInstanceIds = function() {
 
   return allIds;
 };
-
 
 /**
  * Return a list of all Spot Request Ids that are known in this AWS State
@@ -325,7 +318,6 @@ AwsManager.prototype.listSpotUnfulfilledRequestIds = function() {
 
   return allIds;
 };
-
 
 /**
  * Return a list of all Spot Request Ids that are known in this AWS State
@@ -356,7 +348,6 @@ AwsManager.prototype.listSpotRequestIds = function() {
 
   return ids;
 };
-
 
 /**
  * Count the capacity of this workerType that are in the states specified
@@ -428,7 +419,6 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
   return capacity;
 };
 
-
 /**
  * Because the AWS is eventually consistent, it will sometimes take time for
  * spot requests to show up in the describeSpotInstanceRequests calls for
@@ -463,7 +453,6 @@ AwsManager.prototype.trackNewSpotRequest = function(sr) {
   }
 };
 
-
 /**
  * Once a SpotRequest shows up in the state returned from the AWS api
  * we should remove it from the internal state of spot requests that
@@ -497,7 +486,6 @@ AwsManager.prototype.reconcileInternalState = function() {
     });
   });
 };
-
 
 /**
  * Create an instance of a WorkerType and track it.  Internally,
@@ -552,7 +540,6 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
 
   return p;
 };
-
 
 /**
  * We use KeyPair names to determine ownership and workerType
@@ -655,7 +642,6 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
 
 };
 
-
 /**
  * Rouge Killer.  A rouge is an instance that has a KeyPair name
  * that belongs to this provisioner but is not present in the list
@@ -683,7 +669,6 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
 
   return Promise.all(rouge);
 };
-
 
 /**
  * Kill all instances in all regions of a given workerName
@@ -729,7 +714,6 @@ AwsManager.prototype.killByName = function(name) {
 
   return Promise.all(deaths);
 };
-
 
 /**
  * Kill instances and cancel spot requests
