@@ -181,7 +181,9 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
 };
 
 /**
- * Get Api State Only
+ * Return API tracked state.  If region is passed as first param, the returned
+ * object will be for that region.  If region and type are passed as params,
+ * the state for that region and worker type is returned
  */
 AwsManager.prototype.getApi = function(region, type) {
   if (region && type) {
@@ -197,10 +199,12 @@ AwsManager.prototype.getApi = function(region, type) {
 };
 
 /**
- * Get Internal State Only.  Remember that Internal state
- * contains an extra Container object which contains
- * the the raw `request`, the `workerType` name, the `bid`
- * and a datetime of when it was `submitted`
+ * Return Internally tracked state.  If region is passed as first param, the
+ * returned object will be for that region.  If region and type are passed as
+ * params, the state for that region and worker type is returned.  Remember
+ * that Internal state contains an extra Container object which contains the
+ * the raw `request`, the `workerType` name, the `bid` and a datetime of when
+ * it was `submitted`
  */
 AwsManager.prototype.getInternal = function(region, type) {
   if (region && type) {
