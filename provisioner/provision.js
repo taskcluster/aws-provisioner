@@ -202,6 +202,7 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     var runningCapacity = that.awsManager.capacityForType(workerType, ['running']);
     var pendingCapacity = that.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
     var totalCapacity = runningCapacity + pendingCapacity;
+    var change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
     if (typeof pending !== 'number') {
       console.error(pending);
@@ -210,25 +211,16 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     }
 
     if (totalCapacity < workerType.maxCapacity) {
-      return workerType.determineSpotBids(
-        that.awsManager.managedRegions(),
-        pricing,
-        runningCapacity,
-        pendingCapacity,
-        pending
-      );
+      // If we aren't at Max Capacity yet, we'll create nodes
+      var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
+      return Promise.all(bids.map(function(bid) {
+        return that.awsManager.requestSpotInstance(workerType, bid);
+      }));
     } else {
-      // This is where we should kill excess capacity
-      // TODO: Kill all spot requests here
-      return [];
+      // But if we are, we should cancel all of our pending capacity
+      return that.killByName(workerType, ['pending', 'spotReq']);
     }
 
-  });
-
-  p = p.then(function(bids) {
-    return Promise.all(bids.map(function(bid) {
-      return that.awsManager.requestSpotInstance(workerType, bid);
-    }));
   });
 
   return p;

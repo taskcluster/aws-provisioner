@@ -675,11 +675,14 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
 };
 
 /**
- * Kill all instances in all regions of a given workerName
+ * Kill all instances in all regions of a given workerName.  
  */
-AwsManager.prototype.killByName = function(name) {
+AwsManager.prototype.killByName = function(name, states) {
   var deaths = [];
   var that = this;
+  if (!states) {
+    states = ['running', 'pending', 'spotReq'];
+  }
 
   that.managedRegions().forEach(function(region) {
     var apiState = that.getApi(region, name) || {};
@@ -689,19 +692,19 @@ AwsManager.prototype.killByName = function(name) {
     var requests = [];
 
     [apiState, internalState].forEach(function(state) {
-      if (state.running) {
+      if (states.includes('running') && state.running) {
         Array.prototype.push.apply(instances, state.running.map(function(r) {
           return r.InstanceId;
         }));
       }
 
-      if (state.pending) {
+      if (states.includes('pending') && state.pending) {
         Array.prototype.push.apply(instances, state.pending.map(function(r) {
           return r.InstanceId;
         }));
       }
 
-      if (state.spotReq) {
+      if (states.includes('spotReq') && state.spotReq) {
         Array.prototype.push.apply(requests, state.spotReq.map(function(r) {
           // Remember that internal state is wrapped with some meta data!
           if (r.request) {
