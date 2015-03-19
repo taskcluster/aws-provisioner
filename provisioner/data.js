@@ -515,15 +515,12 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runningCapacity, pendingCapacity, pending) {
+WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, change) {
   assert(managedRegions);
   assert(pricing);
-  assert(typeof runningCapacity === 'number');
-  assert(typeof pendingCapacity === 'number');
-  assert(typeof pending === 'number');
+  assert(change);
+  assert(typeof change === 'number');
   var that = this;
-
-  var change = this.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
   var spotBids = [];
 
