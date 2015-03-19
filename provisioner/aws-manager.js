@@ -64,7 +64,7 @@ AwsManager.prototype.update = function() {
   p = p.then(function() {
     // We want to make sure that our internal state is always up to date when
     // we fetch the updated state
-    that.reconcileInternalState();
+    that._reconcileInternalState();
   });
 
   return p;
@@ -430,7 +430,9 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
  * process is restarted before the spot request shows up in the api's
  * state we will lose track of it until it turns into an instance.
  */
-AwsManager.prototype.trackNewSpotRequest = function(sr) {
+AwsManager.prototype._trackNewSpotRequest = function(sr) {
+  // sr is a SpotRequest object which we get back from the
+  // AWS Api when we submit the SpotRequest
   assert(sr);
 
   var that = this;
@@ -461,7 +463,7 @@ AwsManager.prototype.trackNewSpotRequest = function(sr) {
  * is needed.  We do this before running the provisioner of each
  * workerType to avoid double counting a newly discovered spot request
  */
-AwsManager.prototype.reconcileInternalState = function() {
+AwsManager.prototype._reconcileInternalState = function() {
   // Remove the SRs which AWS now tracks from internal state
 
   var that = this;
@@ -537,7 +539,7 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   });
 
   p = p.then(function(info) {
-    that.trackNewSpotRequest(info);
+    that._trackNewSpotRequest(info);
   });
 
   return p;
