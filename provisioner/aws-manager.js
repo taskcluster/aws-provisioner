@@ -725,14 +725,14 @@ AwsManager.prototype.killCancel = function(region, instances, requests) {
   var r = requests || [];
 
   if (i.length > 0) {
-    debug('killing instances %s in %s', JSON.stringify(i), region);
+    debug('killing instances %s in %j', i, region);
     promises.push(that.ec2.terminateInstances.inRegion(region, {
       InstanceIds: i,
     }));
   }
 
   if (r.length > 0) {
-    debug('cancelling spot requests %s in %s', JSON.stringify(r), region);
+    debug('cancelling spot requests %j in %s', r, region);
     promises.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
       SpotInstanceRequestIds: r,
     }));
