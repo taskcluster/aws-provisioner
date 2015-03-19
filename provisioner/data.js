@@ -320,7 +320,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // We want to make sure that whatever UserData is in there is in
   // base64
-  if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
+  if (!/^[A-Za-z0-9+/=]{1,22}$/.exec(launchSpec.UserData)) {
     throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
   }
 
@@ -548,7 +548,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
     var regions = that.regions.filter(function(r) {
       return managedRegions.includes(r.region);
     }).map(function(r) {
-      return r.region;  
+      return r.region;
     });
 
     regions.forEach(function(region) {

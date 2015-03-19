@@ -58,7 +58,6 @@ AwsManager.prototype.update = function() {
   p = p.then(function(res) {
     var filteredSpotRequests = that._filterSpotRequests(res[1]);
     that.__apiState = that._classify(res[0], filteredSpotRequests.good);
-    debugger;
     return that.handleStalledRequests(filteredSpotRequests.stalled);
   });
 
@@ -99,7 +98,7 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
   var data = {
     good: {},
     stalled: {},
-  }
+  };
   Object.keys(spotReqs).forEach(function(region) {
     data.good[region] = [];
     data.stalled[region] = [];
@@ -146,7 +145,6 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
  * feature right now.
  */
 AwsManager.prototype._classify = function(instanceState, spotReqs) {
-  debugger;
   var that = this;
   var state = {};
 
