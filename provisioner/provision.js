@@ -4,6 +4,7 @@ var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provision');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
+var shuffle = require('knuth-shuffle');
 
 var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 
@@ -148,9 +149,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   ]);
 
   p = p.then(function(res) {
-    // We'll do a little house keeping before we pass the stuff
-    // on to the actual provisioning logic
-    var workerTypes = res[0];
+    var workerTypes = shuffle.knuthShuffle(res[0].slice(0));
 
     // We'll use this twice here... let's generate it only once
     var workerNames = workerTypes.map(function(x) {
@@ -211,11 +210,21 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     }
 
     if (totalCapacity < workerType.maxCapacity) {
-      // If we aren't at Max Capacity yet, we'll create nodes
-      var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
-      return Promise.all(bids.map(function(bid) {
-        return that.awsManager.requestSpotInstance(workerType, bid);
-      }));
+
+      if (change > 0 || totalCapacity < workerType.minCapacity) {
+        // We want to create bids when we have a change or when we have less then the minimum capacity
+        var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
+        return Promise.all(bids.map(function(bid) {
+          return that.awsManager.requestSpotInstance(workerType, bid);
+        }));
+      } else if (change < 0) {
+        // We want to cancel spot requests when we no longer need them, but only
+        // down to the minimum capacity
+        var deathWarrants = {};
+        var capacityToKill = -change;
+        debug('killing %d capacity', capacityToKill);
+        return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
+      }
     } else {
       // But if we are, we should cancel all of our pending capacity
       return that.killByName(workerType, ['pending', 'spotReq']);
@@ -225,3 +234,5 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
 
   return p;
 };
+
+
