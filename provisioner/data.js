@@ -586,12 +586,12 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
 
     // This is a sanity check to prevent a screw up where we theoretically
     // bid $6000 for a spot node.  Code above should make sure that the optimal
-    // bid is selected.  I would argue that if we start bidding on $20/h machines
+    // bid is selected.  I would argue that if we start bidding on $10/h machines
     // that we really ought to be very well aware of this, and having to make a
     // change to the provisioner is a demonstration of our knowledge of that.
-    if (spotBid > 20) {
+    if (spotBid > 10) {
       debug('[alert-operator] spot bid is exceptionally high...');
-      throw new Error('Spot bid really shouldn\'t be higher than $20');
+      throw new Error('Spot bid really shouldn\'t be higher than $10');
     }
   }
   /* eslint-enable no-loop-func */
