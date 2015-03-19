@@ -574,7 +574,7 @@ AwsManager.prototype.createKeyPair = function(workerName) {
   var that = this;
   var keyName = this.keyPrefix + workerName;
 
-  if (this.hasKeyPair(workerName)) {
+  if (this.__knownKeyPairs.includes(workerName)) {
     // Short circuit checking for a key but return
     // a promise so this cache is invisible to the
     // calling function from a non-cached instance
@@ -613,16 +613,6 @@ AwsManager.prototype.createKeyPair = function(workerName) {
   return p;
 
 };
-
-
-/**
- * Check if a KeyPair is known
- */
-AwsManager.prototype.hasKeyPair = function(workerName) {
-  assert(workerName);
-  return this.__knownKeyPairs.includes(workerName);
-};
-
 
 /**
  * Delete a KeyPair when it's no longer needed.  This method
