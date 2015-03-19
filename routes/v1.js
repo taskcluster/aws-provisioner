@@ -85,7 +85,7 @@ api.declare({
   route: '/worker-type/:workerType',
   name: 'createWorkerType',
   deferAuth: true,
-  scopes: ['aws-provisioner:create-worker-type:<workerType>'],
+  scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
   input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
   output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title: 'Create new Worker Type',
@@ -146,7 +146,7 @@ api.declare({
   name: 'updateWorkerType',
   deferAuth: true,
   // Shouldn't we just have a single scope for modifying/creating/deleting workerTypes
-  scopes: ['aws-provisioner:update-worker-type:<workerType>'],
+  scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
   input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
   output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title: 'Update Worker Type',
@@ -206,7 +206,10 @@ api.declare({
   route: '/worker-type/:workerType',
   name: 'workerType',
   deferAuth: true,
-  scopes: ['aws-provisioner:get-worker-type:<workerType>'],
+  scopes: [
+    'aws-provisioner:view-worker-type:<workerType>',
+    'aws-provisioner:manage-worker-type:<workerType>',
+  ],
   input: undefined,  // No input
   output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
   title: 'Get Worker Type',
@@ -242,7 +245,7 @@ api.declare({
   name: 'removeWorkerType',
   deferAuth: true,
   // TODO: Should we have a special scope for workertype removal?
-  scopes: ['aws-provisioner:remove-worker-type:<workerType>'],
+  scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
   input: undefined,  // No input
   output: undefined,  // No output
   title: 'Delete Worker Type',
@@ -317,7 +320,10 @@ api.declare({
   route: '/worker-type/:workerType/launch-specifications',
   name: 'getLaunchSpecs',
   deferAuth: true,
-  scopes: ['aws-provisioner:get-worker-type:<workerType>'],
+  scopes: [
+    'aws-provisioner:view-worker-type:<workerType>',
+    'aws-provisioner:manage-worker-type:<workerType>',
+  ],
   input: undefined,  // No input
   output: SCHEMA_PREFIX_CONST + 'get-launch-specs-response.json#',
   title: 'Get All Launch Specifications for WorkerType',
