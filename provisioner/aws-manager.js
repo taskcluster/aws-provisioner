@@ -81,7 +81,7 @@ AwsManager.prototype.handleStalledRequests = function(spotReqs) {
   var that = this;
   return Promise.all(Object.keys(spotReqs).map(function(region) {
     return that.killCancel(region, [], spotReqs[region].map(function(sr) {
-      debug('killing ' + sr.SpotInstanceRequestId);
+      debug('killing stalled spot request ' + sr.SpotInstanceRequestId);
       return sr.SpotInstanceRequestId;
     }));
   }));
@@ -659,7 +659,6 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
   var that = this;
   var workersInState = this.knownWorkerTypes();
   var rouge = [];
-  console.dir(this.getApi());
   debug(workersInState);
   debug(configuredWorkers);
 
@@ -751,3 +750,74 @@ AwsManager.prototype.killCancel = function(region, instances, requests) {
 };
 
 
+/**
+ * Kill spot requests to change negatively by a capacity unit change.
+ * We use this function to do things like canceling spot requests that
+ * exceed the number we require.
+ */
+AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, states) {
+  assert(workerType);
+  assert(typeof count === 'number');
+  assert(states);
+  var minCap = workerType.minimumCapacity;
+  // Utility Factors, by instance type
+  var caps = {};
+  var that = this;
+
+  workerType.instanceTypes.forEach(function(t) {
+    caps[t.instanceType] = workerType.capacityOfType(t.instanceType);
+  });
+
+  var capToKill = 0;
+  var capacity = this.capacityForType(workerType, states);
+
+  // We use the list to track which spot requests to ignore
+  // and the object to pass to the aws functions.  This is instead
+  // of making a clone of state then deleting things from it.
+  var toKill = [];
+  var requestsToCancel = [];
+
+  function cont() {
+    return count <= capToKill && capacity >= workerType.minCapacity;
+  }
+
+  this.managedRegions().forEach(function(region) {
+    instances = [];
+    requests = [];
+    var state = this.getApi(region);
+    // We do pending first since it won't kill anything
+    // in progress
+
+    if (cont() && states.includes('pending') && state.pending) {
+      state.running.forEach(function(i) {
+        if (cont()) {
+          capToKill += caps[i.InstanceType];
+          toKill[region].instances.push(i.InstanceId);
+        }
+      });
+    }
+
+    if (cont() && states.includes('running') && state.running) {
+      state.running.forEach(function(i) {
+        if (cont()) {
+          capToKill += caps[i.InstanceType];
+          toKill[region].instances.push(i.InstanceId);
+        }
+      });
+    }
+
+    if (cont() && states.includes('spotReq') && state.spotReq) {
+      state.spotReq.forEach(function(sr) {
+        if (cont()) {
+          capToKill += caps[sr.LaunchSpecification.InstanceType];
+          toKill[region].instances.push(sr.LaunchSpecification.InstanceType);
+        }
+      });
+    }
+    
+    toKill.push(that.killCancel(region, instances, requests));
+  });
+
+  return Promise.all(toKill);
+  
+};

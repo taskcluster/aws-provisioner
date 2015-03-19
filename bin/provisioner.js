@@ -47,7 +47,6 @@ var launch = function(profile) {
   });
 
   var WorkerType = data.WorkerType.setup({
-    account: cfg.get('azure:accountName'),
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
     context: {

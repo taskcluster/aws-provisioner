@@ -22,36 +22,46 @@ var program = require('commander');
   Into this:
 
 {
-  "workerType": "b2gbuild",
+  "workerType": "test",
   "launchSpecification": {
     "SecurityGroups": [
-      "docker-worker"
+      "default"
     ],
-    "UserData": "<snip>"
+    "UserData": "eyJhIjoxfQ=="
   },
-  "minCapacity": 500,
-  "maxCapacity": 3000,
+  "minCapacity": 1,
+  "maxCapacity": 30,
   "scalingRatio": 1.0,
-  "minPrice": 0.1,
-  "maxPrice": 0.3,
+  "minPrice": 0.2,
+  "maxPrice": 1,
   "canUseOndemand": false,
   "canUseSpot": true,
-  "types": {
-    "c3.2xlarge": {
-      "capacity": 1,
-      "utility": 1,
-      "overwrites": {
-        "UserData": "<snip>"
-      }
+  "instanceTypes": [{
+    "instanceType": "m3.medium",
+    "capacity": 1,
+    "utility": 1,
+    "overwrites": {
+      "UserData": "eyJhIjoxfQ=="
     }
-  },
-  "regions": {
-    "us-west-2": {
-      "overwrites": {
-        "ImageId": "ami-<snip>"
-      }
+  }, {
+    "instanceType": "m3.large",
+    "capacity": 1,
+    "utility": 1,
+    "overwrites": {
+      "UserData": "eyJhIjoxfQ=="
     }
-  }
+  }],
+  "regions": [{
+    "region": "us-west-1",
+    "overwrites": {
+      "ImageId": "ami-42908907"
+    }
+  }, {
+    "region": "us-west-2",
+    "overwrites": {
+      "ImageId": "ami-dfc39aef"
+    }
+  }]
 }
 
 */
@@ -84,7 +94,7 @@ function migrate(allData) {
   x.maxPrice = parseFloat(data.spotBid);
   x.canUseOndemand = false;
   x.canUseSpot = true;
-  x.types = [{  
+  x.instanceTypes = [{
     instanceType: data.launchSpecification.InstanceType,
     capacity: 1,
     utility: 1,
@@ -98,11 +108,7 @@ function migrate(allData) {
       ImageId: data.launchSpecification.ImageId,
     }
   }];
-  
 
-
-  x.regions = {
-  };
   return x;
 }
 

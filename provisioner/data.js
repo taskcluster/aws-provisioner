@@ -320,7 +320,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // We want to make sure that whatever UserData is in there is in
   // base64
-  if (!/^[A-Za-z0-9+/=]{1,22}$/.exec(launchSpec.UserData)) {
+  if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
     throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
   }
 
@@ -480,6 +480,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   if (percentPending > this.scalingRatio) {
     // But when we do, let's submit enough requests that
     // we end up in an ideal state if all are fulfilled
+    //var ideal = (totalCapacity + pending) / this.scalingRatio;
     var ideal = (totalCapacity + pending) / this.scalingRatio;
     change = ideal - totalCapacity;
   }
