@@ -12,7 +12,7 @@ module.exports = {
     publicUrl:  'https://aws-provisioner2.herokuapp.com',
     port:       5556,
     env:        'production',
-    forceSSL:   false,
-    trustProxy: false,
+    forceSSL:   true,
+    trustProxy: true,
   },
 };
