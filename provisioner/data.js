@@ -541,7 +541,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, runni
     var uf = {};
 
     var types = this.instanceTypes.map(function(t) {
-      uf[t.instanceType] = that.utilityOfType(t.instanceType) || 1;
+      uf[t.instanceType] = that.utilityOfType(t.instanceType);
       return t.instanceType;
     });
 
