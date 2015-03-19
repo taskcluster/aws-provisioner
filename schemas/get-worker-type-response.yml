@@ -9,6 +9,7 @@ properties:
     type: string
     description: |
       The ID of the workerType
+    pattern: ^[A-Za-z0-9+/=]{1,22}$
   launchSpecification:
     type: object
     description: |
@@ -34,22 +35,86 @@ properties:
       we spawn enough machines that we always have 10% empty capacity.
   minPrice:
     type: number
-    description: maximum 'price' we'll pay
+    description: |
+      Minimum price to pay for an instance.  A Price is considered to be the
+      Amazon Spot Price multiplied by the utility factor of the InstantType
+      as specified in the instanceTypes list.  For example, if the minPrice
+      is set to $0.5 and the utility factor is 2, the actual minimum bid
+      used will be $0.25
   maxPrice:
     type: number
-    description: maximum 'price' we'll pay
+    description: |
+      Maximum price we'll pay.  Like minPrice, this takes into account the
+      utility factor when figuring out what the actual SpotPrice submitted
+      to Amazon will be
   canUseOndemand:
     type: boolean
     description: |
-      True if this worker type is allowed on demand instances
+      True if this worker type is allowed on demand instances.  Currently
+      ignored
   canUseSpot:
     type: boolean
     description: |
-      True if this worker type is allowed spot instances
+      True if this worker type is allowed spot instances.  Currently ignored
+      as all instances are Spot
   instanceTypes:
     type: array
+    items:
+      type: object
+      description: Instance Type configuration
+      properties:
+        instanceType:
+          description: |
+            InstanceType name for Amazon.
+          type: string
+        capacity:
+          description: |
+            This number represents the number of tasks that this instance type
+            is capable of running concurrently.  This is used by the provisioner
+            to know how many pending tasks to offset a pending instance of this
+            type by
+          type: number
+        utility:
+          description: |
+            This number is a relative measure of performance between two instance
+            types.  It is multiplied by the spot price from Amazon to figure out
+            which instance type is the cheapest one
+          type: number
+        overwrites:
+          type: object
+          description: |
+            This object contains LaunchSpecification keys which will overwrite
+            the keys from the General launch spec
+      required:
+        - instanceType
+        - capacity
+        - utility
+        - overwrites
+      additionalProperties: false
   regions:
     type: array
+    items:
+      type: object
+      description: Region configuration
+      properties:
+        region:
+          type: string
+          description: |
+            The Amazon AWS Region being configured.  Example: us-west-1
+        overwrites:
+          type: object
+          description: |
+            This object contains LaunchSpecification keys which will overwrite keys
+            from the general LaunchSpecificiation
+          properties:
+            ImageId:
+              type: string
+              description: Per-region AMI ImageId
+          required:
+            - ImageId
+      additionalProperties: false
+      required:
+        - overwrites
 additionalProperties: false
 required:
   - workerType
