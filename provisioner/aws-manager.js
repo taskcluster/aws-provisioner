@@ -220,9 +220,9 @@ AwsManager.prototype.getInternal = function(region, type) {
 };
 
 /**
- * List the types known in a given region
+ * List the types known worker types in a given region
  */
-AwsManager.prototype.typesForRegion = function(region) {
+AwsManager.prototype.workerTypesInRegion = function(region) {
   assert(region);
   var apiState = this.getApi(region) || {};
   var internalState = this.getInternal(region) || {};
@@ -231,7 +231,7 @@ AwsManager.prototype.typesForRegion = function(region) {
   Array.prototype.push.apply(types, Object.keys(internalState).filter(function(type) {
     return !types.includes(type);
   }));
-  return Object.keys(this.__apiState[region]);
+  return types;
 };
 
 /**
@@ -250,7 +250,7 @@ AwsManager.prototype.knownWorkerTypes = function() {
   var that = this;
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(workerType) {
+    that.workerTypesInRegion(region).forEach(function(workerType) {
       if (!workerTypes.includes(workerType)) {
         workerTypes.push(workerType);
       }
@@ -269,7 +269,7 @@ AwsManager.prototype.listRunningInstanceIds = function() {
   var that = this;
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(workerType) {
+    that.workerTypesInRegion(region).forEach(function(workerType) {
       var ids = that.getApi(region, workerType).running.map(function(x) {
         return x.InstanceId;
       });
@@ -289,7 +289,7 @@ AwsManager.prototype.listPendingInstanceIds = function() {
   var that = this;
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(workerType) {
+    that.workerTypesInRegion(region).forEach(function(workerType) {
       var ids = that.getApi(region, workerType).pending.map(function(x) {
         return x.InstanceId;
       });
@@ -310,7 +310,7 @@ AwsManager.prototype.listSpotUnfulfilledRequestIds = function() {
   var that = this;
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(workerType) {
+    that.workerTypesInRegion(region).forEach(function(workerType) {
       var ids = that.getApi(region, workerType).spotReq.map(function(x) {
         return x.SpotInstanceRequestId;
       });
@@ -331,7 +331,7 @@ AwsManager.prototype.listSpotRequestIds = function() {
   var that = this;
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(workerType) {
+    that.workerTypesInRegion(region).forEach(function(workerType) {
       that.getApi(region, workerType).spotReq.forEach(function(x) {
         ids.push(x.SpotInstanceRequestId);
       });
@@ -469,7 +469,7 @@ AwsManager.prototype.reconcileInternalState = function() {
   var allKnownIds = this.listSpotRequestIds();
 
   this.managedRegions().forEach(function(region) {
-    that.typesForRegion(region).forEach(function(type) {
+    that.workerTypesInRegion(region).forEach(function(type) {
       if (that.__internalState[region] && that.__internalState[region][type]) {
         // We could also splice the items to delete out, but that feels like
         // an over-optimization right now
