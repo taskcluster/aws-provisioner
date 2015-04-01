@@ -790,8 +790,8 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
   }
 
   this.managedRegions().forEach(function(region) {
-    instances = [];
-    requests = [];
+    var instances = [];
+    var requests = [];
     var state = this.getApi(region);
     // We do pending first since it won't kill anything
     // in progress
