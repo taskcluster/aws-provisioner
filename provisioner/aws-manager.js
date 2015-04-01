@@ -190,7 +190,11 @@ AwsManager.prototype.getApi = function(region, type) {
     if (!this.__apiState[region]) {
       return {};
     }
-    return this.__apiState[region][type];
+    return this.__apiState[region][type] || {
+      running: [],
+      pending: [],
+      spotReq: [], 
+    };
   } else if (region && !type) {
     return this.__apiState[region];
   } else if (!region && !type) {
@@ -211,7 +215,11 @@ AwsManager.prototype.getInternal = function(region, type) {
     if (!this.__internalState[region]) {
       return {};
     }
-    return this.__internalState[region][type];
+    return this.__internalState[region][type] || {
+      running: [],
+      pending: [],
+      spotReq: [], 
+    };
   } else if (region && !type) {
     return this.__internalState[region];
   } else if (!region && !type) {
