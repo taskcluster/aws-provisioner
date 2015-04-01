@@ -223,11 +223,11 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
         var deathWarrants = {};
         var capacityToKill = -change;
         debug('killing %d capacity', capacityToKill);
-        return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
+        return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['spotReq']);
       }
     } else {
       // But if we are, we should cancel all of our pending capacity
-      return that.killByName(workerType, ['pending', 'spotReq']);
+      return that.killByName(workerType, ['spotReq']);
     }
 
   });
