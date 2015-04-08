@@ -467,41 +467,31 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
 
-  // We need to know how many total capacity units are extant
-  var totalCapacity = pendingCapacity + runningCapacity;
+  // scalingRatio = 0.2   => keep pending tasks as 20% of runningCapacity
+  // scalingRatio = 0     => keep pending tasks as  0% of runningCapacity
+  var desiredPending = Math.round(this.scalingRatio * runningCapacity);
 
-  // We need to know the current ratio of capacity to pending
-  var percentPending = 1 + pending / totalCapacity;
+  // desiredPending < pending - pendingCapacity    =>   Create spot requests
+  //                                        , otherwise Cancel spot requests
+  var capacityChange = (pending - pendingCapacity) - desiredPending;
 
-  var change = 0;
+  // capacityChange > 0  => Create spot requests for capacityChange
+  // capacityChange < 0  => cancel spot requests for capacityChange
+  var capacityAfterChange =  capacityChange + pendingCapacity + runningCapacity;
 
-  // We only want to scale anything once we have a pending
-  // percentage that exceeds the scalingRatio
-  if (percentPending > this.scalingRatio) {
-    // But when we do, let's submit enough requests that
-    // we end up in an ideal state if all are fulfilled
-    //var ideal = (totalCapacity + pending) / this.scalingRatio;
-    var ideal = (totalCapacity + pending) / this.scalingRatio;
-    change = ideal - totalCapacity;
+  // Ensure we are within limits
+  if (capacityAfterChange > this.maxCapacity) {
+    // If there is more than max capacity we should always aim for maxCapacity
+    return this.maxCapacity - runningCapacity - pendingCapacity;
+  } else if(capacityAfterChange < this.minCapacity) {
+    // if there is less minCapacity we should always aim for minCapacity
+    return this.minCapacity - runningCapacity - pendingCapacity;
   }
 
-  // We need to offset the number of pending jobs by the
-  // number of units that can't yet start running tasks
-  change -= pendingCapacity;
-
-  debug('"%s" change needed is %d (runningCapacity %d, pendingCapacity %d, pending tasks %d)',
-        this.workerType, change, runningCapacity, pendingCapacity, pending);
-
-  if (totalCapacity + change > this.maxCapacity) {
-    change = this.maxCapacity - totalCapacity;
-    debug('%s, would exceed max, using %d instead', this.workerType, change);
-  } else if (totalCapacity + change < this.minCapacity) {
-    change = this.minCapacity - totalCapacity;
-    debug('%s wouldn\'t be meet min, using %d instead', this.workerType, change);
-  }
-
-  return Math.round(change);
-
+  // If we're not hitting limits, we should aim for the capacity change that
+  // fits with the scalingRatio, to keep pending tasks around as a percentage
+  // of the running capacity.
+  return capacityChange;
 };
 
 
