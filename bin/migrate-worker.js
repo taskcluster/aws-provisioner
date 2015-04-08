@@ -31,7 +31,7 @@ var program = require('commander');
   },
   "minCapacity": 1,
   "maxCapacity": 30,
-  "scalingRatio": 1.0,
+  "scalingRatio": 0,
   "minPrice": 0.2,
   "maxPrice": 1,
   "canUseOndemand": false,
@@ -87,9 +87,9 @@ function migrate(allData) {
       x.launchSpecification[key] = data.launchSpecification[key];
     }
   });
-  x.minCapacity = 0;
+  x.minCapacity = 1;
   x.maxCapacity = data.maxInstances;
-  x.scalingRatio = 1.0;
+  x.scalingRatio = 0;
   x.minPrice = 0;
   x.maxPrice = parseFloat(data.spotBid);
   x.canUseOndemand = false;
