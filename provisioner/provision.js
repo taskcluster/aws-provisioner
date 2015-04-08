@@ -209,25 +209,21 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
       debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
     }
 
-    if (totalCapacity < workerType.maxCapacity) {
-
-      if (change > 0 || totalCapacity < workerType.minCapacity) {
-        // We want to create bids when we have a change or when we have less then the minimum capacity
-        var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
-        return Promise.all(bids.map(function(bid) {
-          return that.awsManager.requestSpotInstance(workerType, bid);
-        }));
-      } else if (change < 0) {
-        // We want to cancel spot requests when we no longer need them, but only
-        // down to the minimum capacity
-        var deathWarrants = {};
-        var capacityToKill = -change;
-        debug('killing %d capacity', capacityToKill);
-        return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['spotReq']);
-      }
+    if (change > 0) {
+      // We want to create bids when we have a change or when we have less then the minimum capacity
+      var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
+      return Promise.all(bids.map(function(bid) {
+        return that.awsManager.requestSpotInstance(workerType, bid);
+      }));
+    } else if (change < 0) {
+      // We want to cancel spot requests when we no longer need them, but only
+      // down to the minimum capacity
+      var deathWarrants = {};
+      var capacityToKill = -change;
+      debug('killing %d capacity', capacityToKill);
+      return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['spotReq']);
     } else {
-      // But if we are, we should cancel all of our pending capacity
-      return that.killByName(workerType, ['spotReq']);
+      debug('no change needed');
     }
 
   });
