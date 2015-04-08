@@ -9,7 +9,7 @@ properties:
     type: string
     description: |
       The ID of the workerType
-    pattern: ^[A-Za-z0-9+/=]{1,22}$
+    pattern: ^[A-Za-z0-9+/=_-]{1,22}$
   launchSpecification:
     type: object
     description: |
