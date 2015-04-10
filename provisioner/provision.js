@@ -86,7 +86,7 @@ Provisioner.prototype.run = function () {
 
     // We should make sure that we're not just permanently failing
     // We also don't want to
-    if (stats.iterations > 20 && stats.failures > 2 * stats.success) {
+    if (stats.iterations > 20 && stats.failures > stats.success) {
       debug('[alert-operator] killing provisioner because it has run ' +
             'for a while but has failed lots of iterations');
       throw new Error('provisioner is failing a lot');
@@ -141,6 +141,7 @@ Provisioner.prototype.stop = function () {
 Provisioner.prototype.runAllProvisionersOnce = function() {
   var that = this;
 
+  debug('provisioner id is "%s"', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
     this.awsManager.update(),
@@ -156,7 +157,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       return x.workerType;
     });
 
-    debug('configured workers: %j', workerNames);
+    debug('configured workers: %j', workerNames.join('\n'));
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
 
     // Remember that this thing caches stuff inside itself
