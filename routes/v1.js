@@ -445,6 +445,24 @@ api.declare({
 
 });
 
+api.declare({
+  method: 'get',
+  route: '/state/:workerType',
+  name: 'stateForWorker',
+  title: 'Get AWS State for a worker type',
+  description: [
+    'Documented later...',
+    '',
+    '**Warning** this api end-point is **not stable**'
+  ].join('\n'),
+}, function(req, res) {
+  res.reply({
+    running: [],
+    pending: [],
+    spotReq: [],
+  });
+});
+
 
 api.declare({
   method: 'get',
