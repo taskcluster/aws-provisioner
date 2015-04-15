@@ -60,6 +60,13 @@ var launch = function(profile) {
   // able to inspect what goes on there from here
   var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
 
+  // We want to be updating the Aws State so that api clients can easily
+  // access the information with the minimum overhead possible
+  function updateAwsState () {
+    awsManager.update().done();
+  }
+  setTimeout(updateAwsState, 2 * 60 * 1000);
+
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
     drain: influx,
@@ -111,6 +118,11 @@ var launch = function(profile) {
   // Store the publisher to inject it as context into the API
   p = p.then(function(publisher_) {
     publisher = publisher_;
+  });
+
+  // Warm the Aws State Cache
+  p = p.then(function() {
+    return awsManager.update();
   });
 
   // We also want to make sure that the table is created.  We could

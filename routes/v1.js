@@ -1,6 +1,8 @@
 'use strict';
 var debug = require('debug')('routes:v1');
 var base = require('taskcluster-base');
+var objFilter = require('../lib/objFilter');
+var lodash = require('lodash');
 
 // Common schema prefix
 var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
@@ -445,24 +447,70 @@ api.declare({
 
 });
 
+/**
+ * The UI is going to be a lot easier if we organize by workerType name
+ * instead of by region
+ */
+var filterForSR = [
+  'CreateTime',
+  'State',
+  'LaunchSpecification:InstanceType',
+  'LaunchSpecification:ImageId',
+  'LaunchSpecification:Placement:AvailabilityZone'
+];
+var filterForInstance = [
+  'InstanceId',
+  'ImageId',
+  'InstanceType',
+  'LaunchTime',
+  'Placement:AvailabilityZone',
+  'SpotInstanceRequestId',
+];
+function stateForUI(state) {
+  var newState = {};
+  Object.keys(state).forEach(function(region) {
+    var regionState = state[region];
+    Object.keys(regionState).forEach(function(workerType) {
+      if (!newState[workerType]) newState[workerType] = {
+        running: [],
+        pending: [],
+        spotReq: [],
+      };
+      ['running', 'pending', 'spotReq'].forEach(function(nodeState) {
+        var thisNodeState = newState[workerType][nodeState];
+        state[region][workerType][nodeState].forEach(function(oldThing) {
+          var x = lodash.cloneDeep(oldThing); 
+          if (nodeState === 'spotReq') {
+            x = objFilter(x, filterForSR);
+          } else {
+            x = objFilter(x, filterForInstance);
+          }
+          x.Region = region;
+          newState[workerType][nodeState].push(x);
+        })
+      });
+    });
+  });
+  return newState;
+}
+
+// NOTE: there should be some sort of updateIfOlderThan function in the aws manager
+// that only does the update once every X seconds.
 api.declare({
   method: 'get',
-  route: '/state/:workerType',
-  name: 'stateForWorker',
-  title: 'Get AWS State for a worker type',
+  route: '/aws-state/',
+  name: 'awsState',
+  title: 'Get AWS State for all worker types',
   description: [
     'Documented later...',
     '',
     '**Warning** this api end-point is **not stable**'
   ].join('\n'),
 }, function(req, res) {
-  res.reply({
-    running: [],
-    pending: [],
-    spotReq: [],
-  });
+  var apiState = this.awsManager.getApi();
+  var data = stateForUI(apiState);
+  res.reply(data);
 });
-
 
 api.declare({
   method: 'get',

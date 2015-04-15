@@ -8,8 +8,8 @@ module.exports = {
     allowedRegions:       'us-west-2',
   },
   server: {
-    publicUrl:  'https://aws-provisioner2.herokuapp.com',
-    port:       5556,
+    publicUrl:  'http://localhost:5557',
+    port:       5557,
     env:        'development',
     forceSSL:   false,
     trustProxy: false,
