@@ -65,6 +65,7 @@ var launch = function(profile) {
   function updateAwsState () {
     awsManager.update().done();
   }
+  updateAwsState();
   setTimeout(updateAwsState, 2 * 60 * 1000);
 
   // Start monitoring the process
