@@ -448,8 +448,8 @@ api.declare({
 });
 
 /**
- * The UI is going to be a lot easier if we organize by workerType name
- * instead of by region
+ * These lists are the keys for the object filtering we'll do for their
+ * respective aws state objects.
  */
 var filterForSR = [
   'CreateTime',
@@ -466,6 +466,11 @@ var filterForInstance = [
   'Placement:AvailabilityZone',
   'SpotInstanceRequestId',
 ];
+
+/**
+ * The UI is going to be a lot easier if we organize by workerType name
+ * instead of by region
+ */
 function stateForUI(state) {
   var newState = {};
   Object.keys(state).forEach(function(region) {
@@ -507,9 +512,32 @@ api.declare({
     '**Warning** this api end-point is **not stable**'
   ].join('\n'),
 }, function(req, res) {
-  var apiState = this.awsManager.getApi();
-  var data = stateForUI(apiState);
-  res.reply(data);
+  res.reply(stateForUI(this.awsManager.getApi()));
+});
+
+// NOTE: there should be some sort of updateIfOlderThan function in the aws manager
+// that only does the update once every X seconds.
+api.declare({
+  method: 'get',
+  route: '/update-aws-state/',
+  name: 'updateAwsState',
+  title: 'Get AWS State after fetching updates for all worker types',
+  description: [
+    'Documented later...',
+    '',
+    '**Warning** this api end-point is **not stable**'
+  ].join('\n'),
+}, function(req, res) {
+  var that = this;
+  var p = this.awsManager.update();
+
+  p = p.then(function() {
+    res.reply(stateForUI(that.awsManager.getApi()));
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, "Updating Aws State");
+  });
 });
 
 api.declare({
