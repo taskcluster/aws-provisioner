@@ -216,9 +216,33 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     if (change > 0) {
       // We want to create bids when we have a change or when we have less then the minimum capacity
       var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
-      return Promise.all(bids.map(function(bid) {
-        return that.awsManager.requestSpotInstance(workerType, bid);
-      }));
+      var p = Promise.resolve();
+      // To avoid API errors, we're going to run all of these promises sequentially
+      // and with a slight break between the calls
+      bids.forEach(function(bid) {
+        p = p.then(function() {
+          return new Promise(function(resolve, reject) {
+            setTimeout(function() {
+              resolve(that.awsManager.requestSpotInstance(workerType, bid));
+            }, 500);
+          });
+        });
+        
+        // We don't want to stop provisioning because one instance failed, but we will
+        // increase the time out a little
+        p = p.catch(function(err) {
+          console.log('[alert-operator] ' + err);
+          console.log(err.stack);
+
+          return new Promise(function(resolve, reject) {
+            setTimeout(function() {
+              resolve(that.awsManager.requestSpotInstance(workerType, bid));
+            }, 1500);
+          });
+        });
+      });
+     
+      return p;
     } else if (change < 0) {
       // We want to cancel spot requests when we no longer need them, but only
       // down to the minimum capacity
