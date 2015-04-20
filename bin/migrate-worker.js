@@ -87,7 +87,7 @@ function migrate(allData) {
       x.launchSpecification[key] = data.launchSpecification[key];
     }
   });
-  x.minCapacity = 1;
+  x.minCapacity = 0;
   x.maxCapacity = data.maxInstances;
   x.scalingRatio = 0;
   x.minPrice = 0;
