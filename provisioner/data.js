@@ -100,7 +100,6 @@ WorkerType.create = function(workerType, properties) {
   return base.Entity.create.call(this, properties);
 };
 
-
 /**
  * Return a list of all known workerTypes
  */
@@ -139,7 +138,6 @@ WorkerType.listWorkerTypes = function() {
   return p;
 };
 
-
 /**
  * Load a single workerType by name
  */
@@ -147,7 +145,6 @@ WorkerType.load = function(toLoad) {
   assert(toLoad);
   return base.Entity.load.call(this, toLoad);
 };
-
 
 /**
  * Return an Object for JSON encoding which represents
