@@ -537,6 +537,9 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
   p = p.then(function(spotReq) {
     debug('submitted spot request %s for $%d for %s in %s/%s for %s',
       spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
+    var userData = new Buffer(launchSpec.UserData, 'base64').toString();
+    userData = JSON.stringify(JSON.parse(userData), null, 2);
+    debug('Used this userdata: %s', userData);
     var info = {
       workerType: workerType.workerType,
       request: spotReq,

@@ -357,7 +357,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     debug(launchSpec.UserData);
   }
 
-  var userData = lodash.assign(hardCodedUserData, generatedUserData);
+  var userData = lodash.assign(generatedUserData, hardCodedUserData);
   launchSpec.UserData = new Buffer(JSON.stringify(userData)).toString('base64');
 
   // These are the keys that we require to be set.  They

@@ -204,6 +204,9 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     var totalCapacity = runningCapacity + pendingCapacity;
     var change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
+    debug('%s: %d running capacity, %d pending capacity and %d pending jobs',
+        workerType.workerType, runningCapacity, pendingCapacity, pending);
+
     if (typeof pending !== 'number') {
       console.error(pending);
       pending = 0;
