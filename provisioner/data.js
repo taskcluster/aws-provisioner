@@ -333,31 +333,31 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   });
   assert(capacity);
 
-  var generatedUserData = {
-    capacity: capacity,
-    workerType: worker.workerType,
-    provisionerId: provisionerId,
-    region: region,
-    instanceType: instanceType,
-    launchSpecGenerated: new Date().toISOString(),
-  };
-
   // We're going to try to read in the stored UserData field and use
   // it as the basis for our generated UserData
   // Note that we're enforcing here that UserData will contain
   // JSON encoded values.  If the stored UserData is not in a format
   // which is not parsable as Base64(Json(x)) then we're going to
   // include it verbatim as a key
-  var hardCodedUserData = {};
+  var userData = {};
   try {
-    hardCodedUserData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
+    userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
+    if (typeof userData !== 'object') {
+      userData = {
+        stringUserData: userData
+      };
+    }
   } catch(e) {
-    generatedUserData.originalUserData = launchSpec.UserData;
-    debug('%s stored user data is not base64 encoded JSON', worker.workerType);
-    debug(launchSpec.UserData);
+    console.log('Stored user data for ' + worker.workerType + ' is invalid');
   }
 
-  var userData = lodash.assign(generatedUserData, hardCodedUserData);
+  userData.capacity = capacity;
+  userData.workerType = worker.workerType;
+  userData.provisionerId = provisionerId;
+  userData.region = region;
+  userData.instanceType = instanceType;
+  userData.launchSpecGenerated = new Date().toISOString();
+
   launchSpec.UserData = new Buffer(JSON.stringify(userData)).toString('base64');
 
   // These are the keys that we require to be set.  They
@@ -557,7 +557,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
       });
     });
 
-    if (spotBid) {
+    if (spotBid && cheapestPrice <= that.maxPrice) {
       change -= that.capacityOfType(cheapestType);
       spotBids.push({
         price: spotBid,
@@ -566,6 +566,10 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         zone: cheapestZone,
       });
     } else {
+      if (cheapestPrice > that.maxPrice) {
+        debug('WorkerType %s is exceeding its max price of %d with %d',
+              that.workerType, cheapestPrice, that.maxPrice);
+      }
       throw new Error('Counld not create a bid which satisfies requirements');
     }
 
