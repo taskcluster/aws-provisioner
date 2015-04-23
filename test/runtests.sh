@@ -12,6 +12,7 @@
 #  provisioner/*.js
 
 # Run tests
-mocha
-
+mocha                     \
+  test_server.js          \
+  ;
 
