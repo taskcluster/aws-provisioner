@@ -456,7 +456,8 @@ var filterForSR = [
   'State',
   'LaunchSpecification:InstanceType',
   'LaunchSpecification:ImageId',
-  'LaunchSpecification:Placement:AvailabilityZone'
+  'LaunchSpecification:Placement:AvailabilityZone',
+  'SpotInstanceRequestId',
 ];
 var filterForInstance = [
   'InstanceId',
