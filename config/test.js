@@ -13,4 +13,11 @@ module.exports = {
     forceSSL:   false,
     trustProxy: false,
   },
+  taskcluster: {
+    authBaseUrl:    'http://localhost:60407/v1',
+    credentials: {
+      clientId:     'test-server',
+      accessToken:  'none'
+    }
+  }
 };
