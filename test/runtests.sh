@@ -13,6 +13,6 @@
 
 # Run tests
 mocha                     \
-  test_server.js          \
+  test/test_server.js          \
   ;
 
