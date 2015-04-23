@@ -139,14 +139,6 @@ WorkerType.listWorkerTypes = function() {
 };
 
 /**
- * Load a single workerType by name
- */
-WorkerType.load = function(toLoad) {
-  assert(toLoad);
-  return base.Entity.load.call(this, toLoad);
-};
-
-/**
  * Return an Object for JSON encoding which represents
  * the data associated with this WorkerType.  This is a
  * method intended for use in displaying the data associated
