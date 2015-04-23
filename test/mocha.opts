@@ -1,4 +1,4 @@
 --require should
---require test/babel-register
+--compilers js:babel/register
 --ui tdd
 --timeout 30s

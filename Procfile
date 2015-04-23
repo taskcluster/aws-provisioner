@@ -1,2 +1,2 @@
-web:            ./node_modules/.bin/babel-node -r bin/server.js production
-provisioner:    ./node_modules/.bin/babel-node -r bin/provisioner.js production
+web:            babel-node bin/server.js      production
+provisioner:    babel-node bin/provisioner.js production
