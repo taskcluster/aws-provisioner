@@ -1,115 +1,108 @@
 'use strict';
-var Promise = require('promise');
-var path = require('path');
-var _ = require('lodash');
-var base = require('taskcluster-base');
-var v1 = require('../routes/v1');
-//var exchanges   = require('../auth/exchanges');
+var Promise     = require('promise');
+var path        = require('path');
+var _           = require('lodash');
+var base        = require('taskcluster-base');
+var mocha       = require('mocha');
+var v1          = require('../routes/v1');
+var exchanges   = require('../provisioner/exchanges');
 var taskcluster = require('taskcluster-client');
+var bin = {
+  server:             require('../bin/server'),
+};
+
+// Some default clients for the mockAuthServer
+var defaultClients = [
+  {
+    clientId:     'test-server',  // Hardcoded into config/test.js
+    accessToken:  'none',
+    scopes:       ['auth:credentials', 'auth:can-delegate'],
+    expires:      new Date(3000, 0, 0, 0, 0, 0, 0)
+  }, {
+    clientId:     'test-client',  // Used in default AwsProvisioner creation
+    accessToken:  'none',
+    scopes:       ['*'],
+    expires:      new Date(3000, 0, 0, 0, 0, 0, 0)
+  }
+];
 
 // Load configuration
 var cfg = base.config({
-  defaults: require('../config/defaults'),
-  profile: require('../config/test'),
-  filename: 'test-config',
+  defaults:   require('../config/defaults'),
+  profile:    require('../config/test'),
+  filename:   'taskcluster-aws-provisioner'
 });
-
-/** Return a promise that sleeps for `delay` ms before resolving */
-exports.sleep = function(delay) {
-  return new Promise(function(accept) {
-    setTimeout(accept, delay);
-  });
-};
-
 exports.cfg = cfg;
 
-/* eslint no-undef: 0, no-unused-expressions: 0 */
+// Skip tests if no AWS credentials is configured
+if (!cfg.get('aws:secretAccessKey') ||
+    !cfg.get('azure:accountKey') ||
+    !cfg.get('pulse:password')) {
+  console.log("Skip tests due to missing credentials!");
+  process.exit(1);
+}
 
-/** Setup testing */
-exports.setup = function(options) {
-  // Provide default configuration
-  options = _.defaults(options || {}, {title: 'untitled test'});
-
-  // Create subject to be tested by test
-  var subject = {};
-
-  // It's an error to run tests without credentials
-  if (!cfg.get('azure:accountKey') ||
-      !cfg.get('influx:connectionString')) {
-    throw new Error('Cannot configure helper for ' + options.title);
-  }
+// Configure PulseTestReceiver
+exports.events = new base.testing.PulseTestReceiver(cfg.get('pulse'), mocha);
 
 
-  // TODO: Switch from development config to test one!
-  // Configure server
-  var server = new base.testing.LocalApp({
-    command: path.join(__dirname, '..', 'bin', 'server.js'),
-    args: ['test'],
-    name: 'server.js',
-    baseUrlPath: '/v1',
+// Hold reference to authServer
+var authServer = null;
+var webServer = null;
+
+// Setup before tests
+mocha.before(async () => {
+  // Create mock authentication server
+  authServer = await base.testing.createMockAuthServer({
+    port:     60407, // This is hardcoded into config/test.js
+    clients:  defaultClients
   });
 
-  // Hold reference to all listeners created with `subject.listenFor`
-  var listeners = [];
+  webServer = await bin.server('test');
 
-  // Setup server
-  setup(function() {
-    // Utility function to listen for a message
-    // Return an object with two properties/promises:
-    // {
-    //   ready:   Promise,  // Resolved when we've started to listen
-    //   message: Promise   // Resolved when we've received a message
-    // }
-    subject.listenFor = function(binding) {
-      // Create listener
-      var listener = new taskcluster.PulseListener({
-        username: cfg.get('pulse:username'),
-        password: cfg.get('pulse:password'),
-      });
-      // Track it, so we can close it in teardown()
-      listeners.push(listener);
-      // Bind to binding
-      listener.bind(binding);
-      // Wait for a message
-      var gotMessage = new Promise(function(accept, reject) {
-        listener.on('message', accept);
-        listener.on('error', reject);
-      });
-      return {
-        ready: listener.resume(),
-        message: gotMessage,
-      };
-    };
-    // Set root credentials on subject
-    // (so we only have to hardcode it in test.js)
-    return server.launch().then(function(baseUrl) {
-      // Create client for working with API
-      subject.baseUrl = baseUrl;
-      var reference = v1.reference({baseUrl: baseUrl});
-      subject.AwsProvisioner = taskcluster.createClient(reference);
-      subject.awsProvisioner = new subject.AwsProvisioner({
-        baseUrl: baseUrl,
-      });
-
-      subject.badCred = new subject.AwsProvisioner({
-        baseUrl: baseUrl,
-        credentials: {clientId: 'c', accessToken: 'a'},
-      });
-
+  // Create client for working with API
+  exports.baseUrl = 'http://localhost:' + webServer.address().port + '/v1';
+  var reference = v1.reference({baseUrl: exports.baseUrl});
+  exports.AwsProvisioner = taskcluster.createClient(reference);
+  // Utility to create an Queue instance with limited scopes
+  exports.scopes = (...scopes) => {
+    exports.awsProvisioner = new exports.AwsProvisioner({
+      // Ensure that we use global agent, to avoid problems with keepAlive
+      // preventing tests from exiting
+      agent:            require('http').globalAgent,
+      baseUrl:          exports.baseUrl,
+      credentials: {
+        clientId:       'test-client',
+        accessToken:    'none'
+      },
+      authorizedScopes: (scopes.length > 0 ? scopes : undefined)
     });
-  });
+  };
 
-  // Shutdown server
-  teardown(function() {
-    // Kill server
-    return server.terminate().then(function() {
-      return Promise.all(listeners.map(function(listener) {
-        return listener.close();
-      })).then(function() {
-        listeners = [];
-      });
-    });
-  });
+  // Initialize provisioner client
+  exports.scopes();
 
-  return subject;
-};
+  /*
+  // Create client for binding to reference
+  var exchangeReference = exchanges.reference({
+    exchangePrefix:   cfg.get('provisioner:exchangePrefix'),
+    credentials:      cfg.get('pulse')
+  });
+  helper.AwsProvisionerEvents = taskcluster.createClient(exchangeReference);
+  helper.awsProvisionerEvents = new helper.AwsProvisionerEvents();
+  */
+});
+
+// Setup before each test
+mocha.beforeEach(() => {
+  // Setup client with all scopes
+  exports.scopes();
+});
+
+// Cleanup after tests
+mocha.after(async () => {
+  // Kill webServer
+  await webServer.terminate();
+  await authServer.terminate();
+});
+
