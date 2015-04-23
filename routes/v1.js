@@ -1,8 +1,8 @@
 'use strict';
-var debug = require('debug')('routes:v1');
-var base = require('taskcluster-base');
+var debug     = require('debug')('routes:v1');
+var base      = require('taskcluster-base');
 var objFilter = require('../lib/objFilter');
-var lodash = require('lodash');
+var _         = require('lodash');
 
 // Common schema prefix
 var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
@@ -83,25 +83,26 @@ function errorHandler(err, res, workerType) {
 module.exports = api;
 
 api.declare({
-  method: 'put',
-  route: '/worker-type/:workerType',
-  name: 'createWorkerType',
-  deferAuth: true,
-  scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
-  input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
-  title: 'Create new Worker Type',
+  method:     'put',
+  route:      '/worker-type/:workerType',
+  name:       'createWorkerType',
+  deferAuth:  true,
+  scopes:     ['aws-provisioner:manage-worker-type:<workerType>'],
+  input:      SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
+  output:     SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  title:      "Create new Worker Type",
   description: [
-    'Create a worker type and ensure that all EC2 regions have the required ',
+    'Create a worker type and ensure that all EC2 regions have the required',
     'KeyPair',
   ].join('\n'),
-},
-function(req, res) {
-  var that = this;
+}, async function (req, res) {
   var input = req.body;
   var workerType = req.params.workerType;
 
-  if(!req.satisfies({workerType: workerType})) { return undefined; }
+  // Authenticate request with parameterized scope
+  if(!req.satisfies({workerType: workerType})) {
+    return;
+  }
 
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
@@ -110,35 +111,63 @@ function(req, res) {
   // We want to make sure that every single possible generated LaunchSpec
   // would be valid before we even try to store it
   try {
-    this.WorkerType.testLaunchSpecs(input, that.keyPrefix, that.provisionerId);
+    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId);
   } catch (err) {
-    errorHandler(err, res, workerType);
+    // We handle invalid launch spec errors
+    if (!err && err.code !== 'InvalidLaunchSpecifications') {
+      throw err;
+    }
+    return res.status(400).json({
+      message:  "Invalid launchSpecification",
+      error: {
+        reasons:    err.reasons
+      }
+    });
   }
 
-  var worker;
+  // Create workerType
+  var wType;
+  try {
+    wType = await this.WorkerType.create(workerType, input);
+  }
+  catch(err) {
+    // We only catch EntityAlreadyExists errors
+    if (!err || err.code !== 'EntityAlreadyExists') {
+      throw err;
+    }
+    wType = await this.WorkerType.load({workerType});
 
-  var p = this.WorkerType.create(workerType, input);
-
-  p = p.then(function(worker_) {
-    worker = worker_;
-  });
-
-  p = p.then(function() {
-    return that.publisher.workerTypeCreated({
-      workerType: workerType,
+    // Check the it matches the existing workerType
+    var match = [
+      'launchSpecification',
+      'minCapacity',
+      'maxCapacity',
+      'scalingRatio',
+      'minPrice',
+      'maxPrice',
+      'canUseOndemand',
+      'canUseSpot',
+      'instanceTypes',
+      'regions'
+    ].every((key) => {
+      return _.isEqual(wType[key], input[key]);
     });
+
+    // If we don't have a match we return 409, otherwise we continue as this is
+    // is an idempotent operation.
+    if (!match) {
+      return res.status(409).json({
+        error:  "WorkerType already exists with different definition"
+      });
+    }
+  }
+
+  // Publish pulse message
+  await this.publisher.workerTypeCreated({
+    workerType: workerType,
   });
 
-  p = p.then(function() {
-    return res.reply(worker.json());
-  });
-
-  p = p.catch(function(err) {
-    errorHandler(err, res, workerType);
-    return err;
-  });
-
-  return p;
+  return res.reply(wType.json());
 });
 
 
@@ -485,7 +514,7 @@ function stateForUI(state) {
       ['running', 'pending', 'spotReq'].forEach(function(nodeState) {
         var thisNodeState = newState[workerType][nodeState];
         state[region][workerType][nodeState].forEach(function(oldThing) {
-          var x = lodash.cloneDeep(oldThing); 
+          var x = _.cloneDeep(oldThing);
           if (nodeState === 'spotReq') {
             x = objFilter(x, filterForSR);
           } else {

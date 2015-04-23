@@ -22,7 +22,8 @@
     "sinon":                          "^1.12.2",
     "slugid":                         "1.0.3",
     "taskcluster-base":               "0.7.21",
-    "taskcluster-client":             "0.22.0"
+    "taskcluster-client":             "0.22.0",
+    "assume":                         "^1.2.4"
   },
   "devDependencies": {
     "babel-eslint":                   "^2.0.2",

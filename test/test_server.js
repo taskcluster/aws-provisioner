@@ -6,78 +6,12 @@ describe('provisioner api server', function() {
   var path = require('path');
 
   var wDefinition = JSON.parse(fs.readFileSync(path.join(__dirname, 'sampleWorkerType.json')));
-  var invalidLaunchSpecs =
-    JSON.parse(fs.readFileSync(path.join(__dirname, 'invalidLaunchSpecOptions.json')));
 
   var wDefinitionForCreate = _.cloneDeep(wDefinition);
   delete wDefinitionForCreate.workerType;
 
   it('should respond to ping', function() {
     return subject.awsProvisioner.ping();
-  });
-
-  describe('bad input', function() {
-    it('should cause failure when creating', function () {
-      var wName = 'createBadInput';
-
-      var p = subject.awsProvisioner.createWorkerType(wName, {bad: 'worker'});
-
-      p = p.then(function() {
-        throw new Error('should have failed here');
-      });
-
-      p = p.catch(function(error) {
-        error.should.be.an.Error;
-      });
-
-      return p;
-    });
-
-    it('should cause failure when updating', function () {
-      var wName = 'createBadInput';
-
-      var p = subject.awsProvisioner.updateWorkerType(wName, {bad: 'worker'});
-
-      p = p.then(function() {
-        throw new Error('should have failed here');
-      });
-
-      p = p.catch(function(error) {
-        error.should.be.an.Error;
-      });
-
-      return p;
-    });
-
-    it('should fail when launch specs cannot be generated on create', function() {
-      var p = subject.awsProvisioner.createWorkerType('invalid', invalidLaunchSpecs);
-
-      p = p.then(function() {
-        throw new Error('should have failed here');
-      });
-
-      p = p.catch(function(err) {
-        err.should.be.an.Error;
-        //err.body.reason.should.be.an.Array;
-        //err.body.reason.length.should.equal(4);
-      });
-
-      return p;
-    });
-
-    it('should fail when workertype is not found', function() {
-      var p = subject.awsProvisioner.workerType('akdsfjlaksdjfl');
-
-      p = p.then(function() {
-        throw new Error('should have failed');
-      });
-
-      p = p.catch(function(err) {
-        err.should.be.an.Error;
-      });
-
-      return p;
-    });
   });
 
   // TODO: Write tests to check that auth works for real on all endpoints
