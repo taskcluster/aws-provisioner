@@ -11,7 +11,7 @@ var Aws = require('multi-region-promised-aws');
 var _ = require('lodash');
 
 /** Launch server */
-var launch = function(profile) {
+var launch = function (profile) {
   // Load configuration
   var cfg = base.config({
     defaults: require('../config/defaults'),
