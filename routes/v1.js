@@ -212,8 +212,9 @@ api.declare({
     });
   });
 
+  // Publish pulse message
   p = p.then(function() {
-    return that.publisher.workerTypeCreated({
+    return that.publisher.workerTypeUpdated({
       workerType: workerType,
     });
   });
@@ -300,10 +301,11 @@ api.declare({
     return res.reply({});
   });
 
+  // Publish pulse message
   p = p.then(function() {
-    //return that.publisher.workerTypeDeleted({
-    //  workerType: workerType,
-    //})
+    return that.publisher.workerTypeRemoved({
+      workerType: workerType,
+    });
   });
 
   p = p.catch(function(err) {

@@ -58,17 +58,46 @@ var commonCCBuilder = function() {
 // Common schema prefix
 var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
 
-/** Task-graph running exchange */
 exchanges.declare({
   exchange: 'worker-type-created',
-  name: 'workerTypeCreated',    // Method to call on publisher
+  name: 'workerTypeCreated',  // Method to call on publisher
   title: 'WorkerType Created Message',
   description: [
     'When a new `workerType` is created a message will be published to this',
     'exchange.',
   ].join('\n'),
   routingKey: commonRoutingKey,
-  schema: SCHEMA_PREFIX_CONST + 'worker-type-created-message.json#',
+  schema: SCHEMA_PREFIX_CONST + 'worker-type-message.json#',
+  messageBuilder: commonMessageBuilder,
+  routingKeyBuilder: commonRoutingKeyBuilder,
+  CCBuilder: commonCCBuilder,
+});
+
+exchanges.declare({
+  exchange: 'worker-type-updated',
+  name: 'workerTypeUpdated',    // Method to call on publisher
+  title: 'WorkerType Updated Message',
+  description: [
+    'When a `workerType` is updated a message will be published to this',
+    'exchange.',
+  ].join('\n'),
+  routingKey: commonRoutingKey,
+  schema: SCHEMA_PREFIX_CONST + 'worker-type-message.json#',
+  messageBuilder: commonMessageBuilder,
+  routingKeyBuilder: commonRoutingKeyBuilder,
+  CCBuilder: commonCCBuilder,
+});
+
+exchanges.declare({
+  exchange: 'worker-type-removed',
+  name: 'workerTypeRemoved',    // Method to call on publisher
+  title: 'WorkerType Removed Message',
+  description: [
+    'When a `workerType` is removed a message will be published to this',
+    'exchange.',
+  ].join('\n'),
+  routingKey: commonRoutingKey,
+  schema: SCHEMA_PREFIX_CONST + 'worker-type-message.json#',
   messageBuilder: commonMessageBuilder,
   routingKeyBuilder: commonRoutingKeyBuilder,
   CCBuilder: commonCCBuilder,
