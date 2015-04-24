@@ -185,8 +185,7 @@ api.declare({
     'Update a workerType and ensure that all regions have the require',
     'KeyPair',
   ].join('\n'),
-}, function(req, res) {
-  var that = this;
+}, async function(req, res) {
   var input = req.body;
   var workerType = req.params.workerType;
 
@@ -195,41 +194,35 @@ api.declare({
   var worker;
 
   try {
-    this.WorkerType.testLaunchSpecs(input, that.keyPrefix, that.provisionerId);
+    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId);
   } catch (err) {
-    errorHandler(err, res, workerType);
+    // We handle invalid launch spec errors
+    if (!err && err.code !== 'InvalidLaunchSpecifications') {
+      throw err;
+    }
+    return res.status(400).json({
+      message:  "Invalid launchSpecification",
+      error: {
+        reasons:    err.reasons
+      }
+    });
   }
 
-  var p = this.WorkerType.load({workerType: workerType});
+  var wType = await this.WorkerType.load({workerType: workerType});
 
-  p = p.then(function(worker_) {
-    worker = worker_;
-    return worker.modify(function(w) {
-      // We know that data that gets to here is valid per-schema
-      Object.keys(input).forEach(function(key) {
-        w[key] = input[key];
-      });
+  await wType.modify(function(w) {
+    // We know that data that gets to here is valid per-schema
+    Object.keys(input).forEach(function(key) {
+      w[key] = input[key];
     });
   });
 
   // Publish pulse message
-  p = p.then(function() {
-    return that.publisher.workerTypeUpdated({
-      workerType: workerType,
-    });
+  await this.publisher.workerTypeUpdated({
+    workerType: workerType,
   });
 
-  p = p.then(function() {
-    return res.reply(worker.json());
-  });
-
-  p = p.catch(function(err) {
-    errorHandler(err, res, workerType);
-    return err;
-  });
-
-  return p;
-
+  return res.reply(wType.json());
 });
 
 
