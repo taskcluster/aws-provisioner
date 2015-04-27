@@ -36,6 +36,7 @@ module.exports = {
     accessKeyId: undefined,
     secretAccessKey: undefined,
     version: '2014-10-01',
+    region:  'us-west-2'
   },
   influx: {
     connectionString: undefined,

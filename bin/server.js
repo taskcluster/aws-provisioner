@@ -8,6 +8,7 @@ var exchanges = require('../provisioner/exchanges');
 var AwsManager = require('../provisioner/aws-manager');
 var v1 = require('../routes/v1');
 var Aws = require('multi-region-promised-aws');
+var _ = require('lodash');
 
 /** Launch server */
 var launch = function(profile) {
@@ -49,7 +50,7 @@ var launch = function(profile) {
   // to run in any region, which we'll limit by the ones
   // store in the worker definition
   // NOTE: Should we use ec2.describeRegions? meh
-  var ec2 = new Aws('EC2', cfg.get('aws'), [
+  var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), [
     'us-east-1', 'us-west-1', 'us-west-2',
     'eu-west-1', 'eu-central-1',
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
