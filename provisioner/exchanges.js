@@ -5,6 +5,7 @@ var base = require('taskcluster-base');
 var exchanges = new base.Exchanges({
   title: 'AWS Provisioner Pulse Exchanges',
   description: [
+    "Exchanges from the provisioner... more docs later"
     // TODO: Write docs
   ].join('\n'),
 });
