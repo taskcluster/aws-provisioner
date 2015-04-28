@@ -44,42 +44,6 @@ var api = new base.API({
   ].join('\n'),
 });
 
-
-function errorHandler(err, res, workerType) {
-  console.error(err, err.stack);
-  switch(err.code) {
-    case 'ResourceNotFound':
-      return res.status(404).json({
-        message: workerType + ': not found',
-        error: {
-          workerType: workerType,
-          reason: err.code,
-        },
-      });
-    case 'EntityAlreadyExists':
-      return res.status(409).json({
-        message: workerType + ': already exists',
-        error: {
-          workerType: workerType,
-          reason: err.code,
-        },
-      });
-    case 'InvalidLaunchSpecifications':
-      if (err.reasons) {
-        err.reasons.forEach(function (e) {
-          console.error(e, e.stack);
-        });
-      }
-      return res.status(500).json({
-        message: err.toString(),
-        code: err.code,
-        reason: err.reasons.map(function (x) { return x.toString(); }),
-      });
-    default:
-      throw err;
-  }
-}
-
 module.exports = api;
 
 api.declare({
