@@ -60,7 +60,7 @@ var launch = function(profile) {
   var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
   var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
   var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
-  var pricingCache = new Cache(15, awsPricing, ec2);
+  var pricingCache = new Cache(0, awsPricing, ec2);
 
   var config = {
     WorkerType: WorkerType,
