@@ -9,8 +9,7 @@ var AwsManager = require('../provisioner/aws-manager');
 var awsPricing = require('../provisioner/aws-pricing');
 var Cache = require('../lib/cache');
 var taskcluster = require('taskcluster-client');
-
-
+var _ = require('lodash');
 
 var launch = function(profile) {
   var cfg = base.config({
@@ -51,13 +50,13 @@ var launch = function(profile) {
     credentials: cfg.get('azure'),
     context: {
       keyPrefix: keyPrefix,
-      provisionerId: provisionerId,
-    },
+      provisionerId: provisionerId
+    }
   });
 
   // Create all the things which need to be injected into the
   // provisioner
-  var ec2 = new Aws('EC2', cfg.get('aws'), allowedRegions);
+  var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
   var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
   var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
   var pricingCache = new Cache(15, awsPricing, ec2);
