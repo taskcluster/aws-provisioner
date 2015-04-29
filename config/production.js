@@ -6,7 +6,7 @@ module.exports = {
     statsComponent:       'aws-provisioner-v1',
     awsKeyPrefix:         'aws-provisioner-v1-managed:',
     iterationInterval:    1000 * 75,
-    allowedRegions:       'us-west-2,us-east-1', // comma seperated list
+    allowedRegions:       'us-west-2,us-east-1,us-west-1', // comma seperated list
   },
   server: {
     publicUrl:  'https://taskcluster-aws-provisioner2.herokuapp.com',
