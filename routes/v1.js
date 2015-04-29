@@ -538,6 +538,7 @@ api.declare({
   route: '/aws-state/',
   name: 'awsState',
   title: 'Get AWS State for all worker types',
+  scopes: ['aws-provisioner:view-aws-state'],
   description: [
     'Documented later...',
     '',
