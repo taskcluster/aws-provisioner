@@ -87,6 +87,7 @@ if (!module.parent) {
     console.error('ERROR: No configuration profile is provided');
   }
   // Launch with given profile
+  debugger;
   launch(profile_);
   debug('launched provisioner successfully');
 }

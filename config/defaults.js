@@ -2,10 +2,6 @@ module.exports = {
   taskcluster: {
     queueBaseUrl: undefined,
     authBaseUrl: undefined,
-    credentials: {
-      clientId:     undefined,
-      accessToken:  undefined,
-    }
   },
   pulse: {
     username: undefined,
