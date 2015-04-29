@@ -61,7 +61,7 @@ var DEFAULT_CONFIG_VALUES = {
   aws: {
     // Default AWS region, this is where S3 buckets etc. will be placed.
     // In the first iteration this is also where spot instances will be launched
-    region:                         'us-west-2',
+    region:                         'us-east-1',
 
     // Lock API version to use the latest API from 2013, this is fuzzy locking,
     // but it does the trick...
