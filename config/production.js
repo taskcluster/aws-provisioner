@@ -9,7 +9,7 @@ module.exports = {
     allowedRegions:       'us-west-2,us-east-1', // comma seperated list
   },
   server: {
-    publicUrl:  'https://aws-provisioner2.herokuapp.com',
+    publicUrl:  'https://taskcluster-aws-provisioner2.herokuapp.com',
     port:       5557,
     env:        'production',
     forceSSL:   true,
