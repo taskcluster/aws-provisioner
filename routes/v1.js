@@ -553,31 +553,6 @@ api.declare({
   res.reply(stateForUI(this.awsManager.getApi()));
 });
 
-// NOTE: there should be some sort of updateIfOlderThan function in the aws manager
-// that only does the update once every X seconds.
-api.declare({
-  method: 'get',
-  route: '/update-aws-state/',
-  name: 'updateAwsState',
-  title: 'Get AWS State after fetching updates for all worker types',
-  description: [
-    'Documented later...',
-    '',
-    '**Warning** this api end-point is **not stable**'
-  ].join('\n'),
-}, function(req, res) {
-  var that = this;
-  var p = this.awsManager.update();
-
-  p = p.then(function() {
-    res.reply(stateForUI(that.awsManager.getApi()));
-  });
-
-  p = p.catch(function(err) {
-    errorHandler(err, res, "Updating Aws State");
-  });
-});
-
 api.declare({
   method: 'get',
   route: '/ping',
