@@ -231,7 +231,7 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
         // We don't want to stop provisioning because one instance failed, but we will
         // increase the time out a little
         p = p.catch(function(err) {
-          console.log('[alert-operator] ' + err);
+          console.log('[alert-operator] ' + workerType.workerType + ' ' + err);
           console.log(err.stack);
 
           return new Promise(function(resolve, reject) {
