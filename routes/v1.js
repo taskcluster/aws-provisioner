@@ -279,6 +279,7 @@ api.declare({
     'instances and delete the KeyPair from all configured EC2 regions',
   ].join('\n'),
 }, function(req, res) {
+  var that = this;
   var workerType = req.params.workerType;
 
   if(!req.satisfies({workerType: workerType})) { return undefined; }

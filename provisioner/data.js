@@ -3,6 +3,7 @@ var base = require('taskcluster-base');
 var assert = require('assert');
 var lodash = require('lodash');
 var debug = require('debug')('aws-provisioner:WorkerType');
+var util = require('util');
 
 var KEY_CONST = 'worker-type';
 
@@ -509,50 +510,91 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
   /* eslint-disable no-loop-func */
   while (change > 0) {
     var cheapestType;
-    var cheapestPrice;
     var cheapestRegion;
     var cheapestZone;
-    var spotBid;
+    var cheapestPrice;
+    var cheapestBid;
 
     // Utility Factors, by instance type
     var uf = {};
 
+    // Create a utility factor mapping between ec2 instance type
+    // name and the numeric utility factor for easier access
     var types = this.instanceTypes.map(function(t) {
       uf[t.instanceType] = that.utilityOfType(t.instanceType);
       return t.instanceType;
     });
 
+
+    // Create a list of regions which is the subset of the regions
+    // which this worker type is configured for and that the
+    // provisioner is configured for
     var regions = that.regions.filter(function(r) {
       return managedRegions.includes(r.region);
     }).map(function(r) {
       return r.region;
     });
 
-    regions.forEach(function(region) {
-      var zones = pricing.__zoneInfo[region];
-      types.forEach(function(type) {
-        zones.forEach(function(zone) {
-          var potentialBid = pricingData[region][type][zone];
-          var potentialPrice = uf[type] * potentialBid;
-          if (!cheapestPrice || potentialPrice < cheapestPrice && potentialPrice < that.maxPrice) {
-            cheapestPrice = potentialPrice;
-            cheapestRegion = region;
-            cheapestType = type;
-            cheapestZone = zone;
-            // We might want to make the overbid configurable
-            spotBid = Math.ceil(potentialBid * 1.5 * 1000000) / 1000000;
-            if (potentialPrice < that.minPrice) {
-              spotBid = Math.ceil(that.minPrice / uf[type] * 1000000) / 1000000;
-            }
-          }
-        });
+    // Pick the region randomly
+    var regionIdx = Math.floor(Math.random() * regions.length);
+    var region = regions[regionIdx];
+
+    // Instead of interleaving debug() calls, let's instead join all of these
+    // into one single debug call
+    var priceDebugLog = [];
+    priceDebugLog.push(util.format('%s is randomly picking %s', this.workerType, region));
+
+    var zones = pricing.__zoneInfo[region];
+    types.forEach(function(type) {
+      zones.forEach(function(zone) {
+        var potentialBid = pricingData[region][type][zone];
+        var potentialPrice = potentialBid / uf[type];
+
+        if (!cheapestPrice) {
+          // If we don't already have a cheapest price, that means we
+          // should just take the first one we see
+          priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
+                that.workerType,
+                region, zone, type, potentialPrice, potentialBid));
+          cheapestPrice = potentialPrice;
+          cheapestRegion = region;
+          cheapestType = type;
+          cheapestZone = zone;
+          cheapestBid = potentialBid;
+        } else if (potentialPrice < cheapestPrice) {
+          // If we find that we have a cheaper option, let's switch to it
+          priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
+                that.workerType,
+                cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
+                region, zone, type, potentialPrice, potentialBid));
+          cheapestPrice = potentialPrice;
+          cheapestRegion = region;
+          cheapestType = type;
+          cheapestZone = zone;
+          cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+        } else {
+          // If this option is not first and not cheapest, we'll
+          // ignore it but tell the logs that we did
+          priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
+                that.workerType,
+                region, zone, type, potentialPrice, potentialBid));
+        }
       });
     });
 
-    if (spotBid && cheapestPrice <= that.maxPrice) {
+    if (cheapestPrice < that.minPrice) {
+      var oldCheapestBid = cheapestBid;
+      cheapestBid = Math.ceil(that.minPrice / uf[type] * 1000000) / 1000000;
+      priceDebugLog.push(util.format('%s price was too low %d --> %d',
+            this.workerType, oldCheapestBid, cheapestBid));
+    }
+
+    debug(priceDebugLog.join('\n'));
+
+    if (cheapestBid && cheapestPrice <= that.maxPrice) {
       change -= that.capacityOfType(cheapestType);
       spotBids.push({
-        price: spotBid,
+        price: cheapestBid,
         region: cheapestRegion,
         type: cheapestType,
         zone: cheapestZone,
@@ -560,9 +602,9 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     } else {
       if (cheapestPrice > that.maxPrice) {
         debug('WorkerType %s is exceeding its max price of %d with %d',
-              that.workerType, cheapestPrice, that.maxPrice);
+              that.workerType, that.maxPrice, cheapestPrice);
       }
-      throw new Error('Counld not create a bid which satisfies requirements');
+      throw new Error('Could not create a bid which satisfies requirements');
     }
 
     // This is a sanity check to prevent a screw up where we theoretically
@@ -570,8 +612,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     // bid is selected.  I would argue that if we start bidding on $10/h machines
     // that we really ought to be very well aware of this, and having to make a
     // change to the provisioner is a demonstration of our knowledge of that.
-    if (spotBid > 10) {
-      debug('[alert-operator] spot bid is exceptionally high...');
+    if (cheapestBid > 10) {
+      debug('[alert-operator] %s spot bid is exceptionally high...', this.workerType);
       throw new Error('Spot bid really shouldn\'t be higher than $10');
     }
   }
