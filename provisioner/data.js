@@ -297,6 +297,27 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     }
   });
 
+  // InstanceTypes should be unique inside of a worker
+  var allInstanceTypes = [];
+  worker.instanceTypes.forEach(function(instanceType) {
+    if (allInstanceTypes.includes(instanceType.instanceType)) {
+      throw new Error(worker.workerType + ' has duplicated instanceType ' + instanceType.instanceType);
+    } else {
+      allInstanceTypes.push(instanceType);
+    }
+  });
+
+  // Regions should be unique inside of a worker
+  var allRegions = [];
+  worker.regions.forEach(function(region) {
+    if (allRegions.includes(region.region)) {
+      throw new Error(worker.workerType + ' has duplicated region ' + region.region);
+    } else {
+      allRegions.push(region);
+    }
+  });
+
+
   // Start with the general options
   var launchSpec = lodash.cloneDeep(worker.launchSpecification);
 
