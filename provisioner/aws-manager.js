@@ -387,21 +387,37 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
 
     var wState = rState[wName];
 
+    /* When counting capacity of each type, if we have instances
+       of a type which is no longer in the workerType definition
+       we cannot know what it's capacity is.  We'll try to get its
+       real capacity, but fall back to 1 as a safe option */
     if (states.includes('running')) {
       wState.running.forEach(function(instance) {
-        capacity += workerType.capacityOfType(instance.InstanceType);
+        try {
+          capacity += workerType.capacityOfType(instance.InstanceType);
+        } catch (err) {
+          capacity += 1;  
+        }
       });
     }
 
     if (states.includes('pending')) {
       wState.pending.forEach(function(instance) {
-        capacity += workerType.capacityOfType(instance.InstanceType);
+        try {
+          capacity += workerType.capacityOfType(instance.InstanceType);
+        } catch (err) {
+          capacity += 1;
+        }
       });
     }
 
     if (states.includes('spotReq')) {
       wState.spotReq.forEach(function(request) {
-        capacity += workerType.capacityOfType(request.LaunchSpecification.InstanceType);
+        try {
+          capacity += workerType.capacityOfType(request.LaunchSpecification.InstanceType);
+        } catch (err) {
+          capacity += 1;
+        }
       });
     }
   });
@@ -417,7 +433,11 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
 
     if (wState && states.includes('spotReq')) {
       wState.spotReq.forEach(function(sr) {
-        capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
+        try {
+          capacity += workerType.capacityOfType(sr.request.LaunchSpecification.InstanceType);
+        } catch (err) {
+          capacity += 1;
+        }
         notInApi++;
       });
       if (notInApi > 0) {
