@@ -157,7 +157,7 @@ WorkerType.prototype.getInstanceType = function(instanceType) {
   var types = this.instanceTypes.filter(function(t) {
     return t.instanceType === instanceType;
   });
-  assert(types.length === 1);
+  assert(types.length === 1, this.workerType + ' has duplicate instanceType ' + instanceType);
   return types[0];
 };
 
@@ -169,7 +169,7 @@ WorkerType.prototype.getRegion = function(region) {
   var regions = this.regions.filter(function(r) {
     return r.region === region;
   });
-  assert(regions.length === 1);
+  assert(regions.length === 1, this.workerType + ' has duplicat region ' + region);
   return regions[0];
 };
 
