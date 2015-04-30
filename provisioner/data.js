@@ -535,50 +535,47 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
       return r.region;
     });
 
-    // Pick the region randomly
-    var regionIdx = Math.floor(Math.random() * regions.length);
-    var region = regions[regionIdx];
-
     // Instead of interleaving debug() calls, let's instead join all of these
     // into one single debug call
     var priceDebugLog = [];
-    priceDebugLog.push(util.format('%s is randomly picking %s', this.workerType, region));
 
-    var zones = pricing.__zoneInfo[region];
-    types.forEach(function(type) {
-      zones.forEach(function(zone) {
-        var potentialBid = pricingData[region][type][zone];
-        var potentialPrice = potentialBid / uf[type];
+    regions.forEach(function(region) {
+      var zones = pricing.__zoneInfo[region];
+      types.forEach(function(type) {
+        zones.forEach(function(zone) {
+          var potentialBid = pricingData[region][type][zone];
+          var potentialPrice = potentialBid / uf[type];
 
-        if (!cheapestPrice) {
-          // If we don't already have a cheapest price, that means we
-          // should just take the first one we see
-          priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
-                that.workerType,
-                region, zone, type, potentialPrice, potentialBid));
-          cheapestPrice = potentialPrice;
-          cheapestRegion = region;
-          cheapestType = type;
-          cheapestZone = zone;
-          cheapestBid = potentialBid;
-        } else if (potentialPrice < cheapestPrice) {
-          // If we find that we have a cheaper option, let's switch to it
-          priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
-                that.workerType,
-                cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
-                region, zone, type, potentialPrice, potentialBid));
-          cheapestPrice = potentialPrice;
-          cheapestRegion = region;
-          cheapestType = type;
-          cheapestZone = zone;
-          cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
-        } else {
-          // If this option is not first and not cheapest, we'll
-          // ignore it but tell the logs that we did
-          priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
-                that.workerType,
-                region, zone, type, potentialPrice, potentialBid));
-        }
+          if (!cheapestPrice) {
+            // If we don't already have a cheapest price, that means we
+            // should just take the first one we see
+            priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
+                  that.workerType,
+                  region, zone, type, potentialPrice, potentialBid));
+            cheapestPrice = potentialPrice;
+            cheapestRegion = region;
+            cheapestType = type;
+            cheapestZone = zone;
+            cheapestBid = potentialBid;
+          } else if (potentialPrice < cheapestPrice) {
+            // If we find that we have a cheaper option, let's switch to it
+            priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
+                  that.workerType,
+                  cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
+                  region, zone, type, potentialPrice, potentialBid));
+            cheapestPrice = potentialPrice;
+            cheapestRegion = region;
+            cheapestType = type;
+            cheapestZone = zone;
+            cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+          } else {
+            // If this option is not first and not cheapest, we'll
+            // ignore it but tell the logs that we did
+            priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
+                  that.workerType,
+                  region, zone, type, potentialPrice, potentialBid));
+          }
+        });
       });
     });
 
