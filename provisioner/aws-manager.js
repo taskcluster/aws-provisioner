@@ -193,7 +193,7 @@ AwsManager.prototype.getApi = function(region, type) {
     return this.__apiState[region][type] || {
       running: [],
       pending: [],
-      spotReq: [], 
+      spotReq: [],
     };
   } else if (region && !type) {
     return this.__apiState[region];
@@ -218,7 +218,7 @@ AwsManager.prototype.getInternal = function(region, type) {
     return this.__internalState[region][type] || {
       running: [],
       pending: [],
-      spotReq: [], 
+      spotReq: [],
     };
   } else if (region && !type) {
     return this.__internalState[region];
@@ -396,7 +396,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
         try {
           capacity += workerType.capacityOfType(instance.InstanceType);
         } catch (err) {
-          capacity += 1;  
+          capacity += 1;
         }
       });
     }
@@ -506,6 +506,7 @@ AwsManager.prototype._reconcileInternalState = function() {
         that.__internalState[region][type].spotReq = that.__internalState[region][type].spotReq.filter(function(sr) {
           var id = sr.request.SpotInstanceRequestId;
           if (!allKnownIds.includes(id)) {
+            debug('raw sr request (remove me) %j', sr.request);
             debug('request %s for %s in %s not showing up in api calls', id, type, region);
             return true;
           } else {
@@ -705,7 +706,7 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
 };
 
 /**
- * Kill all instances in all regions of a given workerName.  
+ * Kill all instances in all regions of a given workerName.
  */
 AwsManager.prototype.killByName = function(name, states) {
   var deaths = [];
@@ -845,10 +846,10 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
         }
       });
     }
-    
+
     toKill.push(that.killCancel(region, instances, requests));
   });
 
   return Promise.all(toKill);
-  
+
 };
