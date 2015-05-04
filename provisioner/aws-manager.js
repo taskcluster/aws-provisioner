@@ -103,6 +103,8 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
     data.good[region] = [];
     data.stalled[region] = [];
 
+    var now = new Date();
+
     spotReqs[region].SpotInstanceRequests.forEach(function(sr) {
       // These are states which have a state of 'open' but which
       // are likely not to be fulfilled expeditiously
@@ -117,12 +119,23 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
         'constraint-not-fulfillable ',
       ];
 
-      if (stalledStates.includes(sr.Status.Code)) {
-        data.stalled[region].push(sr);
-      } else {
-        data.good[region].push(sr);
-      }
+      // Example: CreateTime: "2015-05-04T12:46:32.000Z"
+      var expires = new Date(sr.CreateTime);
+      expires.setMinutes(expires.getMinutes() + 20);
 
+      if (expires < now) {
+        data.stalled[region].push(sr);
+        debug('%s %s/%s/%s is >20min old, cancelling', sr.SpotInstanceRequestId,
+            region, sr.LaunchSpecification.Placement.AvailabilityZone, sr.LaunchSpecification.InstanceType);
+      } else {
+        if (stalledStates.includes(sr.Status.Code)) {
+          data.stalled[region].push(sr);
+          debug('%s %s/%s/%s is in a stalled state, cancelling', sr.SpotInstanceRequestId,
+            region, sr.LaunchSpecification.Placement.AvailabilityZone, sr.LaunchSpecification.InstanceType);
+        } else {
+          data.good[region].push(sr);
+        }
+      }
     });
   });
 
