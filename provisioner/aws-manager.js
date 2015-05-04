@@ -4,6 +4,7 @@ var Promise = require('promise');
 var lodash = require('lodash');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
+var objFilter = require('../lib/objFilter');
 
 /**
  * AWS EC2 state at a specific moment in time
@@ -129,6 +130,31 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
   return data;
 };
 
+
+/**
+ * Instead of defining these lists in lots of places, let's ensure
+ * that we use the same filters in all places!
+ */
+
+AwsManager.prototype.filters = {
+  spotReq: [
+    'CreateTime',
+    'State',
+    'LaunchSpecification:InstanceType',
+    'LaunchSpecification:ImageId',
+    'LaunchSpecification:Placement:AvailabilityZone',
+    'SpotInstanceRequestId',
+  ],
+  instance: [
+    'InstanceId',
+    'ImageId',
+    'InstanceType',
+    'LaunchTime',
+    'Placement:AvailabilityZone',
+    'SpotInstanceRequestId',
+  ],
+};
+
 /**
  * Classify the state received from AWS into something in the shape:
  * {
@@ -165,14 +191,20 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
       reservation.Instances.forEach(function(instance) {
         var workerType = instance.KeyName.substr(that.keyPrefix.length);
         x(workerType);
-        rState[workerType][instance.State.Name].push(instance);
+        var filtered = objFilter(instance, that.filters.instance);
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        rState[workerType][instance.State.Name].push(filtered);
       });
     });
 
     spotReqs[region].forEach(function(request) {
       var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
       x(workerType);
-      rState[workerType].spotReq.push(request);
+      var filtered = objFilter(request, that.filters.spotReq);
+      filtered.Region = region;
+      filtered.WorkerType = workerType;
+      rState[workerType].spotReq.push(filtered);
     });
 
   });
@@ -481,6 +513,13 @@ AwsManager.prototype._trackNewSpotRequest = function(sr) {
 
   // Store the new spot request in the internal state
   if (!allKnownIds.includes(sr.request.SpotInstanceRequestId)) {
+    // Remember that these spot requests are wrapped with an object
+    // in requestSpotInstance!
+    var filteredSr = objFilter(sr.request, that.filters.spotReq);
+    sr.request = filteredSr;
+    sr.request.Region = sr.bid.region;
+    sr.request.WorkerType = workerType;
+    
     that.__internalState[sr.bid.region][sr.workerType].spotReq.push(sr);
   }
 };
