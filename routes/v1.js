@@ -472,59 +472,6 @@ api.declare({
 
 });
 
-/**
- * These lists are the keys for the object filtering we'll do for their
- * respective aws state objects.
- */
-var filterForSR = [
-  'CreateTime',
-  'State',
-  'LaunchSpecification:InstanceType',
-  'LaunchSpecification:ImageId',
-  'LaunchSpecification:Placement:AvailabilityZone',
-  'SpotInstanceRequestId',
-];
-var filterForInstance = [
-  'InstanceId',
-  'ImageId',
-  'InstanceType',
-  'LaunchTime',
-  'Placement:AvailabilityZone',
-  'SpotInstanceRequestId',
-];
-
-/**
- * The UI is going to be a lot easier if we organize by workerType name
- * instead of by region
- */
-function stateForUI(state) {
-  var newState = {};
-  Object.keys(state).forEach(function(region) {
-    var regionState = state[region];
-    Object.keys(regionState).forEach(function(workerType) {
-      if (!newState[workerType]) newState[workerType] = {
-        running: [],
-        pending: [],
-        spotReq: [],
-      };
-      ['running', 'pending', 'spotReq'].forEach(function(nodeState) {
-        var thisNodeState = newState[workerType][nodeState];
-        state[region][workerType][nodeState].forEach(function(oldThing) {
-          var x = _.cloneDeep(oldThing);
-          if (nodeState === 'spotReq') {
-            x = objFilter(x, filterForSR);
-          } else {
-            x = objFilter(x, filterForInstance);
-          }
-          x.Region = region;
-          newState[workerType][nodeState].push(x);
-        })
-      });
-    });
-  });
-  return newState;
-}
-
 // NOTE: there should be some sort of updateIfOlderThan function in the aws manager
 // that only does the update once every X seconds.
 var awsStateLastUpdated = 0;
@@ -534,7 +481,7 @@ api.declare({
   route: '/aws-state/',
   name: 'awsState',
   title: 'Get AWS State for all worker types',
-  scopes: ['aws-provisioner:view-aws-state'],
+  //scopes: ['aws-provisioner:view-aws-state'],
   description: [
     'Documented later...',
     '',
@@ -551,7 +498,7 @@ api.declare({
   // wait for ui state to be updated
   await awsStateUpdated;
 
-  res.reply(stateForUI(this.awsManager.getApi()));
+  res.reply(this.awsManager.__apiState);
 });
 
 api.declare({
