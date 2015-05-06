@@ -157,7 +157,8 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
       return x.workerType;
     });
 
-    debug('configured workers: %j', workerNames.join('\n'));
+    debug('configured workers:           %j', workerNames);
+    debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
     var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
 
     // Remember that this thing caches stuff inside itself
@@ -215,7 +216,7 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
 
     if (change > 0) {
       // We want to create bids when we have a change or when we have less then the minimum capacity
-      var bids = workerType.determineSpotBids(that.awsManager.managedRegions(), pricing, change);
+      var bids = workerType.determineSpotBids(that.awsManager.ec2.regions, pricing, change);
       var p = Promise.resolve();
       // To avoid API errors, we're going to run all of these promises sequentially
       // and with a slight break between the calls
@@ -248,8 +249,8 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
       // down to the minimum capacity
       var deathWarrants = {};
       var capacityToKill = -change;
-      debug('killing %d capacity', capacityToKill);
-      return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['spotReq']);
+      debug('killing up to %d capacity', capacityToKill);
+      return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
     } else {
       debug('no change needed');
     }
