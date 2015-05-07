@@ -508,7 +508,8 @@ AwsManager.prototype._reconcileInternalState = function() {
           if (!allKnownIds.includes(id)) {
             debug('raw sr request (remove me) %j', sr.request);
             debug('request %s for %s in %s not showing up in api calls', id, type, region);
-            return true;
+            // Stop tracking after 15 minutes, it must have disappeared some other way
+            return (now - sr.submitted) < 15 * 60 * 1000;
           } else {
             var delay = now - sr.submitted;
             debug('%s took up to %d seconds to show up in AWS api', id, delay / 1000);
