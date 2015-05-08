@@ -873,6 +873,45 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
 };
 
 /**
+ * Hard kill instances which have lived >96 hours.  This is a safe guard
+ * to protect against zombie attacks.  Workers should self impose a limit
+ * of 72 hours.
+ */
+AwsManager.prototype.zombieKiller = function() {
+  var that = this;
+  var zombies = {};
+
+  var killIfOlderThan = new Date();
+  killIfOlderThan.setHours(killIfOlderThan.getHours() - 96);
+
+  this.__apiState.instances.filter(function(instance) {
+    if (instance.LaunchTime) {
+      var launchedAt = new Date(instance.LaunchTime);
+      if (launchedAt < killIfOlderThan) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return false;  // Since we can't know when it started, ignore it
+    }
+  }).forEach(function(instance) {
+    if (!zombies[instance.Region]) {
+      zombies[instance.Region] = [instance.InstanceId];
+    } else {
+      zombies[instance.Region].push(instance.InstanceId);
+    }
+  });
+
+  return Promise.all(Object.keys(zombies).map(function(region) {
+    debug('killing zombie instances in %s: %j', region, zombies[region]);
+    return that.killCancel(region, zombies[region]);
+  }));
+
+};
+
+
+/**
  * This method is to emulate the old storage format of state for the purposes of
  * not having to update the UI right away.  We don't bother checking internal
  * state since... well... because... I don't feel like explaining why
