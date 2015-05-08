@@ -361,6 +361,29 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
 };
 
 /**
+ * List every known spot instance request id known to the AWS
+ * state.
+ */
+AwsManager.prototype.knownSpotInstanceRequestIds = function() {
+  // We need to know all the SpotInstanceRequestIds which are known
+  // to aws state.  This is mostly just the id from the requests
+  var allKnownSrIds = this.__apiState.requests.map(function(request) {
+    return request.SpotInstanceRequestId;
+  });
+
+  // We also want to make sure that the Spot Request isn't in any
+  // instance's object
+  this.__apiState.instances.forEach(function(instance) {
+    var sird = instance.SpotInstanceRequestId;
+    if (sird && !allKnownSrIds.includes(sird)) {
+      allKnownSrIds.push(sird);
+    }
+  });
+
+  return allKnownSrIds;
+};
+
+/**
  * Because the AWS is eventually consistent, it will sometimes take time for
  * spot requests to show up in the describeSpotInstanceRequests calls for
  * AWS state.  We will maintain an internal table of these submitted but
@@ -376,9 +399,7 @@ AwsManager.prototype._trackNewSpotRequest = function(sr) {
 
   var that = this;
 
-  var allKnownSrIds = this.__apiState.requests.map(function(request) {
-    return request.SpotInstanceRequestId;
-  });
+  var allKnownSrIds = this.knownSpotInstanceRequestIds();
 
   if (!allKnownSrIds.includes(sr.request.SpotInstanceRequestId)) {
     var filtered = objFilter(sr.request, that.filters.spotReq);
@@ -403,9 +424,9 @@ AwsManager.prototype._reconcileInternalState = function() {
   var that = this;
   var now = new Date();
 
-  var allKnownSrIds = this.__apiState.requests.map(function(request) {
-    return request.SpotInstanceRequestId;
-  });
+  // We need to know all the SpotInstanceRequestIds which are known
+  // to aws state.  This is mostly just the id from the requests
+  var allKnownSrIds = this.knownSpotInstanceRequestIds();
 
   this.__internalState = this.__internalState.filter(function(request) {
     // We want to print out some info!
