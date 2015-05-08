@@ -6,19 +6,22 @@ var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
 var objFilter = require('../lib/objFilter');
 var shuffle = require('knuth-shuffle');
+var taskcluster = require('taskcluster-client');
 
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsManager(ec2, provisionerId, keyPrefix, pubKey) {
+function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife) {
   assert(ec2);
   assert(provisionerId);
   assert(keyPrefix);
   assert(pubKey);
+  assert(maxInstanceLife);
   this.ec2 = ec2;
   this.provisionerId = provisionerId;
   this.keyPrefix = keyPrefix;
   this.pubKey = pubKey;
+  this.maxInstanceLife = maxInstanceLife;
   this.__knownKeyPairs = [];
   this.__apiState = {
     instances: [],
@@ -106,6 +109,9 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
     good: {},
     stalled: {},
   };
+
+  var now = new Date();
+
   Object.keys(spotReqs).forEach(function(region) {
     data.good[region] = [];
     data.stalled[region] = [];
@@ -124,7 +130,19 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
         'constraint-not-fulfillable ',
       ];
 
+      var killWhen = new Date(sr.CreateTime);
+      killWhen.setMinutes(killWhen.getMinutes() + 20);
+
+      if (killWhen < now) {
+        debug('killing stalled spot request %s because it has not been fulfilled in 20 minutes',
+            sr.SpotInstanceRequestId);
+
+        data.stalled[region].push(sr);
+      }
+
       if (stalledStates.includes(sr.Status.Code)) {
+        debug('killing stalled spot request %s because it is in bad state %s',
+              sr.SpotInstanceRequestId, sr.Status.Code);
         data.stalled[region].push(sr);
       } else {
         data.good[region].push(sr);
@@ -873,7 +891,7 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
 };
 
 /**
- * Hard kill instances which have lived >96 hours.  This is a safe guard
+ * Hard kill instances which have lived too long.  This is a safe guard
  * to protect against zombie attacks.  Workers should self impose a limit
  * of 72 hours.
  */
@@ -881,26 +899,20 @@ AwsManager.prototype.zombieKiller = function() {
   var that = this;
   var zombies = {};
 
-  var killIfOlderThan = new Date();
-  killIfOlderThan.setHours(killIfOlderThan.getHours() - 96);
+  var killIfOlderThan = taskcluster.fromNow(this.maxInstanceLife);
 
   this.__apiState.instances.filter(function(instance) {
     if (instance.LaunchTime) {
       var launchedAt = new Date(instance.LaunchTime);
-      if (launchedAt < killIfOlderThan) {
-        return true;
-      } else {
-        return false;
-      }
+      return launchedAt < killIfOlderThan;
     } else {
       return false;  // Since we can't know when it started, ignore it
     }
   }).forEach(function(instance) {
     if (!zombies[instance.Region]) {
-      zombies[instance.Region] = [instance.InstanceId];
-    } else {
-      zombies[instance.Region].push(instance.InstanceId);
+      zombies[instance.Region] = [];
     }
+    zombies[instance.Region].push(instance.InstanceId);
   });
 
   return Promise.all(Object.keys(zombies).map(function(region) {

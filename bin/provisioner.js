@@ -39,6 +39,7 @@ var launch = function(profile) {
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
   var provisionerId = cfg.get('provisioner:id');
+  var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
   var influx = new base.stats.Influx({
     connectionString: cfg.get('influx:connectionString'),
@@ -58,7 +59,7 @@ var launch = function(profile) {
   // Create all the things which need to be injected into the
   // provisioner
   var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
-  var awsManager = new AwsManager(ec2, provisionerId, keyPrefix, pubKey);
+  var awsManager = new AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife);
   var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
   var pricingCache = new Cache(0, awsPricing, ec2);
 

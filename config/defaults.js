@@ -16,6 +16,7 @@ module.exports = {
     iterationInterval:    1000 * 10,
     awsInstancePubkey:    undefined,
     allowedRegions:       undefined, // comma seperated list
+    maxInstanceLife:      '- 96 hours',
   },
   server: {
     publicUrl:  'https://localhost',

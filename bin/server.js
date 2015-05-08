@@ -38,6 +38,7 @@ var launch = function (profile) {
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
   var provisionerId = cfg.get('provisioner:id');
+  var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
   // Create InfluxDB connection for submitting statistics
   var influx = new base.stats.Influx({
@@ -59,7 +60,7 @@ var launch = function (profile) {
 
   // We want an AwsManger here as well since we want to be
   // able to inspect what goes on there from here
-  var awsManager = new AwsManager(ec2, provisionerId, keyPrefix, pubKey);
+  var awsManager = new AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife);
 
   // We want to be updating the Aws State so that api clients can easily
   // access the information with the minimum overhead possible
