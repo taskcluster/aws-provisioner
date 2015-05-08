@@ -161,6 +161,7 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
     var houseKeeping = [
       that.awsManager.rougeKiller(workerNames),
+      that.awsManager.zombieKiller(),
       that.awsManager.ensureTags(),
     ];
 
