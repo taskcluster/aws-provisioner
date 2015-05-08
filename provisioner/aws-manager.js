@@ -423,7 +423,9 @@ AwsManager.prototype._reconcileInternalState = function() {
             request.request.LaunchSpecification.Placement.AvailabilityZone,
             request.request.LaunchSpecification.InstanceType,
             (now - request.submitted) / 1000);
-      // Since we don't have it in the API state yet, we need to keep it in the list
+      // We want to track spot requests which aren't in the API yet for a
+      // maximum of 15 minutes.  Any longer and we'd risk tracking these
+      // forever, which could bog down the system
       return (now - request.submitted) < 15 * 60 * 1000;
     }
   });
@@ -769,4 +771,35 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
   });
 
   return Promise.all(deaths);
+};
+
+/**
+ * This method is to emulate the old storage format of state for the purposes of
+ * not having to update the UI right away.  We don't bother checking internal
+ * state since... well... because... I don't feel like explaining why
+ */
+AwsManager.prototype.emulateOldStateFormat = function() {
+  var oldState = {};
+
+  function x(type) {
+    if (!oldState[type]) {
+      oldState[type] = {
+        running: [],
+        pending: [],
+        spotReq: [],
+      };
+    }
+  }
+
+  this.__apiState.instances.forEach(function(instance) {
+    x(instance.WorkerType);
+    oldState[instance.WorkerType][instance.State.Name].push(instance);
+  });
+
+  this.__apiState.requests.forEach(function(request) {
+    x(equest.WorkerType);
+    oldState[request.WorkerType].spotReq.push(request);
+  });
+
+  return oldState;
 };
