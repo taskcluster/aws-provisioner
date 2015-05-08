@@ -249,7 +249,6 @@ AwsManager.prototype.requestsOfType = function(workerType) {
     workerType = [workerType];
   }
   return this.__apiState.requests.filter(function(request) {
-    debugger;
     return workerType.includes(request.WorkerType);
   });
 };
@@ -425,7 +424,7 @@ AwsManager.prototype._reconcileInternalState = function() {
             request.request.LaunchSpecification.InstanceType,
             (now - request.submitted) / 1000);
       // Since we don't have it in the API state yet, we need to keep it in the list
-      return true;
+      return (now - request.submitted) < 15 * 60 * 1000;
     }
   });
 };
