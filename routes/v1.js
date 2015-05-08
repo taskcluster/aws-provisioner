@@ -498,7 +498,7 @@ api.declare({
   // wait for ui state to be updated
   await awsStateUpdated;
 
-  res.reply(this.awsManager.__apiState);
+  res.reply(this.awsManager.emulateOldStateFormat());
 });
 
 api.declare({
