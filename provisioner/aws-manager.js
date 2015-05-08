@@ -420,6 +420,10 @@ AwsManager.prototype.ensureTags = function() {
         Resources: tags[region][workerType].ids,
       });
 
+      p = p.then(function() {
+        debug('tagged %s/%s: %j', region, workerType, tags[region][workerType].ids);
+      });
+
       // Creating a tag is on best effort basis
       p = p.catch(function(err) {
         debug('Failed to tag %s/%s: %j', region, workerType, tags[region][workerType].ids);
