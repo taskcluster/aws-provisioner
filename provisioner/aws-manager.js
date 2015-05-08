@@ -10,11 +10,13 @@ var shuffle = require('knuth-shuffle');
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsManager(ec2, keyPrefix, pubKey) {
+function AwsManager(ec2, provisionerId, keyPrefix, pubKey) {
   assert(ec2);
+  assert(provisionerId);
   assert(keyPrefix);
   assert(pubKey);
   this.ec2 = ec2;
+  this.provisionerId = provisionerId;
   this.keyPrefix = keyPrefix;
   this.pubKey = pubKey;
   this.__knownKeyPairs = [];
@@ -148,6 +150,7 @@ AwsManager.prototype.filters = {
     'LaunchSpecification:ImageId',
     'LaunchSpecification:Placement:AvailabilityZone',
     'SpotInstanceRequestId',
+    'Tags',
   ],
   instance: [
     'InstanceId',
@@ -157,6 +160,7 @@ AwsManager.prototype.filters = {
     'Placement:AvailabilityZone',
     'SpotInstanceRequestId',
     'State:Name',
+    'Tags',
   ],
 };
 
@@ -358,6 +362,76 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
 
   return capacity;
   
+};
+
+AwsManager.prototype.ensureTags = function() {
+  var that = this;
+
+  function missingTags(obj) {
+    var hasTag = false;
+    if (obj.Tags) {
+      obj.Tags.forEach(function(tag) {
+        if (tag.Key === 'Owner' && tag.Value === that.provisionerId) {
+          hasTag = true;
+        }
+      });
+    }
+    return !hasTag;
+  }
+  
+  var instanceWithoutTags = this.__apiState.instances.filter(missingTags);
+  var requestsWithoutTags = this.__apiState.requests.filter(missingTags);
+
+  var tags = {};
+
+  function x(y, id) {
+    if (!tags[y.Region]) {
+      tags[y.Region] = {};
+    }
+
+    if (!tags[y.Region][y.WorkerType]) {
+      tags[y.Region][y.WorkerType] = {
+        data: [
+          { Key: 'Name', Value: y.WorkerType },
+          { Key: 'Owner', Value: that.provisionerId },
+          { Key: 'WorkerType', Value: that.provisionerId + '/' + y.WorkerType },
+        ],
+        ids: [id],
+      };
+    } else {
+      tags[y.Region][y.WorkerType].ids.push(id);
+    }
+  }
+
+  instanceWithoutTags.forEach(function(inst) {
+    x(inst, inst.InstanceId);
+  });
+
+  requestsWithoutTags.forEach(function(req) {
+    x(req, req.SpotInstanceRequestId);
+  });
+
+  var createTags = [];
+
+  Object.keys(tags).forEach(function(region) {
+    Object.keys(tags[region]).forEach(function(workerType) {
+      var p = that.ec2.createTags.inRegion(region, {
+        Tags: tags[region][workerType].data,
+        Resources: tags[region][workerType].ids,
+      });
+
+      // Creating a tag is on best effort basis
+      p = p.catch(function(err) {
+        debug('Failed to tag %s/%s: %j', region, workerType, tags[region][workerType].ids);
+        debug(err);
+        if (err.stack) debug(err.stack);
+      });
+
+      createTags.push(p);
+    });
+  });
+
+  return Promise.all(createTags);
 };
 
 /**

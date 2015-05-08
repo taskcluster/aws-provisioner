@@ -159,7 +159,10 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
 
     debug('configured workers:           %j', workerNames);
     debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
-    var houseKeeping = [that.awsManager.rougeKiller(workerNames)];
+    var houseKeeping = [
+      that.awsManager.rougeKiller(workerNames),
+      that.awsManager.ensureTags(),
+    ];
 
     // Remember that this thing caches stuff inside itself
     Array.prototype.push.apply(houseKeeping, workerNames.map(function(name) {

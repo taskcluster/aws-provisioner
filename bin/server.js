@@ -59,7 +59,7 @@ var launch = function (profile) {
 
   // We want an AwsManger here as well since we want to be
   // able to inspect what goes on there from here
-  var awsManager = new AwsManager(ec2, keyPrefix, pubKey);
+  var awsManager = new AwsManager(ec2, provisionerId, keyPrefix, pubKey);
 
   // We want to be updating the Aws State so that api clients can easily
   // access the information with the minimum overhead possible
