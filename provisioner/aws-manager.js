@@ -947,7 +947,7 @@ AwsManager.prototype.emulateOldStateFormat = function() {
   });
 
   this.__apiState.requests.forEach(function(request) {
-    x(equest.WorkerType);
+    x(request.WorkerType);
     oldState[request.WorkerType].spotReq.push(request);
   });
 
