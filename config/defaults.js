@@ -37,5 +37,7 @@ module.exports = {
   },
   influx: {
     connectionString: undefined,
+    maxDelay: 10,
+    maxPendingPoints: 100,
   },
 };

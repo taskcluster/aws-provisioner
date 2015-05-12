@@ -17,6 +17,7 @@ var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
  * knows how and when certain things need to occur for provisioning to happen
  */
 function Provisioner(cfg) {
+  assert(typeof cfg === 'object');
   // We should have an AwsManager
   assert(cfg.awsManager);
   this.awsManager = cfg.awsManager;
@@ -38,6 +39,10 @@ function Provisioner(cfg) {
   assert(cfg.provisionerId);
   assert(typeof cfg.provisionerId === 'string');
   this.provisionerId = cfg.provisionerId;
+
+  // We should have an influx instance
+  assert(cfg.influx);
+  this.influx = cfg.influx;
 
   // This is the number of milliseconds to wait between completed provisioning runs
   assert(cfg.provisionIterationInterval);

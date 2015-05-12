@@ -7,27 +7,50 @@ var debug = require('debug')('aws-provisioner:aws-manager');
 var objFilter = require('../lib/objFilter');
 var shuffle = require('knuth-shuffle');
 var taskcluster = require('taskcluster-client');
+var base = require('taskcluster-base');
 
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife) {
+function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
   assert(ec2);
   assert(provisionerId);
   assert(keyPrefix);
   assert(pubKey);
   assert(maxInstanceLife);
+  assert(influx);
   this.ec2 = ec2;
   this.provisionerId = provisionerId;
   this.keyPrefix = keyPrefix;
   this.pubKey = pubKey;
   this.maxInstanceLife = maxInstanceLife;
+  this.influx = influx;
   this.__knownKeyPairs = [];
   this.__apiState = {
     instances: [],
     requests: [],
   };
   this.__internalState = [];
+
+  // This is a time series to measure how long it takes for instances to show up
+  // in the AWS api responses
+  this.Ec2ApiLagSeries = new base.stats.Series({
+    name: 'Ec2ApiLag',
+    columns: {
+      region: base.stats.types.String,
+      az: base.stats.types.String,
+      instanceType: base.stats.types.String,
+      workerType: base.stats.types.String,
+      id: base.stats.types.String,
+      // other columns should be obvious.
+      // This column is 0 for it showed up somehow, somewhere
+      // and 1 for being dropped on the floor
+      didShow: base.stats.types.Number,
+      // How many seconds to show up in API.  This is a maximum
+      // bound since we only check the API once every iteration
+      lag: base.stats.types.Number,
+    }
+  });
 }
 
 module.exports = AwsManager;
@@ -533,6 +556,15 @@ AwsManager.prototype._reconcileInternalState = function() {
             request.request.LaunchSpecification.Placement.AvailabilityZone,
             request.request.LaunchSpecification.InstanceType,
             (now - request.submitted) / 1000);
+      that.influx.addPoint('Ec2ApiLag', {
+        region: request.request.Region,
+        az: request.request.LaunchSpecification.Placement.AvailabilityZone,
+        instanceType: request.request.LaunchSpecification.InstanceType,
+        workerType: request.request.WorkerType,
+        id: request.request.SpotInstanceRequestId,
+        didShow: 0,
+        lag: (now - request.submitted) / 1000,
+      });
       return false;
     } else {
       debug('Spot request %s for %s/%s/%s still not in api after %d seconds',
@@ -543,7 +575,21 @@ AwsManager.prototype._reconcileInternalState = function() {
       // We want to track spot requests which aren't in the API yet for a
       // maximum of 15 minutes.  Any longer and we'd risk tracking these
       // forever, which could bog down the system
-      return (now - request.submitted) < 15 * 60 * 1000;
+
+      if ((now - request.submitted) >= 15 * 60 * 1000) {
+        that.influx.addPoint('Ec2ApiLag', {
+          region: request.request.Region,
+          az: request.request.LaunchSpecification.Placement.AvailabilityZone,
+          instanceType: request.request.LaunchSpecification.InstanceType,
+          workerType: request.request.WorkerType,
+          id: request.request.SpotInstanceRequestId,
+          didShow: 1,
+          lag: (now - request.submitted) / 1000,
+        });
+        return false;
+      } else {
+        return true;
+      }
     }
   });
 };
