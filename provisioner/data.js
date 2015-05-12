@@ -93,10 +93,10 @@ var WorkerType = base.Entity.configure({
  * specified in the workerType argument
  */
 WorkerType.create = function(workerType, properties) {
-  assert(workerType);
-  assert(properties);
-  assert(!properties.workerType);
-  assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType));
+  assert(workerType, 'missing workerType param');
+  assert(properties, 'missing properties param');
+  assert(!properties.workerType, 'properties cannot contain worker name');
+  assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType), 'worker name invalid');
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
@@ -157,7 +157,13 @@ WorkerType.prototype.getInstanceType = function(instanceType) {
   var types = this.instanceTypes.filter(function(t) {
     return t.instanceType === instanceType;
   });
-  assert(types.length === 1, this.workerType + ' has duplicate instanceType ' + instanceType);
+  if (types.length === 1) {
+    return types[0];
+  } else if (types.length === 0) {
+    throw new Error(this.workerType + ' does not contain ' + instanceType);
+  } else {
+    throw new Error(this.workerType + ' contains duplicate ' + instanceType);
+  }
   return types[0];
 };
 
@@ -169,7 +175,13 @@ WorkerType.prototype.getRegion = function(region) {
   var regions = this.regions.filter(function(r) {
     return r.region === region;
   });
-  assert(regions.length === 1, this.workerType + ' has duplicat region ' + region);
+  if (regions.length === 1) {
+    return regions[0];
+  } else if (regions.length === 0) {
+    throw new Error(this.workerType + ' does not contain ' + region);
+  } else {
+    throw new Error(this.workerType + ' contains duplicate ' + region);
+  }
   return regions[0];
 };
 
@@ -362,7 +374,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
       };
     }
   } catch(e) {
-    console.log('Stored user data for ' + worker.workerType + ' is invalid');
+    debug('Stored user data for ' + worker.workerType + ' is invalid');
   }
 
   userData.capacity = capacity;
@@ -407,7 +419,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // Now check that there are no unknown keys
   Object.keys(launchSpec).forEach(function(key) {
-    assert(allowedKeys.indexOf(key) !== -1, 'Your launch spec has invalid key ' + key);
+    assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
   });
 
   // These are keys which we do not allow in the generated launch spec
@@ -575,10 +587,24 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     var priceDebugLog = [];
 
     regions.forEach(function(region) {
-      var zones = pricing.__zoneInfo[region];
       types.forEach(function(type) {
+        if (pricingData[region] && pricingData[region][type]) {
+          var zones = Object.keys(pricingData[region][type]);
+        } else {
+          zones = [];
+        }
         zones.forEach(function(zone) {
-          var potentialBid = pricingData[region][type][zone];
+          try {
+            var potentialBid = pricingData[region][type][zone];
+          } catch(err) {
+            console.dir(regions);
+            console.dir(zones);
+            console.dir(types);
+            console.log(err);
+            console.dir(pricingData);
+            if (err.stack) console.log(err.stack);
+            throw err;
+          }
           var potentialPrice = potentialBid / uf[type];
 
           if (!cheapestPrice) {
@@ -615,7 +641,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
     if (cheapestPrice < that.minPrice) {
       var oldCheapestBid = cheapestBid;
-      cheapestBid = Math.ceil(that.minPrice / uf[type] * 1000000) / 1000000;
+      cheapestBid = Math.ceil(that.minPrice / uf[cheapestType] * 1000000) / 1000000;
       priceDebugLog.push(util.format('%s price was too low %d --> %d',
             this.workerType, oldCheapestBid, cheapestBid));
     }

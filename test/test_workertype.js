@@ -1,0 +1,492 @@
+var base = require('taskcluster-base');
+var data = require('../provisioner/data.js');
+var _ = require('lodash');
+var slugid = require('slugid');
+
+var cfg = base.config({
+  defaults: require('../config/defaults'),
+  profile: require('../config/test'),
+  envs: [
+    'provisioner_publishMetaData',
+    'provisioner_awsInstancePubkey',
+    'provisioner_awsKeyPrefix',
+    'azure_accountName',
+    'azure_accountKey',
+  ],
+  filename: 'taskcluster-aws-provisioner',
+});
+
+var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+var pubKey = cfg.get('provisioner:awsInstancePubkey');
+var provisionerId = cfg.get('provisioner:id');
+var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
+
+// We don't use influx yet, but may as well include it
+var influx = new base.stats.Influx({
+  connectionString: cfg.get('influx:connectionString'),
+  maxDelay: cfg.get('influx:maxDelay'),
+  maxPendingPoints: cfg.get('influx:maxPendingPoints'),
+});
+
+var subject = data.WorkerType.setup({
+  table: cfg.get('provisioner:workerTypeTableName'),
+  credentials: cfg.get('azure'),
+  context: {
+    keyPrefix: keyPrefix,
+    provisionerId: provisionerId,
+  },
+  //account: cfg.get('azure:accountName'),
+  //credentials: cfg.get('taskcluster:credentials'),
+  //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
+});
+
+var baseWorkerType = {
+  "launchSpecification": {
+    "SecurityGroups": [
+      "docker-worker"
+    ]
+  },
+  "minCapacity": 0,
+  "maxCapacity": 20,
+  "scalingRatio": 0,
+  "minPrice": 0,
+  "maxPrice": 0.5,
+  "canUseOndemand": false,
+  "canUseSpot": true,
+  "instanceTypes": [
+    {
+      "instanceType": "c3.xlarge",
+      "capacity": 1,
+      "utility": 1,
+      "overwrites": {
+        "UserData": "eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImNsaSIsInByb3Zpc2lvbmVySWQiOiJhd3MtcHJvdmlzaW9uZXIifQ=="
+      }
+    },
+     {
+      "instanceType": "c3.2xlarge",
+      "capacity": 2,
+      "utility": 2,
+      "overwrites": {
+        "UserData": "eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImNsaSIsInByb3Zpc2lvbmVySWQiOiJhd3MtcHJvdmlzaW9uZXIifQ=="
+      }
+    }
+  ],
+  "regions": [
+    {
+      "region": "us-west-2",
+      "overwrites": {
+        "ImageId": "ami-1dfcd32d"
+      }
+    }
+  ]
+};
+
+function makeRegion(overwrites) {
+  return _.defaults(overwrites || {}, {
+    region: 'us-west-2',
+    overwrites: {
+      ImageId: 'ami-1bdf21d',
+    }
+  });
+}
+
+function makeInstanceType(overwrites) {
+  return _.defaults(overwrites || {}, {
+    instanceType: 't1.micro',
+    capacity: 1,
+    utility: 1,
+    overwrites: {}
+  });
+}
+
+function makeWorkerType(overwrites) {
+  return _.defaults(overwrites || {}, baseWorkerType);
+}
+
+describe('worker type', function() {
+  
+  // This duplicates the api test a little i guess but why not :/
+  it('should be able to be created, updated and deleted', async function() {
+    var wType = makeWorkerType({
+      regions: [makeRegion()],
+      instanceTypes: [makeInstanceType()],
+    });
+
+    var wName = slugid.v4();
+
+    var asCreated = await subject.create(wName, wType);
+    var asLoaded = await subject.load({workerType: wName});
+
+    asCreated.should.eql(asLoaded);
+
+    var asModified = await asLoaded.modify(w => {
+      w.minCapacity++;
+    });
+
+    asModified.minCapacity.should.equal(wType.minCapacity + 1);
+
+    return await asModified.remove();
+  });
+
+  describe('generating launch specifications', function() {
+    it('should create a launch spec with valid data', async function() {
+      var wType = makeWorkerType({
+        instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
+        regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
+      });
+      var launchSpec = subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId');
+    });
+
+
+    function shouldThrow(wType) {
+      (function() {
+        var launchSpec = subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId');
+      }).should.throw();
+    }
+
+    it('should fail with duplicate instance type', async function() {
+      var wType = makeWorkerType({
+        instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.small'})],
+        regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
+      });
+      shouldThrow(wType);
+    });
+
+    it('should fail with duplicate region', async function() {
+      var wType = makeWorkerType({
+        instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
+        regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'us-west-1'})],
+      });
+      shouldThrow(wType);
+    });
+
+    it('should fail with region specific key in general', function() {
+      var wType = makeWorkerType({
+        launchSpecification: {
+          ImageId: 'ami-1234579',
+        },
+      });
+      shouldThrow(wType);
+    });
+    
+    it('should fail with region specific key in instance type', function() {
+      var wType = makeWorkerType({
+        instanceTypes: [makeInstanceType({overwrites: {ImageId: 'ami-1234558'}})],
+      });
+      shouldThrow(wType);
+    });
+    
+    it('should fail with instance type specific key in region', function() {
+      var wType = makeWorkerType({
+        regions: [makeRegion({overwrites: {InstanceType: 'c3.small'}})],
+      });
+      shouldThrow(wType);
+    });
+
+    it('should fail with instance type specific key in general', function() {
+      var wType = makeWorkerType({
+        launchSpecification: {
+          InstanceType: 'ami-1234558',
+        },
+      });
+      shouldThrow(wType);
+    });    
+
+    /** THESE TESTS SHOULD WORK
+    it('should not allow unknown keys', function() {
+      var wType = makeWorkerType({
+        DisavowedAgent: 'Ethan Hunt',
+      });
+      shouldThrow(wType);
+    });
+    
+    it('should not allow disallowed keys', function() {
+      var wType = makeWorkerType({
+        Placement: 'Ethan Hunt',
+      });
+      shouldThrow(wType);
+    });
+    ** THESE TESTS ABOVE SHOULD WORK */
+
+    it('should create valid user data', function() {
+      var wType = makeWorkerType({
+        instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
+        regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
+      });
+      var launchSpec = subject.createLaunchSpec('us-west-1', 'c3.small', wType, 'keyPrefix', 'provisionerId');
+      var userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
+
+      userData.capacity.should.equal(1);
+      userData.provisionerId.should.equal('provisionerId');
+      userData.region.should.equal('us-west-1');
+      userData.instanceType.should.equal('c3.small');
+    });
+
+  });
+
+  describe('convenience methods', function() {
+    var wType;
+    var wName;
+
+    // To ensure cleanup without having to do .remove()
+    // in each test, we'll create and delete in the before/after
+    // hooks and use modify in each test
+    beforeEach(async function() {
+      wName = slugid.v4();
+      wType = await subject.create(wName, makeWorkerType());
+    });
+
+    afterEach(async function() {
+      await wType.remove()
+    });
+
+    it('getting region object', async function() {
+      var wt = await wType.modify(w => {
+        w.regions = [makeRegion({region: 'moon-3'})];
+      });
+
+      wt.getRegion('moon-3').should.be.an.Object;
+      wt.getRegion('moon-3').region.should.equal('moon-3');
+      
+      (function() {
+        wt.getRegion('notvalid');
+      }).should.throw();
+    });
+
+    it('getting instance type object', async function() {
+      var wt = await wType.modify(w => {
+        w.instanceTypes = [makeInstanceType({instanceType: 't1.micro'})];
+      });
+
+      wt.getInstanceType('t1.micro').should.be.an.Object;
+      wt.getInstanceType('t1.micro').instanceType.should.equal('t1.micro');
+      
+      (function() {
+        wt.getinstanceType('notvalid');
+      }).should.throw();
+    });
+
+    it('getting capacity of an instance type', async function() {
+      var wt = await wType.modify(w => {
+        w.instanceTypes = [makeInstanceType({instanceType: 'c3.small', capacity: 5})];
+      });
+
+      wt.capacityOfType('c3.small').should.equal(5);
+      
+      (function() {
+        wt.capacityOfType('notvalid');
+      }).should.throw();
+
+    });
+    
+    it('getting utility factor of an instance type', async function() {
+      var wt = await wType.modify(w => {
+        w.instanceTypes = [makeInstanceType({instanceType: 'c3.small', utility: 4})];
+      });
+
+      wt.utilityOfType('c3.small').should.equal(4);
+      
+      (function() {
+        wt.utilityOfType('notvalid');
+      }).should.throw();
+
+    });
+
+    it('should return a json representation of itself', function() {
+      wType.json().should.be.an.Object;
+      wType.json().should.have.property('workerType');
+      wType.json().should.not.have.property('__properties');
+    });
+  });
+
+
+  describe('determining capacity change', function() {
+    var wType;
+    var wName;
+
+    // To ensure cleanup without having to do .remove()
+    // in each test, we'll create and delete in the before/after
+    // hooks and use modify in each test
+    beforeEach(async function() {
+      wName = slugid.v4();
+      wType = await subject.create(wName, makeWorkerType());
+    });
+
+    afterEach(async function() {
+      await wType.remove()
+    });
+
+    function testChange(expected, rCap, pCap, pend, min, max, sr) {
+      it(rCap + ' runningCap ' + pCap + ' pendingCap ' + pend + ' pending ==> ' +
+         expected + ' ratio ' + (sr||0) + ' min/max ' + (min||0) + '/' + (max||20), async function() {
+        var wt = await wType.modify(w => {
+          w.minCapacity = min || 0;
+          w.maxCapacity = max || 20;
+          w.scalingRatio = sr || 0;
+        });
+        wt.determineCapacityChange(rCap, pCap, pend).should.equal(expected);
+      });
+    }
+
+    describe('no scaling ratio', function() {
+      testChange(0, 0, 0, 0);
+      testChange(1, 0, 0, 0, 1);
+      testChange(5, 0, 0, 5);
+      testChange(5, 5, 0, 5);
+      testChange(0, 5, 5, 5);
+      testChange(0, 0, 5, 5);
+      testChange(-5, 0, 10, 5);
+      testChange(-5, 5, 10, 5);
+      testChange(20, 0, 0, 20, 1, 20);
+      testChange(20, 0, 0, 30, 1, 20);
+    });
+
+    describe('20% scaling ratio', function() {
+      testChange(0, 0, 0, 0, 0, 1000, 0.2);
+      testChange(1, 0, 0, 0, 1, 1000, 0.2);
+      //testChange(80, 0, 0, 100, 0, 1000, 0.2); // why doesn't this work
+      //testChange(40, 0, 40, 100, 0, 1000, 0.2); // why doesn't this work
+      testChange(1000, 0, 0, 10000, 0, 1000, 0.2);
+      testChange(960, 0, 40, 10000, 0, 1000, 0.2);
+    });
+
+    describe('-20% scaling ratio', function() {
+      testChange(0, 0, 0, 0, 0, 1000, -0.2);
+      testChange(1, 0, 0, 0, 1, 1000, -0.2);
+      //testChange(120, 0, 0, 100, 0, 1000, -0.2); // why doesn't this work
+      //testChange(80, 0, 40, 100, 0, 1000, -0.2); // why doesn't this work
+      testChange(1000, 0, 0, 10000, 0, 1000, 0.2);
+      testChange(960, 0, 40, 10000, 0, 1000, 0.2);
+    });
+
+  });
+
+  function fakePricing(silly) {
+    var data = {
+      region1: {
+        type1: {
+          zone1: 5,
+          zone2: 6,
+        },
+        type2: {
+          zone2: 3,
+        },
+      },
+      region2: {
+        type2: {
+          zone3: 2,
+        },
+      },
+      region3: {
+      },
+    }
+    if (silly) {
+      data = {
+        region1: {
+          type1: {
+            zone1: 1000,
+          },
+        },
+      };
+    }
+    return { maxPrices: function() { return data; } };
+  }
+
+  describe('determining spot bids', function() {
+    var wType;
+    var wName;
+
+    // To ensure cleanup without having to do .remove()
+    // in each test, we'll create and delete in the before/after
+    // hooks and use modify in each test
+    beforeEach(async function() {
+      wName = slugid.v4();
+      wType = await subject.create(wName, makeWorkerType({       
+        maxPrice: 6,
+        regions: [
+          makeRegion({region: 'region1'}),
+          makeRegion({region: 'region2'}),
+          makeRegion({region: 'region3'}),
+        ],
+        instanceTypes: [
+          makeInstanceType({instanceType: 'type1', capacity: 1, utility: 1}),
+          makeInstanceType({instanceType: 'type2', capacity: 2, utility: 2}),
+        ],
+      }));
+    });
+
+    afterEach(async function() {
+      await wType.remove()
+    });
+
+    it('should pick the cheapest region, zone and type in one region', function() {
+      var actual = wType.determineSpotBids(['region1'], fakePricing(), 1);
+      var expected = [{
+        region: 'region1',
+        type: 'type2',
+        zone: 'zone2',
+        price: 6,  // Remember this is 2x the max bid
+        truePrice: 1.5, // remember this is max bid price / utility
+      }];
+      expected.should.eql(actual);
+    });
+
+    it('should pick the cheapest region, zone and type in two regions', function() {
+      var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
+      var expected = [{
+        region: 'region2',
+        type: 'type2',
+        zone: 'zone3',
+        price: 4,  // Remember this is 2x the max bid
+        truePrice: 1, // remember this is max bid price / utility
+      }];
+      expected.should.eql(actual);
+    });
+
+    it('should work with an empty region', function() {
+      var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1);
+      var expected = [{
+        region: 'region1',
+        type: 'type2',
+        zone: 'zone2',
+        price: 6,  // Remember this is 2x the max bid
+        truePrice: 1.5, // remember this is max bid price / utility
+      }];
+      expected.should.eql(actual);
+    });
+
+    it('should use the minPrice as lower bounds', async function() {
+      var wt = await wType.modify(w => {
+        w.maxPrice = 10;
+        w.minPrice = 8;
+      });
+      var actual = wType.determineSpotBids(['region2'], fakePricing(), 1);
+      var expected = [{
+        region: 'region2',
+        type: 'type2',
+        zone: 'zone3',
+        price: 4,  // Remember this is 2x the max bid
+        truePrice: 1, // this is max bid price / utility
+      }];
+      expected.should.eql(actual);
+    });
+
+    it('throw when no bid can be created because of max price', async function() {
+      var wt = await wType.modify(w => {
+        w.maxPrice = 0.1;
+      });
+      (function() {
+        wt.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
+      }).should.throw();
+    });
+
+    it('throw when we hit sanity threshold no matter what', async function() {
+      var wt = await wType.modify(w => {
+        w.maxPrice = 100000;
+      });
+      (function() {
+        wt.determineSpotBids(['region1', 'region2'], fakePricing(true), 1);
+      }).should.throw();
+    });
+  });
+});
