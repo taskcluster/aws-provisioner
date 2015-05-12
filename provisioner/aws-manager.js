@@ -49,6 +49,36 @@ function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, infl
       // How many seconds to show up in API.  This is a maximum
       // bound since we only check the API once every iteration
       lag: base.stats.types.Number,
+    },
+  });
+
+  // Store the spot requests which we submit
+  this.SpotRequestsSubmittedSeries = new base.stats.Series({
+    name: 'SpotRequestsSubmitted',
+    columns: {
+      region: base.stats.types.String,
+      az: base.stats.types.String,
+      instanceType: base.stats.types.String,
+      workerType: base.stats.types.String,
+      id: base.stats.types.String,
+      // Both the bid and price will be the pre-safety factor number
+      bid: base.stats.types.Number,
+      price: base.stats.types.Number,
+    },
+  });
+
+  // Store when and where we use a given AMI.  This is separate
+  // from the spot request submission since we can use ondemand
+  // and I'd rather not have to change this when we start doing
+  // so
+  this.AmiUsageSeries = new base.stats.Series({
+    name: 'AmiUsage',
+    columns: {
+      ami: base.stats.types.String,
+      region: base.stats.types.String,
+      az: base.stats.types.String,
+      instanceType: base.stats.types.String,
+      workerType: base.stats.types.String,
     }
   });
 }
@@ -635,16 +665,36 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
     var userData = new Buffer(launchSpec.UserData, 'base64').toString();
     userData = JSON.stringify(JSON.parse(userData), null, 2);
     debug('Used this userdata: %s', userData);
+
     var info = {
       workerType: workerType.workerType,
       request: spotReq,
-      bid: bid,
+      bid: bid,  
       submitted: new Date(),
     };
+
     return info;
   });
 
   p = p.then(function(info) {
+    that.influx.addPoint('SpotRequestSubmitted', {
+      region: info.bid.region,
+      az: info.bid.zone,
+      instanceType: info.bid.type,
+      workerType: info.workerType,
+      id: info.request.SpotInstanceRequestId,
+      bid: bid.price,
+      price: bid.truePrice,  // ugh, naming!
+    });
+
+    that.influx.addPoint('AmiUsage', {
+      ami: launchSpec.ImageId,
+      region: info.bid.region,
+      az: info.bid.zone,
+      instanceType: info.bid.type,
+      workerType: info.workerType,
+    });
+
     that._trackNewSpotRequest(info);
   });
 

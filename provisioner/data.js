@@ -625,7 +625,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     if (cheapestBid && cheapestPrice <= that.maxPrice) {
       change -= that.capacityOfType(cheapestType);
       spotBids.push({
-        price: cheapestBid,
+        price: cheapestBid, // Ugh, awful naming!
+        truePrice: cheapestPrice, // for history reasons
         region: cheapestRegion,
         type: cheapestType,
         zone: cheapestZone,
