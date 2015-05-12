@@ -488,15 +488,29 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   // capacityChange > 0  => Create spot requests for capacityChange
   // capacityChange < 0  => cancel spot requests for capacityChange
-  var capacityAfterChange =  capacityChange + pendingCapacity + runningCapacity;
+  var capacityAfterChange = capacityChange + pendingCapacity + runningCapacity;
+
+  debug('%s: capacity change is %d, which will result in capacity %d',
+        this.workerType, capacityChange, capacityAfterChange);
 
   // Ensure we are within limits
-  if (capacityAfterChange > this.maxCapacity) {
+  if (capacityAfterChange >= this.maxCapacity) {
     // If there is more than max capacity we should always aim for maxCapacity
-    return this.maxCapacity - runningCapacity - pendingCapacity;
+    var newCapacityChange = this.maxCapacity - runningCapacity - pendingCapacity;
+    debug('%s: would exceed maxCapacity of %d with %d.  Using %d instead of %d as change',
+          this.workerType, this.maxCapacity, capacityAfterChange,
+          newCapacityChange, capacityChange);
+    return newCapacityChange;
   } else if(capacityAfterChange < this.minCapacity) {
-    // if there is less minCapacity we should always aim for minCapacity
-    return this.minCapacity - runningCapacity - pendingCapacity;
+    var newCapacityChange = this.minCapacity - runningCapacity - pendingCapacity;
+    debug('%s: would not have minCapacity of %d with %d.  Using %d instead of %d as change',
+          this.workerType, this.minCapacity, capacityAfterChange,
+          newCapacityChange, capacityChange);
+    return newCapacityChange;
+  } else {
+    debug('%s: change %d is within bounds %d/%d to become %d',
+          this.workerType, capacityChange, this.minCapacity, this.maxCapacity,
+          capacityAfterChange);
   }
 
   // If we're not hitting limits, we should aim for the capacity change that
@@ -571,8 +585,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             // If we don't already have a cheapest price, that means we
             // should just take the first one we see
             priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
-                  that.workerType,
-                  region, zone, type, potentialPrice, potentialBid));
+                  that.workerType, region, zone, type, potentialPrice, potentialBid));
             cheapestPrice = potentialPrice;
             cheapestRegion = region;
             cheapestType = type;
