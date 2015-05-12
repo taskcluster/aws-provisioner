@@ -825,7 +825,11 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
 
   // Build the mapping of capacity to instance type string
   workerType.instanceTypes.forEach(function(t) {
-    caps[t.instanceType] = workerType.capacityOfType(t.instanceType);
+    try {
+      caps[t.instanceType] = workerType.capacityOfType(t.instanceType);
+    } catch (err) {
+      caps[t.instanceType] = 1;
+    }
   });
 
   var capacity = this.capacityForType(workerType, states);
