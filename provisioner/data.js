@@ -7,7 +7,6 @@ var util = require('util');
 
 var KEY_CONST = 'worker-type';
 
-
 /**
  * This WorkerType class is used to store and manipulate the definitions
  * of worker types.  A WorkerType contains the information needed by
@@ -92,7 +91,7 @@ var WorkerType = base.Entity.configure({
  * should not have a workerType key since that will be
  * specified in the workerType argument
  */
-WorkerType.create = function(workerType, properties) {
+WorkerType.create = function (workerType, properties) {
   assert(workerType, 'missing workerType param');
   assert(properties, 'missing properties param');
   assert(!properties.workerType, 'properties cannot contain worker name');
@@ -104,7 +103,7 @@ WorkerType.create = function(workerType, properties) {
 /**
  * Return a list of all known workerTypes
  */
-WorkerType.loadAll = function() {
+WorkerType.loadAll = function () {
   var workers = [];
 
   var p = base.Entity.scan.call(this, {}, {
@@ -113,7 +112,7 @@ WorkerType.loadAll = function() {
     },
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     return workers;
   });
 
@@ -123,7 +122,7 @@ WorkerType.loadAll = function() {
 /**
  * Load the names of all known workerTypes
  */
-WorkerType.listWorkerTypes = function() {
+WorkerType.listWorkerTypes = function () {
   var names = [];
 
   var p = base.Entity.scan.call(this, {}, {
@@ -132,7 +131,7 @@ WorkerType.listWorkerTypes = function() {
     },
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     return names;
   });
 
@@ -145,7 +144,7 @@ WorkerType.listWorkerTypes = function() {
  * method intended for use in displaying the data associated
  * with a given workerType
  */
-WorkerType.prototype.json = function() {
+WorkerType.prototype.json = function () {
   return lodash.clone(this.__properties);
 };
 
@@ -153,8 +152,8 @@ WorkerType.prototype.json = function() {
  * Retreive the InstanceType data for a given instanceType
  * and optionally a single property from it.
  */
-WorkerType.prototype.getInstanceType = function(instanceType) {
-  var types = this.instanceTypes.filter(function(t) {
+WorkerType.prototype.getInstanceType = function (instanceType) {
+  var types = this.instanceTypes.filter(function (t) {
     return t.instanceType === instanceType;
   });
   if (types.length === 1) {
@@ -171,8 +170,8 @@ WorkerType.prototype.getInstanceType = function(instanceType) {
  * Retreive the Region data for a given region and optionally a
  * single property from it.
  */
-WorkerType.prototype.getRegion = function(region) {
-  var regions = this.regions.filter(function(r) {
+WorkerType.prototype.getRegion = function (region) {
+  var regions = this.regions.filter(function (r) {
     return r.region === region;
   });
   if (regions.length === 1) {
@@ -188,14 +187,14 @@ WorkerType.prototype.getRegion = function(region) {
 /**
  * Return the capacity for a given type
  */
-WorkerType.prototype.utilityOfType = function(instanceType) {
+WorkerType.prototype.utilityOfType = function (instanceType) {
   return this.getInstanceType(instanceType).utility;
 };
 
 /**
  * Return the capacity for a given type
  */
-WorkerType.prototype.capacityOfType = function(instanceType) {
+WorkerType.prototype.capacityOfType = function (instanceType) {
   return this.getInstanceType(instanceType).capacity;
 };
 
@@ -204,22 +203,20 @@ WorkerType.prototype.capacityOfType = function(instanceType) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function(region, instanceType) {
+WorkerType.prototype.createLaunchSpec = function (region, instanceType) {
   assert(region);
   assert(instanceType);
   return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix, this.provisionerId);
 };
-
 
 /**
  * Make sure that all combinations of LaunchSpecs work.  This sync
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function() {
+WorkerType.prototype.testLaunchSpecs = function () {
   return WorkerType.testLaunchSpecs(this, this.keyPrefix, this.provisionerId);
 };
-
 
 /**
  * We need to be able to create a launch specification for testing without
@@ -227,7 +224,7 @@ WorkerType.prototype.testLaunchSpecs = function() {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, provisionerId) {
+WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix, provisionerId) {
   // These are the keys which are only applicable to a given region.
   assert(region);
   assert(instanceType);
@@ -236,7 +233,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   assert(provisionerId);
 
   var hasRegion = false;
-  worker.regions.forEach(function(r) {
+  worker.regions.forEach(function (r) {
     if (r.region === region) {
       hasRegion = true;
     }
@@ -245,7 +242,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     throw new Error('workerType not configured for ' + region);
   }
   var hasType = false;
-  worker.instanceTypes.forEach(function(r) {
+  worker.instanceTypes.forEach(function (r) {
     if (r.instanceType === instanceType) {
       hasType = true;
     }
@@ -271,7 +268,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // Find the region overwrites object
   var regionOverwrites;
-  worker.regions.forEach(function(r) {
+  worker.regions.forEach(function (r) {
     if (r.region === region) {
       assert(!regionOverwrites, 'regions must be unique');
       regionOverwrites = r.overwrites;
@@ -281,7 +278,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // Find the instanceType overwrites object
   var typeOverwrites;
-  worker.instanceTypes.forEach(function(t) {
+  worker.instanceTypes.forEach(function (t) {
     if (t.instanceType === instanceType) {
       assert(!typeOverwrites, 'instanceTypes must be unique');
       typeOverwrites = t.overwrites;
@@ -290,7 +287,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   assert(typeOverwrites);
 
   // Check for type specific keys in the general keys and region keys
-  typeSpecificKeys.forEach(function(key) {
+  typeSpecificKeys.forEach(function (key) {
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is type specific, not general');
     }
@@ -300,7 +297,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   });
 
   // Check for region specific keys in the general and type keys
-  regionSpecificKeys.forEach(function(key) {
+  regionSpecificKeys.forEach(function (key) {
     if (worker.launchSpecification[key]) {
       throw new Error(key + ' is region specific, not general');
     }
@@ -311,24 +308,23 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
 
   // InstanceTypes should be unique inside of a worker
   var allInstanceTypes = [];
-  worker.instanceTypes.forEach(function(instanceType) {
-    if (allInstanceTypes.includes(instanceType.instanceType)) {
-      throw new Error(worker.workerType + ' has duplicated instanceType ' + instanceType.instanceType);
+  worker.instanceTypes.forEach(function (i) {
+    if (allInstanceTypes.includes(i.instanceType)) {
+      throw new Error(worker.workerType + ' has duplicated instanceType ' + i.instanceType);
     } else {
-      allInstanceTypes.push(instanceType);
+      allInstanceTypes.push(i);
     }
   });
 
   // Regions should be unique inside of a worker
   var allRegions = [];
-  worker.regions.forEach(function(region) {
-    if (allRegions.includes(region.region)) {
-      throw new Error(worker.workerType + ' has duplicated region ' + region.region);
+  worker.regions.forEach(function (r) {
+    if (allRegions.includes(r.region)) {
+      throw new Error(worker.workerType + ' has duplicated region ' + r.region);
     } else {
-      allRegions.push(region);
+      allRegions.push(r);
     }
   });
-
 
   // Start with the general options
   var launchSpec = lodash.cloneDeep(worker.launchSpecification);
@@ -351,7 +347,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
   var capacity;
-  worker.instanceTypes.forEach(function(t) {
+  worker.instanceTypes.forEach(function (t) {
     if (t.instanceType === instanceType) {
       assert(!capacity, 'instanceTypes must be unique');
       capacity = t.capacity;
@@ -370,7 +366,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
     if (typeof userData !== 'object') {
       userData = {
-        stringUserData: userData
+        stringUserData: userData,
       };
     }
   } catch(e) {
@@ -398,7 +394,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   ];
 
   // Now check that we have all the mandatory keys
-  mandatoryKeys.forEach(function(key) {
+  mandatoryKeys.forEach(function (key) {
     assert(launchSpec[key], 'Your launch spec must have key ' + key);
   });
 
@@ -418,7 +414,7 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
   ]);
 
   // Now check that there are no unknown keys
-  Object.keys(launchSpec).forEach(function(key) {
+  Object.keys(launchSpec).forEach(function (key) {
     assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
   });
 
@@ -427,29 +423,28 @@ WorkerType.createLaunchSpec = function(region, instanceType, worker, keyPrefix, 
     'Placement',
   ];
 
-  disallowedKeys.forEach(function(key) {
+  disallowedKeys.forEach(function (key) {
     assert(!launchSpec[key], 'Your launch spec must not have key ' + key);
   });
 
   return launchSpec;
 };
 
-
 /**
  * Make sure that all combinations of LaunchSpecs work.  This sync
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
+WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId) {
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
   var errors = [];
   var launchSpecs = {};
-  worker.regions.forEach(function(r) {
+  worker.regions.forEach(function (r) {
     var region = r.region;
     launchSpecs[region] = {};
-    worker.instanceTypes.forEach(function(t) {
+    worker.instanceTypes.forEach(function (t) {
       var type = t.instanceType;
       try {
         var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
@@ -468,7 +463,6 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
   return launchSpecs;
 };
 
-
 /**
  * Figure out how many capacity units need to be created.  This number is
  * determined by calculating how much capacity is needed to maintain a given
@@ -485,7 +479,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId) {
  * offset the number of units that we'd be creating by the number of pending
  * capacity units
  */
-WorkerType.prototype.determineCapacityChange = function(runningCapacity, pendingCapacity, pending) {
+WorkerType.prototype.determineCapacityChange = function (runningCapacity, pendingCapacity, pending) {
   assert(typeof runningCapacity === 'number');
   assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
@@ -496,7 +490,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
 
   // desiredPending < pending - pendingCapacity    =>   Create spot requests
   //                                        , otherwise Cancel spot requests
-  var capacityChange = (pending - pendingCapacity) - desiredPending;
+  var capacityChange = pending - pendingCapacity - desiredPending;
 
   // capacityChange > 0  => Create spot requests for capacityChange
   // capacityChange < 0  => cancel spot requests for capacityChange
@@ -506,15 +500,16 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
         this.workerType, capacityChange, capacityAfterChange);
 
   // Ensure we are within limits
+  var newCapacityChange;
   if (capacityAfterChange >= this.maxCapacity) {
     // If there is more than max capacity we should always aim for maxCapacity
-    var newCapacityChange = this.maxCapacity - runningCapacity - pendingCapacity;
+    newCapacityChange = this.maxCapacity - runningCapacity - pendingCapacity;
     debug('%s: would exceed maxCapacity of %d with %d.  Using %d instead of %d as change',
           this.workerType, this.maxCapacity, capacityAfterChange,
           newCapacityChange, capacityChange);
     return newCapacityChange;
-  } else if(capacityAfterChange < this.minCapacity) {
-    var newCapacityChange = this.minCapacity - runningCapacity - pendingCapacity;
+  } else if (capacityAfterChange < this.minCapacity) {
+    newCapacityChange = this.minCapacity - runningCapacity - pendingCapacity;
     debug('%s: would not have minCapacity of %d with %d.  Using %d instead of %d as change',
           this.workerType, this.minCapacity, capacityAfterChange,
           newCapacityChange, capacityChange);
@@ -531,7 +526,6 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   return capacityChange;
 };
 
-
 /**
  * Select region, instance type and spot bids based on the amount of capacity units needed.
  * The region is picked randomly to distribute load but in future we could do smart things
@@ -543,7 +537,7 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, change) {
+WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, change) {
   assert(managedRegions);
   assert(pricing);
   assert(change);
@@ -567,18 +561,17 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
     // Create a utility factor mapping between ec2 instance type
     // name and the numeric utility factor for easier access
-    var types = this.instanceTypes.map(function(t) {
+    var types = this.instanceTypes.map(function (t) {
       uf[t.instanceType] = that.utilityOfType(t.instanceType);
       return t.instanceType;
     });
 
-
     // Create a list of regions which is the subset of the regions
     // which this worker type is configured for and that the
     // provisioner is configured for
-    var regions = that.regions.filter(function(r) {
+    var regions = that.regions.filter(function (r) {
       return managedRegions.includes(r.region);
-    }).map(function(r) {
+    }).map(function (r) {
       return r.region;
     });
 
@@ -586,14 +579,14 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     // into one single debug call
     var priceDebugLog = [];
 
-    regions.forEach(function(region) {
-      types.forEach(function(type) {
+    regions.forEach(function (region) {
+      types.forEach(function (type) {
         if (pricingData[region] && pricingData[region][type]) {
           var zones = Object.keys(pricingData[region][type]);
         } else {
           zones = [];
         }
-        zones.forEach(function(zone) {
+        zones.forEach(function (zone) {
           try {
             var potentialBid = pricingData[region][type][zone];
           } catch(err) {
@@ -602,7 +595,9 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             console.dir(types);
             console.log(err);
             console.dir(pricingData);
-            if (err.stack) console.log(err.stack);
+            if (err.stack) {
+              console.log(err.stack);
+            }
             throw err;
           }
           var potentialPrice = potentialBid / uf[type];
@@ -679,8 +674,5 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
   return spotBids;
 };
-
-
-
 
 exports.WorkerType = WorkerType;

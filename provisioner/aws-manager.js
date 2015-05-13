@@ -1,7 +1,6 @@
 'use strict';
 
 var Promise = require('promise');
-var lodash = require('lodash');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
 var objFilter = require('../lib/objFilter');
@@ -12,7 +11,7 @@ var base = require('taskcluster-base');
 /**
  * AWS EC2 state at a specific moment in time
  */
-function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
+function AwsManager (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
   assert(ec2);
   assert(provisionerId);
   assert(keyPrefix);
@@ -79,7 +78,7 @@ function AwsManager(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, infl
       az: base.stats.types.String,
       instanceType: base.stats.types.String,
       workerType: base.stats.types.String,
-    }
+    },
   });
 }
 
@@ -89,7 +88,7 @@ module.exports = AwsManager;
  * Update the state from the AWS API and return a promise
  * with no resolution value when completed.
  */
-AwsManager.prototype.update = function() {
+AwsManager.prototype.update = function () {
   var that = this;
 
   var p = Promise.all([
@@ -118,13 +117,13 @@ AwsManager.prototype.update = function() {
     }),
   ]);
 
-  p = p.then(function(res) {
+  p = p.then(function (res) {
     var filteredSpotRequests = that._filterSpotRequests(res[1]);
     that.__apiState = that._classify(res[0], filteredSpotRequests.good);
     return that.handleStalledRequests(filteredSpotRequests.stalled);
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     // We want to make sure that our internal state is always up to date when
     // we fetch the updated state
     that._reconcileInternalState();
@@ -140,10 +139,10 @@ AwsManager.prototype.update = function() {
  * type/region/zone combinations are not working well right
  * now
  */
-AwsManager.prototype.handleStalledRequests = function(spotReqs) {
+AwsManager.prototype.handleStalledRequests = function (spotReqs) {
   var that = this;
-  return Promise.all(Object.keys(spotReqs).map(function(region) {
-    return that.killCancel(region, [], spotReqs[region].map(function(sr) {
+  return Promise.all(Object.keys(spotReqs).map(function (region) {
+    return that.killCancel(region, [], spotReqs[region].map(function (sr) {
       debug('killing stalled spot request ' + sr.SpotInstanceRequestId);
       return sr.SpotInstanceRequestId;
     }));
@@ -157,7 +156,7 @@ AwsManager.prototype.handleStalledRequests = function(spotReqs) {
  * This function returns an object with the spot requests sorted
  * into these buckets.
  */
-AwsManager.prototype._filterSpotRequests = function(spotReqs) {
+AwsManager.prototype._filterSpotRequests = function (spotReqs) {
   var data = {
     good: {},
     stalled: {},
@@ -165,11 +164,11 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
 
   var now = new Date();
 
-  Object.keys(spotReqs).forEach(function(region) {
+  Object.keys(spotReqs).forEach(function (region) {
     data.good[region] = [];
     data.stalled[region] = [];
 
-    spotReqs[region].SpotInstanceRequests.forEach(function(sr) {
+    spotReqs[region].SpotInstanceRequests.forEach(function (sr) {
       // These are states which have a state of 'open' but which
       // are likely not to be fulfilled expeditiously
       var stalledStates = [
@@ -206,7 +205,6 @@ AwsManager.prototype._filterSpotRequests = function(spotReqs) {
 
   return data;
 };
-
 
 /**
  * Instead of defining these lists in lots of places, let's ensure
@@ -250,7 +248,7 @@ AwsManager.prototype.filters = {
  * We flatten the Reservations because we don't really care about that
  * feature right now.
  */
-AwsManager.prototype._classify = function(instanceState, spotReqs) {
+AwsManager.prototype._classify = function (instanceState, spotReqs) {
   var that = this;
 
   /* In the new world, we're just going to store a pair of lists.
@@ -263,9 +261,9 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
     requests: [],
   };
 
-  that.ec2.regions.forEach(function(region) {
-    instanceState[region].Reservations.forEach(function(reservation) {
-      reservation.Instances.forEach(function(instance) {
+  that.ec2.regions.forEach(function (region) {
+    instanceState[region].Reservations.forEach(function (reservation) {
+      reservation.Instances.forEach(function (instance) {
         var workerType = instance.KeyName.substr(that.keyPrefix.length);
         var filtered = objFilter(instance, that.filters.instance);
         filtered.Region = region;
@@ -274,7 +272,7 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
       });
     });
 
-    spotReqs[region].forEach(function(request) {
+    spotReqs[region].forEach(function (request) {
       var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
       var filtered = objFilter(request, that.filters.spotReq);
       filtered.Region = region;
@@ -287,93 +285,92 @@ AwsManager.prototype._classify = function(instanceState, spotReqs) {
   return state;
 };
 
-
 /** Return a list of all Instances for a region */
-AwsManager.prototype.instancesInRegion = function(region) {
+AwsManager.prototype.instancesInRegion = function (region) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.instances.filter(function(instance) {
+  return this.__apiState.instances.filter(function (instance) {
     return region.includes(instance.Region);
   });
 };
 
 /** Return a list of all SpotRequests for a region */
-AwsManager.prototype.requestsInRegion = function(region) {
+AwsManager.prototype.requestsInRegion = function (region) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.requests.filter(function(request) {
+  return this.__apiState.requests.filter(function (request) {
     return region.includes(request.Region);
   });
 };
 
 /** Return a list of all Instances for a workerType */
-AwsManager.prototype.instancesOfType = function(workerType) {
+AwsManager.prototype.instancesOfType = function (workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
-  return this.__apiState.instances.filter(function(instance) {
+  return this.__apiState.instances.filter(function (instance) {
     return workerType.includes(instance.WorkerType);
   });
 };
 
 /** Return a list of all SpotRequests for a workerType */
-AwsManager.prototype.requestsOfType = function(workerType) {
+AwsManager.prototype.requestsOfType = function (workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
-  return this.__apiState.requests.filter(function(request) {
+  return this.__apiState.requests.filter(function (request) {
     return workerType.includes(request.WorkerType);
   });
 };
 
-AwsManager.prototype.instancesOfTypeInRegion = function(region, workerType) {
+AwsManager.prototype.instancesOfTypeInRegion = function (region, workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.instances.filter(function(instance) {
+  return this.__apiState.instances.filter(function (instance) {
     return region.includes(instance.Region) && workerType.includes(instance.WorkerType);
   });
-  
+
 };
 
-AwsManager.prototype.requestsOfTypeInRegion = function(region, workerType) {
+AwsManager.prototype.requestsOfTypeInRegion = function (region, workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.requests.filter(function(request) {
+  return this.__apiState.requests.filter(function (request) {
     return region.includes(request.Region) && workerType.includes(request.WorkerType);
   });
-  
+
 };
 
 /**
  * List all the workerTypes known in state
  */
-AwsManager.prototype.knownWorkerTypes = function() {
+AwsManager.prototype.knownWorkerTypes = function () {
   var workerTypes = [];
 
-  this.__apiState.instances.forEach(function(instance) {
-    if (!workerTypes.includes(instance.WorkerType)) { 
+  this.__apiState.instances.forEach(function (instance) {
+    if (!workerTypes.includes(instance.WorkerType)) {
       workerTypes.push(instance.WorkerType);
     }
   });
 
-  this.__apiState.requests.forEach(function(request) {
-    if (!workerTypes.includes(request.WorkerType)) { 
+  this.__apiState.requests.forEach(function (request) {
+    if (!workerTypes.includes(request.WorkerType)) {
       workerTypes.push(request.WorkerType);
     }
   });
 
-  this.__internalState.forEach(function(sr) {
-    if (!workerTypes.includes(sr.request.WorkerType)) { 
+  this.__internalState.forEach(function (sr) {
+    if (!workerTypes.includes(sr.request.WorkerType)) {
       workerTypes.push(sr.request.WorkerType);
     }
   });
@@ -389,19 +386,16 @@ AwsManager.prototype.knownWorkerTypes = function() {
  * If specified, `extraSpotRequests` is a dictionary which contains a region
  * and worker type categorized list of outstanding spot requests
  */
-AwsManager.prototype.capacityForType = function(workerType, states) {
+AwsManager.prototype.capacityForType = function (workerType, states) {
   assert(workerType);
   if (!states) {
     states = ['running', 'pending', 'spotReq'];
   }
-  var wName = workerType.workerType;
   var capacity = 0;
   var instances = this.instancesOfType(workerType.workerType);
   var requests = this.requestsOfType(workerType.workerType);
-  // TODO: Make sure internal state is tracked!
 
-
-  instances.forEach(function(instance) {
+  instances.forEach(function (instance) {
     if (states.includes(instance.State.Name)) {
       try {
         capacity += workerType.capacityOfType(instance.InstanceType);
@@ -411,7 +405,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
     }
   });
 
-  requests.forEach(function(request) {
+  requests.forEach(function (request) {
     if (states.includes('spotReq')) {
       try {
         capacity += workerType.capacityOfType(request.InstanceType);
@@ -421,7 +415,7 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
     }
   });
 
-  this.__internalState.forEach(function(sr) {
+  this.__internalState.forEach(function (sr) {
     if (states.includes('spotReq')) {
       try {
         capacity += workerType.capacityOfType(sr.request.InstanceType);
@@ -432,16 +426,22 @@ AwsManager.prototype.capacityForType = function(workerType, states) {
   });
 
   return capacity;
-  
+
 };
 
-AwsManager.prototype.ensureTags = function() {
+/**
+ * Ensure (but only at best effort) that all provisioner owned resources
+ * are tagged with appropriate tags.  These can be used by others to
+ * get detailed pricing data, but they are not, nor should be, used by
+ * the provisioner internally
+ */
+AwsManager.prototype.ensureTags = function () {
   var that = this;
 
-  function missingTags(obj) {
+  function missingTags (obj) {
     var hasTag = false;
     if (obj.Tags) {
-      obj.Tags.forEach(function(tag) {
+      obj.Tags.forEach(function (tag) {
         if (tag.Key === 'Owner' && tag.Value === that.provisionerId) {
           hasTag = true;
         }
@@ -449,13 +449,13 @@ AwsManager.prototype.ensureTags = function() {
     }
     return !hasTag;
   }
-  
+
   var instanceWithoutTags = this.__apiState.instances.filter(missingTags);
   var requestsWithoutTags = this.__apiState.requests.filter(missingTags);
 
   var tags = {};
 
-  function x(y, id) {
+  function x (y, id) {
     if (!tags[y.Region]) {
       tags[y.Region] = {};
     }
@@ -463,9 +463,9 @@ AwsManager.prototype.ensureTags = function() {
     if (!tags[y.Region][y.WorkerType]) {
       tags[y.Region][y.WorkerType] = {
         data: [
-          { Key: 'Name', Value: y.WorkerType },
-          { Key: 'Owner', Value: that.provisionerId },
-          { Key: 'WorkerType', Value: that.provisionerId + '/' + y.WorkerType },
+          {Key: 'Name', Value: y.WorkerType},
+          {Key: 'Owner', Value: that.provisionerId},
+          {Key: 'WorkerType', Value: that.provisionerId + '/' + y.WorkerType},
         ],
         ids: [id],
       };
@@ -474,32 +474,34 @@ AwsManager.prototype.ensureTags = function() {
     }
   }
 
-  instanceWithoutTags.forEach(function(inst) {
+  instanceWithoutTags.forEach(function (inst) {
     x(inst, inst.InstanceId);
   });
 
-  requestsWithoutTags.forEach(function(req) {
+  requestsWithoutTags.forEach(function (req) {
     x(req, req.SpotInstanceRequestId);
   });
 
   var createTags = [];
 
-  Object.keys(tags).forEach(function(region) {
-    Object.keys(tags[region]).forEach(function(workerType) {
+  Object.keys(tags).forEach(function (region) {
+    Object.keys(tags[region]).forEach(function (workerType) {
       var p = that.ec2.createTags.inRegion(region, {
         Tags: tags[region][workerType].data,
         Resources: tags[region][workerType].ids,
       });
 
-      p = p.then(function() {
+      p = p.then(function () {
         debug('tagged %s/%s: %j', region, workerType, tags[region][workerType].ids);
       });
 
       // Creating a tag is on best effort basis
-      p = p.catch(function(err) {
+      p = p.catch(function (err) {
         debug('Failed to tag %s/%s: %j', region, workerType, tags[region][workerType].ids);
         debug(err);
-        if (err.stack) debug(err.stack);
+        if (err.stack) {
+          debug(err.stack);
+        }
       });
 
       createTags.push(p);
@@ -513,16 +515,16 @@ AwsManager.prototype.ensureTags = function() {
  * List every known spot instance request id known to the AWS
  * state.
  */
-AwsManager.prototype.knownSpotInstanceRequestIds = function() {
+AwsManager.prototype.knownSpotInstanceRequestIds = function () {
   // We need to know all the SpotInstanceRequestIds which are known
   // to aws state.  This is mostly just the id from the requests
-  var allKnownSrIds = this.__apiState.requests.map(function(request) {
+  var allKnownSrIds = this.__apiState.requests.map(function (request) {
     return request.SpotInstanceRequestId;
   });
 
   // We also want to make sure that the Spot Request isn't in any
   // instance's object
-  this.__apiState.instances.forEach(function(instance) {
+  this.__apiState.instances.forEach(function (instance) {
     var sird = instance.SpotInstanceRequestId;
     if (sird && !allKnownSrIds.includes(sird)) {
       allKnownSrIds.push(sird);
@@ -541,7 +543,7 @@ AwsManager.prototype.knownSpotInstanceRequestIds = function() {
  * process is restarted before the spot request shows up in the api's
  * state we will lose track of it until it turns into an instance.
  */
-AwsManager.prototype._trackNewSpotRequest = function(sr) {
+AwsManager.prototype._trackNewSpotRequest = function (sr) {
   // sr is a SpotRequest object which we get back from the
   // AWS Api when we submit the SpotRequest
   assert(sr);
@@ -566,7 +568,7 @@ AwsManager.prototype._trackNewSpotRequest = function(sr) {
  * is needed.  We do this before running the provisioner of each
  * workerType to avoid double counting a newly discovered spot request
  */
-AwsManager.prototype._reconcileInternalState = function() {
+AwsManager.prototype._reconcileInternalState = function () {
   // Remove the SRs which AWS now tracks from internal state
 
   // TODO: This stuff is broken right now
@@ -577,7 +579,7 @@ AwsManager.prototype._reconcileInternalState = function() {
   // to aws state.  This is mostly just the id from the requests
   var allKnownSrIds = this.knownSpotInstanceRequestIds();
 
-  this.__internalState = this.__internalState.filter(function(request) {
+  this.__internalState = this.__internalState.filter(function (request) {
     // We want to print out some info!
     if (allKnownSrIds.includes(request.request.SpotInstanceRequestId)) {
       // Now that it's shown up, we'll remove it from the internal state
@@ -606,7 +608,7 @@ AwsManager.prototype._reconcileInternalState = function() {
       // maximum of 15 minutes.  Any longer and we'd risk tracking these
       // forever, which could bog down the system
 
-      if ((now - request.submitted) >= 15 * 60 * 1000) {
+      if (now - request.submitted >= 15 * 60 * 1000) {
         that.influx.addPoint('Ec2ApiLag', {
           region: request.request.Region,
           az: request.request.LaunchSpecification.Placement.AvailabilityZone,
@@ -630,7 +632,7 @@ AwsManager.prototype._reconcileInternalState = function() {
  * in the EC2 API.  This makes sure that we don't ignroe spot requests
  * that we've made but not yet seen.  This avoids run-away provisioning
  */
-AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
+AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
   var that = this;
   assert(bid, 'Must specify a spot bid');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
@@ -654,12 +656,12 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
     SpotPrice: bid.price.toString(),
   });
 
-  p = p.then(function(spotRequest) {
+  p = p.then(function (spotRequest) {
     // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
     return spotRequest.SpotInstanceRequests[0];
   });
 
-  p = p.then(function(spotReq) {
+  p = p.then(function (spotReq) {
     debug('submitted spot request %s for $%d for %s in %s/%s for %s',
       spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
     var userData = new Buffer(launchSpec.UserData, 'base64').toString();
@@ -669,14 +671,14 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
     var info = {
       workerType: workerType.workerType,
       request: spotReq,
-      bid: bid,  
+      bid: bid,
       submitted: new Date(),
     };
 
     return info;
   });
 
-  p = p.then(function(info) {
+  p = p.then(function (info) {
     that.influx.addPoint('SpotRequestSubmitted', {
       region: info.bid.region,
       az: info.bid.zone,
@@ -716,7 +718,7 @@ AwsManager.prototype.requestSpotInstance = function(workerType, bid) {
  * that we'll end up having to track which regions the workerName
  * is enabled in.
  */
-AwsManager.prototype.createKeyPair = function(workerName) {
+AwsManager.prototype.createKeyPair = function (workerName) {
   assert(workerName);
   var that = this;
   var keyName = this.keyPrefix + workerName;
@@ -737,10 +739,10 @@ AwsManager.prototype.createKeyPair = function(workerName) {
     ],
   });
 
-  p = p.then(function(res) {
+  p = p.then(function (res) {
     var toCreate = [];
 
-    that.ec2.regions.forEach(function(region) {
+    that.ec2.regions.forEach(function (region) {
       var matchingKey = res[region].KeyPairs[0];
       if (!matchingKey) {
         debug('creating missing key %s in %s', keyName, region);
@@ -753,12 +755,11 @@ AwsManager.prototype.createKeyPair = function(workerName) {
     return Promise.all(toCreate);
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     that.__knownKeyPairs.push(workerName);
   });
 
   return p;
-
 };
 
 /**
@@ -766,7 +767,7 @@ AwsManager.prototype.createKeyPair = function(workerName) {
  * does nothing more and you shouldn't run it until you've turned
  * everything off.
  */
-AwsManager.prototype.deleteKeyPair = function(workerName) {
+AwsManager.prototype.deleteKeyPair = function (workerName) {
   assert(workerName);
   var that = this;
 
@@ -781,10 +782,10 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
     ],
   });
 
-  p = p.then(function(res) {
-    return Promise.all(that.ec2.regions.filter(function(region) {
+  p = p.then(function (res) {
+    return Promise.all(that.ec2.regions.filter(function (region) {
       return !!res[region].KeyPairs[0];
-    }).map(function(region) {
+    }).map(function (region) {
       debug('deleting key %s in %s', keyName, region);
       return that.ec2.deleteKeyPair.inRegion(region, {
         KeyName: keyName,
@@ -792,14 +793,13 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
     }));
   });
 
-  p = p.then(function() {
-    that.__knownKeyPairs = that.__knownKeyPairs.filter(function(knownKeyPair) {
+  p = p.then(function () {
+    that.__knownKeyPairs = that.__knownKeyPairs.filter(function (knownKeyPair) {
       return knownKeyPair !== workerName;
     });
   });
 
   return p;
-
 };
 
 /**
@@ -810,15 +810,15 @@ AwsManager.prototype.deleteKeyPair = function(workerName) {
  * which will say to this function that all workerTypes are rouge.
  * Sneaky, huh?
  */
-AwsManager.prototype.rougeKiller = function(configuredWorkers) {
+AwsManager.prototype.rougeKiller = function (configuredWorkers) {
   assert(configuredWorkers);
   var that = this;
   var workersInState = this.knownWorkerTypes();
   var rouge = [];
 
-  workersInState.filter(function(name) {
+  workersInState.filter(function (name) {
     return !configuredWorkers.includes(name);
-  }).forEach(function(name) {
+  }).forEach(function (name) {
     debug('found a rouge workerType: %s, killing all instances and requests', name);
     rouge.push(that.deleteKeyPair(name));
     rouge.push(that.killByName(name));
@@ -830,7 +830,7 @@ AwsManager.prototype.rougeKiller = function(configuredWorkers) {
 /**
  * Kill all instances in all regions of a given workerName.
  */
-AwsManager.prototype.killByName = function(name, states) {
+AwsManager.prototype.killByName = function (name, states) {
   var deaths = [];
   var that = this;
   if (!states) {
@@ -839,38 +839,38 @@ AwsManager.prototype.killByName = function(name, states) {
 
   var perRegionKills = {};
 
-  this.ec2.regions.forEach(function(region) {
+  this.ec2.regions.forEach(function (region) {
     perRegionKills[region] = {
       instances: [],
       requests: [],
     };
   });
-  
-  this.__apiState.instances.forEach(function(instance) {
+
+  this.__apiState.instances.forEach(function (instance) {
     if (instance.WorkerType === name && states.includes(instance.State.Name)) {
       perRegionKills[instance.Region].instances.push(instance.InstanceId);
     }
   });
 
-  this.__apiState.requests.forEach(function(request) {
-    if (request.WorkerType === name && states.includes('spotReq')) { 
+  this.__apiState.requests.forEach(function (request) {
+    if (request.WorkerType === name && states.includes('spotReq')) {
       perRegionKills[request.Region].requests.push(request.SpotInstanceRequestId);
     }
   });
 
-  this.__internalState.forEach(function(sr) {
-    if (sr.request.WorkerType === name && states.includes('spotReq')) { 
+  this.__internalState.forEach(function (sr) {
+    if (sr.request.WorkerType === name && states.includes('spotReq')) {
       perRegionKills[sr.request.Region].requests.push(sr.request.SpotInstanceRequestId);
     }
 
   });
 
-  Object.keys(perRegionKills).forEach(function(region) {
+  Object.keys(perRegionKills).forEach(function (region) {
     var i = perRegionKills[region].instances;
     var r = perRegionKills[region].requests;
     debug('killing all %s in states %j in %s\nInstances: %j\nRequests: %j',
-        name, states, region, i, r); 
-    deaths.push(that.killCancel(region, i, r));  
+        name, states, region, i, r);
+    deaths.push(that.killCancel(region, i, r));
   });
 
   return Promise.all(deaths);
@@ -879,7 +879,7 @@ AwsManager.prototype.killByName = function(name, states) {
 /**
  * Kill instances and cancel spot requests
  */
-AwsManager.prototype.killCancel = function(region, instances, requests) {
+AwsManager.prototype.killCancel = function (region, instances, requests) {
   assert(instances || requests);
   var that = this;
 
@@ -904,13 +904,12 @@ AwsManager.prototype.killCancel = function(region, instances, requests) {
   return Promise.all(promises);
 };
 
-
 /**
  * Kill spot requests to change negatively by a capacity unit change.
  * We use this function to do things like canceling spot requests that
  * exceed the number we require.
  */
-AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, states) {
+AwsManager.prototype.killCapacityOfWorkerType = function (workerType, count, states) {
   var that = this;
   assert(workerType);
   assert(typeof count === 'number');
@@ -920,22 +919,22 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
   var caps = {};
 
   // Build the mapping of capacity to instance type string
-  workerType.instanceTypes.forEach(function(t) {
+  workerType.instanceTypes.forEach(function (t) {
     caps[t.instanceType] = workerType.capacityOfType(t.instanceType);
   });
 
   var capacity = this.capacityForType(workerType, states);
   var capToKill = 0;
 
-  // Should we continue? 
-  function cont() {
-    return count <= capToKill && (capacity - capToKill) >= workerType.minCapacity;
+  // Should we continue?
+  function cont () {
+    return count <= capToKill && capacity - capToKill >= workerType.minCapacity;
   }
 
   // Set up the storage for storing instance and sr ids by
   // region so we can cancel them easily later
   var toKill = {};
-  this.ec2.regions.forEach(function(region) {
+  this.ec2.regions.forEach(function (region) {
     toKill[region] = {
       instances: [],
       requests: [],
@@ -946,7 +945,7 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
   if (states.includes('spotReq')) {
     // Let's shuffle things!
     var shuffledRequests = shuffle.knuthShuffle(this.requestsOfType(workerType.workerType));
-    shuffledRequests.forEach(function(request) {
+    shuffledRequests.forEach(function (request) {
       if (cont()) {
         capToKill += caps[request.LaunchSpecification.InstanceType] || 1;
         toKill[request.Region].push(request.SpotInstanceRequestId);
@@ -954,8 +953,7 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
     });
 
     // Remember that we do internal state a little differently
-    var shuffledInternalState = shuffle.knuthShuffle(this.__internalState.slice(0))
-    this.__internalState.forEach(function(sr) {
+    this.__internalState.forEach(function (sr) {
       if (cont() && sr.request.WorkerType === workerType.workerType) {
         capToKill += caps[sr.request.LaunchSpecification.InstanceType] || 1;
         toKill[sr.request.Region].push(sr.request.SpotInstanceRequestId);
@@ -964,7 +962,7 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
   }
 
   var shuffledApiInstances = shuffle.knuthShuffle(this.instancesOfType(workerType.workerType));
-  shuffledApiInstances.forEach(function(instance) {
+  shuffledApiInstances.forEach(function (instance) {
     if (cont() && states.includes(instance.State.Name)) {
       capToKill += caps[instance.InstanceType] || 1;
       toKill[instance.Region].push(instance.InstanceId);
@@ -973,7 +971,7 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
 
   var deaths = [];
 
-  Object.keys(toKill).forEach(function(region) {
+  Object.keys(toKill).forEach(function (region) {
     var i = toKill[region].instances;
     var r = toKill[region].requests;
     if (i.length + r.length > 0) {
@@ -991,43 +989,42 @@ AwsManager.prototype.killCapacityOfWorkerType = function(workerType, count, stat
  * to protect against zombie attacks.  Workers should self impose a limit
  * of 72 hours.
  */
-AwsManager.prototype.zombieKiller = function() {
+AwsManager.prototype.zombieKiller = function () {
   var that = this;
   var zombies = {};
 
   var killIfOlderThan = taskcluster.fromNow(this.maxInstanceLife);
 
-  this.__apiState.instances.filter(function(instance) {
+  this.__apiState.instances.filter(function (instance) {
     if (instance.LaunchTime) {
       var launchedAt = new Date(instance.LaunchTime);
       return launchedAt < killIfOlderThan;
     } else {
       return false;  // Since we can't know when it started, ignore it
     }
-  }).forEach(function(instance) {
+  }).forEach(function (instance) {
     if (!zombies[instance.Region]) {
       zombies[instance.Region] = [];
     }
     zombies[instance.Region].push(instance.InstanceId);
   });
 
-  return Promise.all(Object.keys(zombies).map(function(region) {
+  return Promise.all(Object.keys(zombies).map(function (region) {
     debug('killing zombie instances in %s: %j', region, zombies[region]);
     return that.killCancel(region, zombies[region]);
   }));
 
 };
 
-
 /**
  * This method is to emulate the old storage format of state for the purposes of
  * not having to update the UI right away.  We don't bother checking internal
  * state since... well... because... I don't feel like explaining why
  */
-AwsManager.prototype.emulateOldStateFormat = function() {
+AwsManager.prototype.emulateOldStateFormat = function () {
   var oldState = {};
 
-  function x(type) {
+  function x (type) {
     if (!oldState[type]) {
       oldState[type] = {
         running: [],
@@ -1037,12 +1034,12 @@ AwsManager.prototype.emulateOldStateFormat = function() {
     }
   }
 
-  this.__apiState.instances.forEach(function(instance) {
+  this.__apiState.instances.forEach(function (instance) {
     x(instance.WorkerType);
     oldState[instance.WorkerType][instance.State.Name].push(instance);
   });
 
-  this.__apiState.requests.forEach(function(request) {
+  this.__apiState.requests.forEach(function (request) {
     x(request.WorkerType);
     oldState[request.WorkerType].spotReq.push(request);
   });

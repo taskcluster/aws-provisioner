@@ -11,8 +11,7 @@ var Cache = require('../lib/cache');
 var taskcluster = require('taskcluster-client');
 var _ = require('lodash');
 
-
-var launch = function(profile) {
+var launch = function (profile) {
   var cfg = base.config({
     defaults: require('../config/defaults.js'),
     profile: require('../config/' + profile),
@@ -84,7 +83,6 @@ var launch = function(profile) {
   provisioner.run();
 };
 
-
 // Only start up the server if we are running as a script
 if (!module.parent) {
   // Find configuration profile
@@ -93,8 +91,6 @@ if (!module.parent) {
     console.log('Usage: server.js [profile]');
     console.error('ERROR: No configuration profile is provided');
   }
-  // Launch with given profile
-  debugger;
   launch(profile_);
   debug('launched provisioner successfully');
 }

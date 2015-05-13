@@ -10,13 +10,12 @@ var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
-
 /**
  * A Provisioner knows how to use an AWS Manager and WorkerType to do provisioning.
  * It does not understand itself how to do AWS things or Azure things, it just
  * knows how and when certain things need to occur for provisioning to happen
  */
-function Provisioner(cfg) {
+function Provisioner (cfg) {
   assert(typeof cfg === 'object');
   // We should have an AwsManager
   assert(cfg.awsManager);
@@ -58,7 +57,6 @@ function Provisioner(cfg) {
 
 module.exports.Provisioner = Provisioner;
 
-
 /**
  * Store basic stats of each iteration
  */
@@ -75,13 +73,13 @@ Provisioner.prototype.run = function () {
   var that = this;
 
   this.__keepRunning = true;
-  this.__watchDog.on('expired', function() {
+  this.__watchDog.on('expired', function () {
     debug('[alert-operator] Provisioner is stuck, killing');
     throw new Error('WatchDog expired');
   });
   this.__watchDog.start();
 
-  function provisionIteration() {
+  function provisionIteration () {
     debug('starting iteration %d, successes %d, failures %d',
           stats.iterations++,
           stats.success,
@@ -99,7 +97,7 @@ Provisioner.prototype.run = function () {
 
     var p = that.runAllProvisionersOnce();
 
-    p = p.then(function() {
+    p = p.then(function () {
       stats.success++;
       if (that.__keepRunning && !process.env.PROVISION_ONCE) {
         debug('success. next iteration in %d seconds',
@@ -110,7 +108,7 @@ Provisioner.prototype.run = function () {
       }
     });
 
-    p = p.catch(function(err) {
+    p = p.catch(function (err) {
       stats.failure++;
       debug('[alert-operator] failure in provisioning');
       if (err.stack) {
@@ -126,7 +124,6 @@ Provisioner.prototype.run = function () {
 
 };
 
-
 /**
  * Stop launching new provisioner iterations but don't
  * end the current one
@@ -139,11 +136,10 @@ Provisioner.prototype.stop = function () {
   stats.failure = 0;
 };
 
-
 /**
  * Run provisioners for all known worker types once
  */
-Provisioner.prototype.runAllProvisionersOnce = function() {
+Provisioner.prototype.runAllProvisionersOnce = function () {
   var that = this;
 
   debug('provisioner id is "%s"', this.provisionerId);
@@ -154,11 +150,11 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     this.pricingCache.get(),
   ]);
 
-  p = p.then(function(res) {
+  p = p.then(function (res) {
     var workerTypes = shuffle.knuthShuffle(res[0].slice(0));
 
     // We'll use this twice here... let's generate it only once
-    var workerNames = workerTypes.map(function(x) {
+    var workerNames = workerTypes.map(function (x) {
       return x.workerType;
     });
 
@@ -171,21 +167,21 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
     ];
 
     // Remember that this thing caches stuff inside itself
-    Array.prototype.push.apply(houseKeeping, workerNames.map(function(name) {
+    Array.prototype.push.apply(houseKeeping, workerNames.map(function (name) {
       return that.awsManager.createKeyPair(name);
     }));
 
     // We're just intercepting here... we want to pass the
     // resolution value this handler got to the next one!
-    return Promise.all(houseKeeping).then(function() {
+    return Promise.all(houseKeeping).then(function () {
       return res;
     });
   });
 
-  p = p.then(function(res) {
+  p = p.then(function (res) {
     var workerTypes = res[0];
     var pricing = res[2];
-    return Promise.all(workerTypes.map(function(workerType) {
+    return Promise.all(workerTypes.map(function (workerType) {
       return that.provisionType(workerType, pricing);
     }));
   });
@@ -193,14 +189,13 @@ Provisioner.prototype.runAllProvisionersOnce = function() {
   return p;
 };
 
-
 /**
  * Provision a specific workerType.  This promise will have a value of true if
  * everything worked.  Another option is resolving to the name of the worker to
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function(workerType, pricing) {
+Provisioner.prototype.provisionType = function (workerType, pricing) {
   var that = this;
 
   var p = this.queue.pendingTasks(this.provisionerId, workerType.workerType);
@@ -211,7 +206,6 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     // offset the count that we get here
     var runningCapacity = that.awsManager.capacityForType(workerType, ['running']);
     var pendingCapacity = that.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
-    var totalCapacity = runningCapacity + pendingCapacity;
     var change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pending);
 
     debug('%s: %d running capacity, %d pending capacity and %d pending jobs',
@@ -226,37 +220,36 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
     if (change > 0) {
       // We want to create bids when we have a change or when we have less then the minimum capacity
       var bids = workerType.determineSpotBids(that.awsManager.ec2.regions, pricing, change);
-      var p = Promise.resolve();
+      var q = Promise.resolve();
       // To avoid API errors, we're going to run all of these promises sequentially
       // and with a slight break between the calls
-      bids.forEach(function(bid) {
-        p = p.then(function() {
-          return new Promise(function(resolve, reject) {
-            setTimeout(function() {
-              resolve(that.awsManager.requestSpotInstance(workerType, bid));
+      bids.forEach(function (bid) {
+        q = q.then(function () {
+          return new Promise(function (resolve, reject) {
+            setTimeout(function () {
+              that.awsManager.requestSpotInstance(workerType, bid).then(resolve, reject);
             }, 500);
           });
         });
-        
+
         // We don't want to stop provisioning because one instance failed, but we will
         // increase the time out a little
-        p = p.catch(function(err) {
+        q = q.catch(function (err) {
           console.log('[alert-operator] ' + workerType.workerType + ' ' + err);
           console.log(err.stack);
 
-          return new Promise(function(resolve, reject) {
-            setTimeout(function() {
-              resolve(that.awsManager.requestSpotInstance(workerType, bid));
+          return new Promise(function (resolve, reject) {
+            setTimeout(function () {
+              that.awsManager.requestSpotInstance(workerType, bid).then(resolve, reject);
             }, 1500);
           });
         });
       });
-     
-      return p;
+
+      return q;
     } else if (change < 0) {
       // We want to cancel spot requests when we no longer need them, but only
       // down to the minimum capacity
-      var deathWarrants = {};
       var capacityToKill = -change;
       debug('killing up to %d capacity', capacityToKill);
       return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
@@ -268,5 +261,3 @@ Provisioner.prototype.provisionType = function(workerType, pricing) {
 
   return p;
 };
-
-

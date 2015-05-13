@@ -1,12 +1,10 @@
 'use strict';
-var debug     = require('debug')('routes:v1');
-var base      = require('taskcluster-base');
-var objFilter = require('../lib/objFilter');
-var _         = require('lodash');
+var debug = require('debug')('routes:v1');
+var base = require('taskcluster-base');
+var _ = require('lodash');
 
 // Common schema prefix
 var SCHEMA_PREFIX_CONST = 'http://schemas.taskcluster.net/aws-provisioner/v1/';
-
 
 /**
  * API end-point for version v1/
@@ -44,10 +42,9 @@ var api = new base.API({
   ].join('\n'),
 });
 
-
-function errorHandler(err, res, workerType) {
+function errorHandler (err, res, workerType) {
   console.error(err, err.stack);
-  switch(err.code) {
+  switch (err.code) {
     case 'ResourceNotFound':
       return res.status(404).json({
         message: workerType + ': not found',
@@ -83,14 +80,14 @@ function errorHandler(err, res, workerType) {
 module.exports = api;
 
 api.declare({
-  method:     'put',
-  route:      '/worker-type/:workerType',
-  name:       'createWorkerType',
-  deferAuth:  true,
-  scopes:     ['aws-provisioner:manage-worker-type:<workerType>'],
-  input:      SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output:     SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
-  title:      "Create new Worker Type",
+  method: 'put',
+  route: '/worker-type/:workerType',
+  name: 'createWorkerType',
+  deferAuth: true,
+  scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
+  input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
+  output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  title: 'Create new Worker Type',
   description: [
     'Create a worker type and ensure that all EC2 regions have the required',
     'KeyPair',
@@ -100,7 +97,7 @@ api.declare({
   var workerType = req.params.workerType;
 
   // Authenticate request with parameterized scope
-  if(!req.satisfies({workerType: workerType})) {
+  if (!req.satisfies({workerType: workerType})) {
     return;
   }
 
@@ -117,20 +114,20 @@ api.declare({
     if (!err && err.code !== 'InvalidLaunchSpecifications') {
       throw err;
     }
-    return res.status(400).json({
-      message:  "Invalid launchSpecification",
+    res.status(400).json({
+      message: 'Invalid launchSpecification',
       error: {
-        reasons:    err.reasons
-      }
+        reasons: err.reasons,
+      },
     });
+    return;
   }
 
   // Create workerType
   var wType;
   try {
     wType = await this.WorkerType.create(workerType, input);
-  }
-  catch(err) {
+  } catch (err) {
     // We only catch EntityAlreadyExists errors
     if (!err || err.code !== 'EntityAlreadyExists') {
       throw err;
@@ -148,7 +145,7 @@ api.declare({
       'canUseOndemand',
       'canUseSpot',
       'instanceTypes',
-      'regions'
+      'regions',
     ].every((key) => {
       return _.isEqual(wType[key], input[key]);
     });
@@ -156,9 +153,10 @@ api.declare({
     // If we don't have a match we return 409, otherwise we continue as this is
     // is an idempotent operation.
     if (!match) {
-      return res.status(409).json({
-        error:  "WorkerType already exists with different definition"
+      res.status(409).json({
+        error: 'WorkerType already exists with different definition',
       });
+      return;
     }
   }
 
@@ -167,9 +165,9 @@ api.declare({
     workerType: workerType,
   });
 
-  return res.reply(wType.json());
+  res.reply(wType.json());
+  return;
 });
-
 
 api.declare({
   method: 'post',
@@ -185,13 +183,11 @@ api.declare({
     'Update a workerType and ensure that all regions have the require',
     'KeyPair',
   ].join('\n'),
-}, async function(req, res) {
+}, async function (req, res) {
   var input = req.body;
   var workerType = req.params.workerType;
 
-  if(!req.satisfies({workerType: workerType})) { return undefined; }
-
-  var worker;
+  if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   try {
     this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId);
@@ -201,18 +197,18 @@ api.declare({
       throw err;
     }
     return res.status(400).json({
-      message:  "Invalid launchSpecification",
+      message: 'Invalid launchSpecification',
       error: {
-        reasons:    err.reasons
-      }
+        reasons: err.reasons,
+      },
     });
   }
 
   var wType = await this.WorkerType.load({workerType: workerType});
 
-  await wType.modify(function(w) {
+  await wType.modify(function (w) {
     // We know that data that gets to here is valid per-schema
-    Object.keys(input).forEach(function(key) {
+    Object.keys(input).forEach(function (key) {
       w[key] = input[key];
     });
   });
@@ -224,7 +220,6 @@ api.declare({
 
   return res.reply(wType.json());
 });
-
 
 api.declare({
   method: 'get',
@@ -241,18 +236,18 @@ api.declare({
   description: [
     'Retreive a WorkerType definition',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   var workerType = req.params.workerType;
 
-  if(!req.satisfies({workerType: workerType})) { return undefined; }
+  if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   var p = this.WorkerType.load({workerType: workerType});
 
-  p = p.then(function(worker) {
+  p = p.then(function (worker) {
     return res.reply(worker.json());
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, workerType);
     return err;
   });
@@ -260,7 +255,6 @@ api.declare({
   return p;
 
 });
-
 
 // Delete workerType
 // TODO: send a pulse message that a worker type was removed
@@ -278,38 +272,37 @@ api.declare({
     'Delete a WorkerType definition, submits requests to kill all ',
     'instances and delete the KeyPair from all configured EC2 regions',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   var that = this;
   var workerType = req.params.workerType;
 
-  if(!req.satisfies({workerType: workerType})) { return undefined; }
+  if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   var p = this.WorkerType.load({workerType: workerType});
 
-  p = p.then(function(worker) {
+  p = p.then(function (worker) {
     return worker.remove();
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     debug('Finished deleting worker type');
     return res.reply({});
   });
 
   // Publish pulse message
-  p = p.then(function() {
+  p = p.then(function () {
     return that.publisher.workerTypeRemoved({
       workerType: workerType,
     });
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, workerType);
     return err;
   });
 
   return p;
 });
-
 
 api.declare({
   method: 'get',
@@ -324,15 +317,15 @@ api.declare({
   description: [
     'List all known WorkerType names',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
 
   var p = this.WorkerType.listWorkerTypes();
 
-  p = p.then(function(workerNames) {
+  p = p.then(function (workerNames) {
     return res.reply(workerNames);
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, 'listing all worker types');
     return err;
   });
@@ -340,7 +333,6 @@ api.declare({
   return p;
 
 });
-
 
 api.declare({
   method: 'get',
@@ -361,25 +353,24 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   var workerType = req.params.workerType;
 
-  if(!req.satisfies({workerType: workerType})) { return undefined; }
+  if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   var p = this.WorkerType.load({workerType: workerType});
 
-  p = p.then(function(worker) {
+  p = p.then(function (worker) {
     return res.reply(worker.testLaunchSpecs());
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, workerType);
   });
 
   return p;
 
 });
-
 
 api.declare({
   method: 'post',
@@ -401,21 +392,21 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   var workerType = req.params.workerType;
 
   debug('SOMEONE IS TURNING OFF ALL ' + workerType);
 
   var p = this.awsManager.killByName(workerType);
 
-  p = p.then(function() {
+  p = p.then(function () {
     res.reply({
       outcome: true,
       message: 'You just turned off all ' + workerType + '.  Feel the power!',
     });
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     console.error(err);
     res.status(503).json({
       message: 'Could not shut down all ' + workerType,
@@ -425,7 +416,6 @@ api.declare({
   return p;
 
 });
-
 
 api.declare({
   method: 'post',
@@ -447,21 +437,21 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
 
   debug('SOMEONE IS TURNING EVERYTHING OFF');
 
   // Note that by telling the rouge killer
   var p = this.awsManager.rougeKiller([]);
 
-  p = p.then(function() {
+  p = p.then(function () {
     res.reply({
       outcome: true,
       message: 'You just turned absolutely everything off.  Feel the power!',
     });
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     console.error(err, err.stack);
     res.status(503).json({
       message: 'Could not shut down everything',
@@ -485,9 +475,9 @@ api.declare({
   description: [
     'Documented later...',
     '',
-    '**Warning** this api end-point is **not stable**'
+    '**Warning** this api end-point is **not stable**',
   ].join('\n'),
-}, async function(req, res) {
+}, async function (req, res) {
 
   // Update once a minute
   if (Date.now() - awsStateLastUpdated > 2 * 60 * 1000) {
@@ -511,7 +501,7 @@ api.declare({
     '',
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   res.status(200).json({
     alive: true,
     uptime: process.uptime(),
@@ -528,11 +518,10 @@ api.declare({
     '',
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
-}, function(req, res) {
+}, function (req, res) {
   var host = req.get('host');
   var proto = req.connection.encrypted ? 'https' : 'http';
   res.status(200).json(api.reference({
     baseUrl: proto + '://' + host + '/v1',
   }));
 });
-

@@ -4,7 +4,7 @@ var Promise = require('promise');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-pricing');
 
-function AwsPricing(regions, pricing, zoneInfo) {
+function AwsPricing (regions, pricing, zoneInfo) {
   assert(regions);
   assert(pricing);
   assert(zoneInfo);
@@ -24,20 +24,19 @@ AwsPricing.prototype.get = function () {
 /**
  * List the available availability zones
  */
-AwsPricing.prototype.availableAvailabilityZones = function() {
+AwsPricing.prototype.availableAvailabilityZones = function () {
   var that = this;
   var zones = [];
-  Object.keys(this.__zoneInfo).forEach(function(region) {
+  Object.keys(this.__zoneInfo).forEach(function (region) {
     Array.prototype.push.apply(zones, that.availableAvailabilityZonesInRegion(region));
   });
   return zones;
 };
 
-
 /**
  * List the available availability zones in one region
  */
-AwsPricing.prototype.availableAvailabilityZonesInRegion = function(region) {
+AwsPricing.prototype.availableAvailabilityZonesInRegion = function (region) {
   return this.__zoneInfo[region];
 };
 
@@ -53,16 +52,16 @@ AwsPricing.prototype.availableAvailabilityZonesInRegion = function(region) {
  * let you specify (regardless of fetched history) the earliest
  * point in time to consider for the max finding
  */
-AwsPricing.prototype.maxPrices = function() {
+AwsPricing.prototype.maxPrices = function () {
   var that = this;
 
   var pricing = {};
   var zones = this.availableAvailabilityZones();
 
   // Sort the pricing points
-  this.regions.forEach(function(region) {
+  this.regions.forEach(function (region) {
     pricing[region] = {};
-    that.__pricing[region].forEach(function(pricePoint) {
+    that.__pricing[region].forEach(function (pricePoint) {
       var type = pricePoint.InstanceType;
       var price = pricePoint.SpotPrice;
       var zone = pricePoint.AvailabilityZone;
@@ -78,11 +77,11 @@ AwsPricing.prototype.maxPrices = function() {
 
   // Find the max values
   var maxes = {};
-  Object.keys(pricing).forEach(function(region) {
+  Object.keys(pricing).forEach(function (region) {
     maxes[region] = {};
-    Object.keys(pricing[region]).forEach(function(type) {
+    Object.keys(pricing[region]).forEach(function (type) {
       maxes[region][type] = {};
-      Object.keys(pricing[region][type]).forEach(function(zone) {
+      Object.keys(pricing[region][type]).forEach(function (zone) {
         if (zones.includes(zone)) {
           maxes[region][type][zone] = Math.max.apply(null, pricing[region][type][zone]);
         } else {
@@ -95,8 +94,7 @@ AwsPricing.prototype.maxPrices = function() {
   return maxes;
 };
 
-
-function fetchPricing(ec2) {
+function fetchPricing (ec2) {
   var startDate = new Date();
   startDate.setMinutes(startDate.getMinutes() - 30);
   var requestObj = {
@@ -121,7 +119,7 @@ function fetchPricing(ec2) {
     }),
   ]);
 
-  p = p.then(function(res) {
+  p = p.then(function (res) {
     var pricing = res[0];
     var availableAvailZones = res[1];
     var regions = Object.keys(pricing);
@@ -129,9 +127,9 @@ function fetchPricing(ec2) {
     var zoneInfo = {};
 
     // Get rid of the key we don't care about
-    regions.forEach(function(region) {
+    regions.forEach(function (region) {
       fixed[region] = pricing[region].SpotPriceHistory;
-      zoneInfo[region] = availableAvailZones[region].AvailabilityZones.map(function(x) {
+      zoneInfo[region] = availableAvailZones[region].AvailabilityZones.map(function (x) {
         return x.ZoneName;
       });
     });

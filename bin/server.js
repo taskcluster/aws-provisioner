@@ -109,7 +109,7 @@ var launch = function (profile) {
     aws: cfg.get('aws'),
   });
 
-  p = p.then(function(validator_) {
+  p = p.then(function (validator_) {
     validator = validator_;
     return exchanges.setup({
       credentials: cfg.get('pulse'),
@@ -125,22 +125,22 @@ var launch = function (profile) {
   });
 
   // Store the publisher to inject it as context into the API
-  p = p.then(function(publisher_) {
+  p = p.then(function (publisher_) {
     publisher = publisher_;
   });
 
   // Warm the Aws State Cache
-  p = p.then(function() {
+  p = p.then(function () {
     return awsManager.update();
   });
 
   // We also want to make sure that the table is created.  We could
   // probably do this earlier
-  p = p.then(function() {
+  p = p.then(function () {
     return WorkerType.ensureTable();
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     // Create API router and publish reference if needed
     return v1.setup({
       context: {
@@ -162,7 +162,7 @@ var launch = function (profile) {
     });
   });
 
-  p = p.then(function(router) {
+  p = p.then(function (router) {
     // Create app
     var app = base.app({
       port: Number(process.env.PORT || cfg.get('server:port')),
@@ -190,9 +190,9 @@ if (!module.parent) {
     console.error('ERROR: No configuration profile is provided');
   }
   // Launch with given profile
-  launch(profile_).then(function() {
+  launch(profile_).then(function () {
     debug('launched server successfully');
-  }).catch(function(err) {
+  }).catch(function (err) {
     debug('failed to start server, err: %s, as JSON: %j', err, err, err.stack);
     // If we didn't launch the server we should crash
     throw new Error('failed to start server');

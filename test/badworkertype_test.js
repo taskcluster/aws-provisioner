@@ -1,44 +1,46 @@
-suite("Bad WorkerType definitions", () => {
-  var helper    = require('./helper');
-  var slugid    = require('slugid');
-  var assume    = require('assume');
+'use strict';
+suite('Bad WorkerType definitions', () => {
+  var helper = require('./helper');
+  var slugid = require('slugid');
+  var assume = require('assume');
 
   // Worker type with invalid launchspecification
   var invalidLaunchSpecWorkerType = {
-    "launchSpecification": {
-      "ImageId":            "ami-shouldntbehere",
-      "InstanceType":       "shouldntbehere",
-      "SecurityGroups": [
-        "default"
+    launchSpecification: {
+      ImageId: 'ami-shouldntbehere',
+      InstanceType: 'shouldntbehere',
+      SecurityGroups: [
+        'default',
       ],
-      "UserData":           "am9obg=="
+      UserData: 'am9obg==',
     },
-    "minCapacity":          4,
-    "maxCapacity":          30,
-    "scalingRatio":         1.1,
-    "minPrice":             0.2,
-    "maxPrice":             1,
-    "canUseOndemand":       false,
-    "canUseSpot":           true,
-    "instanceTypes": [{
-      "instanceType":   "m3.medium",
-      "capacity":       1,
-      "utility":        1,
-      "overwrites": {
-        "ImageId":      "shouldntbehere",
-        "UserData":     "am8obh=="
-      }
-    }]
+    minCapacity: 4,
+    maxCapacity: 30,
+    scalingRatio: 1.1,
+    minPrice: 0.2,
+    maxPrice: 1,
+    canUseOndemand: false,
+    canUseSpot: true,
+    instanceTypes: [
+      {
+        instanceType: 'm3.medium',
+        capacity: 1,
+        utility: 1,
+        overwrites: {
+          ImageId: 'shouldntbehere',
+          UserData: 'am8obh==',
+        },
+      },
+    ],
   };
 
-  test("Should cause failure when creating", async () => {
+  test('Should cause failure when creating', async () => {
     try {
       await helper.awsProvisioner.createWorkerType('createBadInput', {
-        bad: 'input'
+        bad: 'input',
       });
       throw new Error('Expected and error');
-    }
-    catch(err) {
+    } catch(err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -46,11 +48,10 @@ suite("Bad WorkerType definitions", () => {
   test('should cause failure when updating', async () => {
     try {
       await helper.awsProvisioner.updateWorkerType('createBadInput', {
-        bad: 'input'
+        bad: 'input',
       });
       throw new Error('Expected and error');
-    }
-    catch(err) {
+    } catch(err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -61,8 +62,7 @@ suite("Bad WorkerType definitions", () => {
         'invalid', invalidLaunchSpecWorkerType
       );
       throw new Error('Expected and error');
-    }
-    catch(err) {
+    } catch(err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -71,8 +71,7 @@ suite("Bad WorkerType definitions", () => {
     try {
       await helper.awsProvisioner.workerType(slugid.v4());
       throw new Error('Expected and error');
-    }
-    catch(err) {
+    } catch(err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });

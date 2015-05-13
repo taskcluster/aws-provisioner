@@ -1,36 +1,32 @@
 'use strict';
-var Promise     = require('promise');
-var path        = require('path');
-var _           = require('lodash');
-var base        = require('taskcluster-base');
-var mocha       = require('mocha');
-var v1          = require('../routes/v1');
-var exchanges   = require('../provisioner/exchanges');
+var base = require('taskcluster-base');
+var mocha = require('mocha');
+var v1 = require('../routes/v1');
 var taskcluster = require('taskcluster-client');
 var bin = {
-  server:             require('../bin/server'),
+  server: require('../bin/server'),
 };
 
 // Some default clients for the mockAuthServer
 var defaultClients = [
   {
-    clientId:     'test-server',  // Hardcoded into config/test.js
-    accessToken:  'none',
-    scopes:       ['auth:credentials', 'auth:can-delegate'],
-    expires:      new Date(3000, 0, 0, 0, 0, 0, 0)
+    clientId: 'test-server',  // Hardcoded into config/test.js
+    accessToken: 'none',
+    scopes: ['auth:credentials', 'auth:can-delegate'],
+    expires: new Date(3000, 0, 0, 0, 0, 0, 0),
   }, {
-    clientId:     'test-client',  // Used in default AwsProvisioner creation
-    accessToken:  'none',
-    scopes:       ['*'],
-    expires:      new Date(3000, 0, 0, 0, 0, 0, 0)
-  }
+    clientId: 'test-client',  // Used in default AwsProvisioner creation
+    accessToken: 'none',
+    scopes: ['*'],
+    expires: new Date(3000, 0, 0, 0, 0, 0, 0),
+  },
 ];
 
 // Load configuration
 var cfg = base.config({
-  defaults:   require('../config/defaults'),
-  profile:    require('../config/test'),
-  filename:   'taskcluster-aws-provisioner'
+  defaults: require('../config/defaults'),
+  profile: require('../config/test'),
+  filename: 'taskcluster-aws-provisioner',
 });
 exports.cfg = cfg;
 
@@ -38,13 +34,12 @@ exports.cfg = cfg;
 if (!cfg.get('aws:secretAccessKey') ||
     !cfg.get('azure:accountKey') ||
     !cfg.get('pulse:password')) {
-  console.log("Skip tests due to missing credentials!");
-  process.exit(1);
+  console.log('Skip tests due to missing credentials!');
+  throw new Error('cannot run tests due to missing credentials');
 }
 
 // Configure PulseTestReceiver
 exports.events = new base.testing.PulseTestReceiver(cfg.get('pulse'), mocha);
-
 
 // Hold reference to authServer
 var authServer = null;
@@ -54,8 +49,8 @@ var webServer = null;
 mocha.before(async () => {
   // Create mock authentication server
   authServer = await base.testing.createMockAuthServer({
-    port:     60407, // This is hardcoded into config/test.js
-    clients:  defaultClients
+    port: 60407, // This is hardcoded into config/test.js
+    clients: defaultClients,
   });
 
   webServer = await bin.server('test');
@@ -69,13 +64,13 @@ mocha.before(async () => {
     exports.awsProvisioner = new exports.AwsProvisioner({
       // Ensure that we use global agent, to avoid problems with keepAlive
       // preventing tests from exiting
-      agent:            require('http').globalAgent,
-      baseUrl:          exports.baseUrl,
+      agent: require('http').globalAgent,
+      baseUrl: exports.baseUrl,
       credentials: {
-        clientId:       'test-client',
-        accessToken:    'none'
+        clientId: 'test-client',
+        accessToken: 'none',
       },
-      authorizedScopes: (scopes.length > 0 ? scopes : undefined)
+      authorizedScopes: scopes.length > 0 ? scopes : undefined,
     });
   };
 
@@ -105,4 +100,3 @@ mocha.after(async () => {
   await webServer.terminate();
   await authServer.terminate();
 });
-

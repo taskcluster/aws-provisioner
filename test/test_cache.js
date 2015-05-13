@@ -5,8 +5,8 @@ var sinon = require('sinon');
 
 var Cache = require('../lib/cache');
 
-describe('basic cache functionality', function() {
-  function A() { }
+describe('basic cache functionality', function () {
+  function A () { }
 
   var clock;
   var cache;
@@ -14,28 +14,27 @@ describe('basic cache functionality', function() {
   var sandbox = new sinon.sandbox.create();
   var inst;
 
-  A.prototype.testFunc = function() {
+  A.prototype.testFunc = function () {
     return rv;
   };
 
-
-  beforeEach(function() {
+  beforeEach(function () {
     inst = new A();
     rv = new Date();  // Just any object will do
     cache = new Cache(20, inst, inst.testFunc);
     clock = sinon.useFakeTimers();
   });
 
-  afterEach(function() {
+  afterEach(function () {
     clock.restore();
     sandbox.restore();
   });
 
-  it('should not be valid before running .get()', function() {
+  it('should not be valid before running .get()', function () {
     cache.isValid().should.be.False;
   });
 
-  it('should return the correct value on first .get()', function() {
+  it('should return the correct value on first .get()', function () {
     var result = cache.get();
     result.should.equal(rv);
   });
@@ -45,14 +44,14 @@ describe('basic cache functionality', function() {
     cache.isValid().should.be.True;
   });
 
-  it('should calculate the expiration correctly', function() {
+  it('should calculate the expiration correctly', function () {
     var expected = 20;
     cache.get();
     var actual = cache.expiration.getMinutes();
     expected.should.equal(actual);
   });
 
-  it('should not expire before it expires', function() {
+  it('should not expire before it expires', function () {
     cache.get();
     cache.isValid().should.be.True;
     clock.tick(1000 * 60 * 20 - 1);
@@ -61,13 +60,13 @@ describe('basic cache functionality', function() {
     cache.isValid().should.be.False;
   });
 
-  it('should call the cache function once to fetch initial value', function() {
+  it('should call the cache function once to fetch initial value', function () {
     var spy = sandbox.spy(cache, 'func');
     cache.get();
     spy.calledOnce.should.be.True;
   });
 
-  it('should not call the cache function on second .get()', function() {
+  it('should not call the cache function on second .get()', function () {
     var spy = sandbox.spy(cache, 'func');
     cache.get();
     cache.get();
@@ -75,7 +74,7 @@ describe('basic cache functionality', function() {
     spy.calledTwice.should.be.False;
   });
 
-  it('should call the cache function when cache expires', function() {
+  it('should call the cache function when cache expires', function () {
     var spy = sandbox.spy(cache, 'func');
     cache.get();
     spy.calledOnce.should.be.True;
@@ -92,20 +91,20 @@ describe('cache function calling behaviour', function () {
   var clock;
   var sandbox;
 
-  beforeEach(function() {
+  beforeEach(function () {
     clock = sinon.useFakeTimers();
     sandbox = new sinon.sandbox.create();
   });
 
-  afterEach(function() {
+  afterEach(function () {
     clock.restore();
     sandbox.restore();
   });
 
-  it('should call a lone paramless func', function() {
+  it('should call a lone paramless func', function () {
     var a = new Date();
     var callCount = 0;
-    var func = function() {
+    var func = function () {
       callCount++;
       return a;
     };
@@ -114,11 +113,11 @@ describe('cache function calling behaviour', function () {
     callCount.should.eql(1);
   });
 
-  it('should call a lone paramful func', function() {
+  it('should call a lone paramful func', function () {
     var a = new Date();
     var callCount = 0;
     var valuePassedToX;
-    var func = function(x) {
+    var func = function (x) {
       callCount++;
       valuePassedToX = x;
       return a;
@@ -129,15 +128,15 @@ describe('cache function calling behaviour', function () {
     valuePassedToX.should.eql('johnissupercool');
   });
 
-  it('should call a paramless func on object', function() {
+  it('should call a paramless func on object', function () {
     var a = new Date();
 
-    function B(val) {
+    function B (val) {
       this.val = val;
       this.callCount = 0;
     }
 
-    B.prototype.func = function() {
+    B.prototype.func = function () {
       this.callCount++;
       return this.val;
     };
@@ -148,15 +147,15 @@ describe('cache function calling behaviour', function () {
     inst.callCount.should.eql(1);
   });
 
-  it('should call a paramful func on object', function() {
+  it('should call a paramful func on object', function () {
     var a = new Date();
 
-    function C(val) {
+    function C (val) {
       this.val = val;
       this.callCount = 0;
     }
 
-    C.prototype.func = function(x) {
+    C.prototype.func = function (x) {
       this.callCount++;
       this.valuePassedToX = x;
       return this.val;
@@ -169,15 +168,15 @@ describe('cache function calling behaviour', function () {
     inst.valuePassedToX.should.eql('johnissupercool');
   });
 
-  it('should call a paramful func on object using string name', function() {
+  it('should call a paramful func on object using string name', function () {
     var a = new Date();
 
-    function D(val) {
+    function D (val) {
       this.val = val;
       this.callCount = 0;
     }
 
-    D.prototype.func = function(x) {
+    D.prototype.func = function (x) {
       this.callCount++;
       this.valuePassedToX = x;
       return this.val;
@@ -191,6 +190,3 @@ describe('cache function calling behaviour', function () {
     inst.valuePassedToX.should.eql('johnissupercool');
   });
 });
-
-
-

@@ -5,8 +5,7 @@ var base = require('taskcluster-base');
 var exchanges = new base.Exchanges({
   title: 'AWS Provisioner Pulse Exchanges',
   description: [
-    "Exchanges from the provisioner... more docs later"
-    // TODO: Write docs
+    'Exchanges from the provisioner... more docs later',
   ].join('\n'),
 });
 
@@ -40,18 +39,18 @@ var commonRoutingKey = [
 ];
 
 /** Build an pulse compatible message from a message */
-var commonMessageBuilder = function(message) {
+var commonMessageBuilder = function (message) {
   message.version = 1;
   return message;
 };
 
 /** Build a routing-key from message */
-var commonRoutingKeyBuilder = function(message) {
-  return { workerType: message.workerType };
+var commonRoutingKeyBuilder = function (message) {
+  return {workerType: message.workerType};
 };
 
 /** Build a list of routes to CC */
-var commonCCBuilder = function() {
+var commonCCBuilder = function () {
   return [];
 };
 
@@ -102,5 +101,3 @@ exchanges.declare({
   routingKeyBuilder: commonRoutingKeyBuilder,
   CCBuilder: commonCCBuilder,
 });
-
-
