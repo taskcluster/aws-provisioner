@@ -6,7 +6,7 @@ var debug = require('debug')('aws-provisioner:aws-manager');
 var objFilter = require('../lib/objFilter');
 var shuffle = require('knuth-shuffle');
 var taskcluster = require('taskcluster-client');
-var base = require('taskcluster-base');
+var series = require('./influx-series');
 
 /**
  * AWS EC2 state at a specific moment in time
@@ -31,55 +31,10 @@ function AwsManager (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, inf
   };
   this.__internalState = [];
 
-  // This is a time series to measure how long it takes for instances to show up
-  // in the AWS api responses
-  this.Ec2ApiLagSeries = new base.stats.Series({
-    name: 'Ec2ApiLag',
-    columns: {
-      region: base.stats.types.String,
-      az: base.stats.types.String,
-      instanceType: base.stats.types.String,
-      workerType: base.stats.types.String,
-      id: base.stats.types.String,
-      // other columns should be obvious.
-      // This column is 0 for it showed up somehow, somewhere
-      // and 1 for being dropped on the floor
-      didShow: base.stats.types.Number,
-      // How many seconds to show up in API.  This is a maximum
-      // bound since we only check the API once every iteration
-      lag: base.stats.types.Number,
-    },
-  });
-
-  // Store the spot requests which we submit
-  this.SpotRequestsSubmittedSeries = new base.stats.Series({
-    name: 'SpotRequestsSubmitted',
-    columns: {
-      region: base.stats.types.String,
-      az: base.stats.types.String,
-      instanceType: base.stats.types.String,
-      workerType: base.stats.types.String,
-      id: base.stats.types.String,
-      // Both the bid and price will be the pre-safety factor number
-      bid: base.stats.types.Number,
-      price: base.stats.types.Number,
-    },
-  });
-
-  // Store when and where we use a given AMI.  This is separate
-  // from the spot request submission since we can use ondemand
-  // and I'd rather not have to change this when we start doing
-  // so
-  this.AmiUsageSeries = new base.stats.Series({
-    name: 'AmiUsage',
-    columns: {
-      ami: base.stats.types.String,
-      region: base.stats.types.String,
-      az: base.stats.types.String,
-      instanceType: base.stats.types.String,
-      workerType: base.stats.types.String,
-    },
-  });
+  // Set up reporters
+  this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
+  this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
+  this.reportAmiUsage = series.amiUsage.reporter(influx);
 }
 
 module.exports = AwsManager;
@@ -588,7 +543,8 @@ AwsManager.prototype._reconcileInternalState = function () {
             request.request.LaunchSpecification.Placement.AvailabilityZone,
             request.request.LaunchSpecification.InstanceType,
             (now - request.submitted) / 1000);
-      that.influx.addPoint('Ec2ApiLag', {
+      that.reportEc2ApiLag({
+        provisionerId: that.provisionerId,
         region: request.request.Region,
         az: request.request.LaunchSpecification.Placement.AvailabilityZone,
         instanceType: request.request.LaunchSpecification.InstanceType,
@@ -609,7 +565,8 @@ AwsManager.prototype._reconcileInternalState = function () {
       // forever, which could bog down the system
 
       if (now - request.submitted >= 15 * 60 * 1000) {
-        that.influx.addPoint('Ec2ApiLag', {
+        that.reportEc2ApiLag({
+          provisionerId: that.provisionerId,
           region: request.request.Region,
           az: request.request.LaunchSpecification.Placement.AvailabilityZone,
           instanceType: request.request.LaunchSpecification.InstanceType,
@@ -679,7 +636,8 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
   });
 
   p = p.then(function (info) {
-    that.influx.addPoint('SpotRequestSubmitted', {
+    that.reportSpotRequestsSubmitted({
+      provisionerId: that.provisionerId,
       region: info.bid.region,
       az: info.bid.zone,
       instanceType: info.bid.type,
@@ -689,7 +647,8 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
       price: bid.truePrice,  // ugh, naming!
     });
 
-    that.influx.addPoint('AmiUsage', {
+    that.reportAmiUsage({
+      provisionerId: that.provisionerId,
       ami: launchSpec.ImageId,
       region: info.bid.region,
       az: info.bid.zone,

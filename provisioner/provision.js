@@ -6,6 +6,8 @@ var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 var shuffle = require('knuth-shuffle');
 
+var series = require('./influx-series');
+
 var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
@@ -32,6 +34,12 @@ function Provisioner (cfg) {
   // We should have a Pricing Cache
   assert(cfg.pricingCache);
   this.pricingCache = cfg.pricingCache;
+
+  // We should have an influx object
+  assert(cfg.influx);
+  this.influx = cfg.influx;
+
+  this.reportProvisioningIteration = series.provisionerIteration.reporter(this.influx);
 
   // This is the ID of the provisioner.  It is used to interogate the queue
   // for pending tasks
@@ -216,6 +224,16 @@ Provisioner.prototype.provisionType = function (workerType, pricing) {
       pending = 0;
       debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
     }
+
+    // Report on the stats for this iteration
+    that.reportProvisioningIteration({
+      provisionerId: that.provisionerId,
+      workerType: workerType.workerType,
+      pendingTasks: pending,
+      runningCapacity: runningCapacity,
+      pendingCapacity: pendingCapacity,
+      change: change,
+    });
 
     if (change > 0) {
       // We want to create bids when we have a change or when we have less then the minimum capacity
