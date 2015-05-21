@@ -73,6 +73,10 @@ AwsManager.prototype.update = function () {
   ]);
 
   p = p.then(function (res) {
+    if (res[0].NextToken && res[0].NextToken !== '') {
+      console.log('[alert-operator] WARNING!  We have a ' +
+          'DescribeInstances NextToken and arent using it!!!');
+    };
     var filteredSpotRequests = that._filterSpotRequests(res[1]);
     that.__apiState = that._classify(res[0], filteredSpotRequests.good);
     return that.handleStalledRequests(filteredSpotRequests.stalled);
