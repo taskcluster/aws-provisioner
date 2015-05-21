@@ -29,6 +29,7 @@ function AwsManager (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, inf
     instances: [],
     requests: [],
   };
+  this.__previousApiState = this.__apiState;
   this.__internalState = [];
 
   // Set up reporters
@@ -46,6 +47,13 @@ module.exports = AwsManager;
 AwsManager.prototype.update = function () {
   var that = this;
 
+  // We fetch the living instance and spot requests separate from the dead ones
+  // to make things a little easier to work with as there's really very little
+  // in the provisioner which requires info on dead instances and spot requests
+  //
+  // The choice in which bucket each instance or request should belong in comes
+  // down to whether or not the resource is awaiting or currently working or
+  // needs to be tidied up after
   var p = Promise.all([
     that.ec2.describeInstances({
       Filters: [
@@ -70,15 +78,60 @@ AwsManager.prototype.update = function () {
         },
       ],
     }),
+    that.ec2.describeInstances({
+      Filters: [
+        {
+          Name: 'key-name',
+          Values: [that.keyPrefix + '*'],
+        },
+        {
+          Name: 'instance-state-name',
+          Values: ['shutting-down', 'terminated', 'stopping'],
+        },
+      ],
+    }),
+    that.ec2.describeSpotInstanceRequests({
+      Filters: [
+        {
+          Name: 'launch.key-name',
+          Values: [that.keyPrefix + '*'],
+        }, {
+          Name: 'state',
+          Values: ['cancelled', 'failed', 'closed', 'active'],
+        },
+      ],
+    }),
   ]);
 
   p = p.then(function (res) {
-    if (res[0].NextToken && res[0].NextToken !== '') {
+    var livingInstances = res[0];
+    var livingSpotRequests = res[1];
+    var deadInstances = res[2];
+    var deadSpotRequests = {};
+
+    // Because we don't filter the spot requests, we'll need to make sure
+    // that we remove the SpotInstanceRequests per-region response so that
+    // that._classify() knows how to interpret the data
+    Object.keys(res[3]).forEach(function(region) {
+      deadSpotRequests[region] = res[3][region].SpotInstanceRequests;
+    });
+
+    if (livingInstances.NextToken && livingInstances.NextToken !== '') {
       console.log('[alert-operator] WARNING!  We have a ' +
           'DescribeInstances NextToken and arent using it!!!');
     };
-    var filteredSpotRequests = that._filterSpotRequests(res[1]);
-    that.__apiState = that._classify(res[0], filteredSpotRequests.good);
+    var filteredSpotRequests = that._filterSpotRequests(livingSpotRequests);
+
+    // We store the last iteration's state
+    that.__previousApiState = that.__apiState;
+    that.__apiState = that._classify(livingInstances, filteredSpotRequests.good);
+    that.__deadState = that._classify(deadInstances, deadSpotRequests);
+
+    var stateDifferences = that._compareStates(that.__apiState, that.__previousApiState);
+
+    console.log('Differences:');
+    console.dir(stateDifferences);
+
     return that.handleStalledRequests(filteredSpotRequests.stalled);
   });
 
@@ -92,10 +145,9 @@ AwsManager.prototype.update = function () {
 };
 
 /**
- * Handle SpotRequests that we consider to have stalled.
- * For now, this means just cancel them.  In future this
- * will do nifty things like maintaining state about which
- * type/region/zone combinations are not working well right
+ * Handle SpotRequests that we consider to have stalled.  For now, this means
+ * just cancel them.  In future this will do nifty things like maintaining
+ * state about which type/region/zone combinations are not working well right
  * now
  */
 AwsManager.prototype.handleStalledRequests = function (spotReqs) {
@@ -110,8 +162,8 @@ AwsManager.prototype.handleStalledRequests = function (spotReqs) {
 
 /**
  * We want to separate spot requests into two buckets:
- *   * those which are going to be fulfilled quickly
- *   * those which should be canceled because of AWS
+ *   - those which are going to be fulfilled quickly
+ *   - those which should be canceled because of AWS
  * This function returns an object with the spot requests sorted
  * into these buckets.
  */
@@ -163,6 +215,52 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
   });
 
   return data;
+};
+
+
+/**
+ * Compare two state objects to find the instances and requests which are no
+ * longer in the new state object.  The assumption here is that the items that
+ * are no longer in the state are those which have been terminated.  This
+ * method returns those instances and request which are no longer present in
+ * state.  You'll need to have another data source to find the resolution of
+ * the now missing resources
+ */
+AwsManager.prototype._compareStates = function (newState, previousState) {
+  var nowMissing = {
+    instances: [],
+    requests: [],
+  };
+
+  var allInstancesInNewState = newState.instances.map(function(instance) {
+    return instance.InstanceId;
+  });
+
+  var allRequestsInNewState = newState.requests.map(function(request) {
+    return request.SpotInstanceRequestId;
+  });
+
+  previousState.instances.forEach(function (instance) {
+    var id = instance.InstanceId;
+    if (allInstancesInNewState.includes(id)) {
+      debug('instance %s has not terminated yet', id);
+    } else {
+      debug('instance %s has terminated', id);
+      nowMissing.instances.push(instance);
+    }
+  });
+
+  previousState.requests.forEach(function (request) {
+    var id = request.SpotInstanceRequestId;
+    if (allRequestsInNewState.includes(id)) {
+      debug('spot request %s is still unfulfilled', id);
+    } else {
+      debug('spot request %s is no longer open', id);
+      nowMissing.requests.push(request);
+    }
+  });
+
+  return nowMissing;
 };
 
 /**
