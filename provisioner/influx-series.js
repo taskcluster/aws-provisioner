@@ -39,6 +39,79 @@ module.exports.spotRequestsSubmitted = new base.stats.Series({
   },
 });
 
+// Store the times when a spot request is fulfilled
+module.exports.spotRequestsFulfilled = new base.stats.Series({
+  name: 'AwsProvisioner.SpotRequestsFulfilled',
+  columns: {
+    provisionerId: base.stats.types.String,
+    region: base.stats.types.String,
+    az: base.stats.types.String,
+    instanceType: base.stats.types.String,
+    workerType: base.stats.types.String,
+    id: base.stats.types.String,
+    instanceId: base.stats.types.String,
+    // This is the true time per the ec2 api
+    time: base.stats.types.String,
+    bid: base.stats.types.Number,
+  },
+});
+
+// Store the times when a spot request is closed but not fulfilled
+module.exports.spotRequestsDied = new base.stats.Series({
+  name: 'AwsProvisioner.SpotRequestsDied',
+  columns: {
+    provisionerId: base.stats.types.String,
+    region: base.stats.types.String,
+    az: base.stats.types.String,
+    instanceType: base.stats.types.String,
+    workerType: base.stats.types.String,
+    id: base.stats.types.String,
+    // This is the true time per the ec2 api
+    time: base.stats.types.String,
+    bid: base.stats.types.Number,
+    state: base.stats.types.String,
+    // These are the status fields
+    statusCode: base.stats.types.String,
+    statusMsg: base.stats.types.String,
+  },
+});
+
+// Store the times when an instance terminated
+module.exports.instanceTerminated = new base.stats.Series({
+  name: 'AwsProvisioner.InstanceTerminated',
+  columns: {
+    provisionerId: base.stats.types.String,
+    region: base.stats.types.String,
+    az: base.stats.types.String,
+    instanceType: base.stats.types.String,
+    workerType: base.stats.types.String,
+    id: base.stats.types.String,
+    spotRequestId: base.stats.types.String,
+    time: base.stats.types.String,
+    launchTime: base.stats.types.String,
+    // These are the status fields
+    stateCode: base.stats.types.String,
+    stateMsg: base.stats.types.String,
+    stateChangeCode: base.stats.types.String,
+    stateChangeMsg: base.stats.types.String,
+  },
+});
+
+// Store the minimum spot price for a given instance type in
+// a region and availability zone
+module.exports.spotPriceFloorFound = new base.stats.Series({
+  name: 'AwsProvisioner.SpotPriceFloor',
+  columns: {
+    region: base.stats.types.String,
+    az: base.stats.types.String,
+    instanceType: base.stats.types.String,
+    time: base.stats.types.String,
+    price: base.stats.types.Number,
+    reason: base.stats.types.String,
+  },
+});
+
+
 // Store when and where we use a given AMI.  This is separate
 // from the spot request submission since we can use ondemand
 // and I'd rather not have to change this when we start doing
