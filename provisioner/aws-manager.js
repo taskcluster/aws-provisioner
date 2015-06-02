@@ -3,19 +3,18 @@
 var Promise = require('promise');
 var assert = require('assert');
 var debug = require('debug')('aws-provisioner:aws-manager');
-var objFilter = require('../lib/objFilter');
+// XXX var objFilter = require('../lib/objFilter');
 var shuffle = require('knuth-shuffle');
 var taskcluster = require('taskcluster-client');
 var series = require('./influx-series');
 
-
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
-function dateForInflux(thingy) {
+function dateForInflux (thingy) {
   if (typeof thingy === 'object' && thingy.getTime) {
     // assume this is a date object
     return thingy.getTime();
-  } else if (typeof thingy === 'string')  {
+  } else if (typeof thingy === 'string') {
     return new Date(thingy).getTime();
   }
   throw new Error('dont know how to thing this thingy');
@@ -44,11 +43,11 @@ function AwsManager (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, inf
   };
   this.__previousApiState = this.__apiState;
   this.__internalState = [];
-  
+
   // This is used to store the list of instances we're awaiting state change
   // reasons for
   this.__awaitingStateReason = [];
-  
+
   // This is used to store the spot requests which are pending their state
   // changing to fulfilled
   this.__awaitingSpotFulfilmentStatus = [];
@@ -133,7 +132,7 @@ AwsManager.prototype.update = function () {
     var livingSpotRequests = res[1];
     var deadInstances = res[2];
     var deadSpotRequests = {};
-  
+
     // NOTE: Dead spot request does not mean that the spot request failed,
     //       just that it's no longer an open spot request...
 
@@ -143,7 +142,7 @@ AwsManager.prototype.update = function () {
     // Because we don't filter the spot requests, we'll need to make sure that
     // we remove the SpotInstanceRequests per-region response so that
     // that._classify() knows how to interpret the data
-    Object.keys(res[3]).forEach(function(region) {
+    Object.keys(res[3]).forEach(function (region) {
       deadSpotRequests[region] = res[3][region].SpotInstanceRequests;
     });
 
@@ -152,7 +151,7 @@ AwsManager.prototype.update = function () {
     if (livingInstances.NextToken && livingInstances.NextToken !== '') {
       console.log('[alert-operator] WARNING!  We have a ' +
           'DescribeInstances NextToken and arent using it!!!');
-    };
+    }
     var filteredSpotRequests = that._filterSpotRequests(livingSpotRequests);
 
     // We store the last iteration's state
@@ -271,7 +270,6 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
   return data;
 };
 
-
 /**
  * Compare two state objects to find the instances and requests which are no
  * longer in the new state object.  The assumption here is that the items that
@@ -292,25 +290,25 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
 
   // to make comparison of states easier, we create a list of all the ids of
   // both spot requests and instances in each of the two compared states
-  var allInstancesInPreviousState = previousState.instances.map(function(instance) {
+  var allInstancesInPreviousState = previousState.instances.map(function (instance) {
     return instance.InstanceId;
   });
-  var allRequestsInPreviousState = previousState.requests.map(function(request) {
+  var allRequestsInPreviousState = previousState.requests.map(function (request) {
     return request.SpotInstanceRequestId;
   });
-  var allInstancesInNewState = newState.instances.map(function(instance) {
+  var allInstancesInNewState = newState.instances.map(function (instance) {
     return instance.InstanceId;
   });
-  var allRequestsInNewState = newState.requests.map(function(request) {
+  var allRequestsInNewState = newState.requests.map(function (request) {
     return request.SpotInstanceRequestId;
   });
 
   // find all the instances and request ids which were in the previous state
   // but not in the new state
-  missingIds.instances = allInstancesInPreviousState.filter(function(id) {
+  missingIds.instances = allInstancesInPreviousState.filter(function (id) {
     return !allInstancesInNewState.includes(id);
   });
-  missingIds.requests = allRequestsInPreviousState.filter(function(id) {
+  missingIds.requests = allRequestsInPreviousState.filter(function (id) {
     return !allRequestsInNewState.includes(id);
   });
 
@@ -319,15 +317,14 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
   // the problem of getting the stale state info in the later methods which
   // need information about why the state change occured
   return {
-    instances: deadState.instances.filter(function(instance) {
+    instances: deadState.instances.filter(function (instance) {
       return missingIds.instances.includes(instance.InstanceId);
     }),
-    requests: deadState.requests.filter(function(request) {
+    requests: deadState.requests.filter(function (request) {
       return missingIds.requests.includes(request.SpotInstanceRequestId);
     }),
   };
 };
-
 
 /**
  * Take a list of instances which are now absent and figure out why they are gone.
@@ -337,15 +334,15 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
  * Remember that we're only looking at the differences between iteration intervals.
  * This is how we ensure that we don't look the same spot request twice.
  */
-AwsManager.prototype._reconcileStateDifferences = function(differences, deadState, apiState) {
+AwsManager.prototype._reconcileStateDifferences = function (differences, deadState, apiState) {
   var that = this;
   assert(differences);
   assert(deadState);
   assert(apiState);
 
-  function plotSpotFulfilment(request) {
+  function plotSpotFulfilment (request) {
     // Once we go from open -> active with a status of fulfilled we can log this
-    // spot request as successfully fulfilled.  This does not imply that 
+    // spot request as successfully fulfilled.  This does not imply that
     that.reportSpotRequestsFulfilled({
       provisionerId: that.provisionerId,
       region: request.Region,
@@ -363,8 +360,8 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
   // no longer showing up as pending.  These can either be fulfilled or
   // rejected.  FOr those which are fulfilled we want to create a data point
   // which will let us trend how long spot request fulfilment takes.  For those
-  // which fail we want stats on why they failed so we can later analyze this 
-  differences.requests.forEach(function(request) {
+  // which fail we want stats on why they failed so we can later analyze this
+  differences.requests.forEach(function (request) {
     if (request.State === 'active' && request.Status.Code === 'fulfilled') {
       plotSpotFulfilment(request);
     } else if (request.State === 'open') {
@@ -394,13 +391,13 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
         statusMsg: request.Status.Message,
       });
       debug('spot request %j did something else', request);
-    };
+    }
   });
 
-  this.__awaitingSpotFulfilmentStatus = this.__awaitingSpotFulfilmentStatus.filter(function(requestAwaiting) {
+  this.__awaitingSpotFulfilmentStatus = this.__awaitingSpotFulfilmentStatus.filter(function (requestAwaiting) {
     var keepInTheList = true;
 
-    deadState.requests.forEach(function(requestMightHave) {
+    deadState.requests.forEach(function (requestMightHave) {
       if (requestMightHave.SpotInstanceRequestId === requestAwaiting) {
         if (requestMightHave.State === 'active' && requestMightHave.Status.Code === 'filfilled') {
           plotSpotFulfilment(requestMightHave);
@@ -420,7 +417,7 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
   /*
     for instances we need to see if there's a transition reason already and if not,
     we need to store the instance metadata and check on the next iteration whether
-    that instance has an associated state transition reason.  For when there is a 
+    that instance has an associated state transition reason.  For when there is a
     spot price termination, we should also look for a spot request in the good and
     dead ones to see what we bid on the thing.  We should also track what the time
     was when we found the difference and we should only try for up to, say, 5 times
@@ -429,7 +426,7 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
     http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_StateReason.html
   */
 
-  function plotInstanceDeath(instance, time) {
+  function plotInstanceDeath (instance, time) {
     // Let's track when the instance is shut down
     that.reportInstanceTerminated({
       provisionerId: that.provisionerId,
@@ -452,13 +449,13 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
       // Let's figure out what we set the price to;
       var price;
 
-      deadState.requests.forEach(function(request) {
+      deadState.requests.forEach(function (request) {
         if (!price && request.SpotInstanceRequestId === instance.SpotInstanceRequestId) {
           price = parseFloat(request.SpotPrice, 10);
         }
       });
 
-      apiState.requests.forEach(function(request) {
+      apiState.requests.forEach(function (request) {
         if (!price && request.SpotInstanceRequestId === instance.SpotInstanceRequestId) {
           price = parseFloat(request.SpotPrice, 10);
         }
@@ -481,7 +478,7 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
 
   // Let's handle instance which already have a state reason, or
   // save them for a future iteration if not
-  differences.instances.forEach(function(instance) {
+  differences.instances.forEach(function (instance) {
     // Using StateReason instead of StateTransitionReason
     if (instance.StateReason && instance.StateReason.Code) {
       debug('found a terminated instance which has a termination reason');
@@ -496,11 +493,10 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
     }
   });
 
-
   // Now, let's try to account for those instance which are awaiting a state reason
-  this.__awaitingStateReason = this.__awaitingStateReason.filter(function(instanceAwaiting) {
+  this.__awaitingStateReason = this.__awaitingStateReason.filter(function (instanceAwaiting) {
     var keepItInTheList = true;
-    deadState.instances.forEach(function(instanceMightHave) {
+    deadState.instances.forEach(function (instanceMightHave) {
       if (instanceMightHave.InstanceId === instanceAwaiting.id) {
         if (instanceMightHave.StateReason && instanceMightHave.StateReason.Code) {
           keepItInTheList = false;
@@ -868,8 +864,6 @@ AwsManager.prototype._trackNewSpotRequest = function (sr) {
   // sr is a SpotRequest object which we get back from the
   // AWS Api when we submit the SpotRequest
   assert(sr);
-
-  var that = this;
 
   var allKnownSrIds = this.knownSpotInstanceRequestIds();
 

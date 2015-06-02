@@ -111,7 +111,6 @@ module.exports.spotPriceFloorFound = new base.stats.Series({
   },
 });
 
-
 // Store when and where we use a given AMI.  This is separate
 // from the spot request submission since we can use ondemand
 // and I'd rather not have to change this when we start doing
@@ -137,6 +136,6 @@ module.exports.provisionerIteration = new base.stats.Series({
     pendingTasks: base.stats.types.Number,
     runningCapacity: base.stats.types.Number,
     pendingCapacity: base.stats.types.Number,
-    change: base.stats.types.Number, 
+    change: base.stats.types.Number,
   },
 });
