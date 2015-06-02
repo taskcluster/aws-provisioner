@@ -11,6 +11,16 @@ var series = require('./influx-series');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
+function dateForInflux(thingy) {
+  if (typeof thingy === 'object' && thingy.getTime) {
+    // assume this is a date object
+    return thingy.getTime();
+  } else if (typeof thingy === 'string')  {
+    return new Date(thingy).getTime();
+  }
+  throw new Error('dont know how to thing this thingy');
+}
+
 /**
  * AWS EC2 state at a specific moment in time
  */
@@ -130,13 +140,15 @@ AwsManager.prototype.update = function () {
     // TODO: Probably better to do a single set of describe calls and bucket
     //       them in this section... hmm, no strong feelings until data
 
-    // Because we don't filter the spot requests, we'll need to make sure
-    // that we remove the SpotInstanceRequests per-region response so that
+    // Because we don't filter the spot requests, we'll need to make sure that
+    // we remove the SpotInstanceRequests per-region response so that
     // that._classify() knows how to interpret the data
     Object.keys(res[3]).forEach(function(region) {
       deadSpotRequests[region] = res[3][region].SpotInstanceRequests;
     });
 
+    // We don't currently handle this case because it seems to be deprecated in
+    // the docs.  We should be alerted if it begins to be used again
     if (livingInstances.NextToken && livingInstances.NextToken !== '') {
       console.log('[alert-operator] WARNING!  We have a ' +
           'DescribeInstances NextToken and arent using it!!!');
@@ -148,15 +160,17 @@ AwsManager.prototype.update = function () {
     that.__apiState = that._classify(livingInstances, filteredSpotRequests.good);
     that.__deadState = that._classify(deadInstances, deadSpotRequests);
 
-    var stateDifferences = that._compareStates(that.__apiState, that.__previousApiState);
-
-    console.log('Differences:');
-    console.log(JSON.stringify(stateDifferences, null, 2));
-
-    /*console.log('Dead state:');
-    console.log(JSON.stringify(that.__deadState, null, 2));*/
-
-    that._reconcileStateDifferences(stateDifferences, that.__deadState, that.__apiState);
+    // remove this try/catch once this has been live for a while
+    try {
+      var stateDifferences = that._compareStates(that.__apiState, that.__previousApiState, that.__deadState);
+      that._reconcileStateDifferences(stateDifferences, that.__deadState, that.__apiState);
+    } catch(err) {
+      console.log('[alert-operator] failure in computing differences');
+      console.log(err);
+      if (err.stack) {
+        console.log(err.stack);
+      }
+    }
 
     return that.handleStalledRequests(filteredSpotRequests.stalled);
   });
@@ -237,7 +251,7 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
           region: region,
           az: sr.LaunchSpecification.Placement.AvailabilityZone,
           instanceType: sr.LaunchSpecification.InstanceType,
-          time: new Date().toISOString(),
+          time: dateForInflux(new Date()),
           price: parseFloat(sr.SpotPrice, 10),
           reason: 'spot-request-price-too-low',
         });
@@ -266,41 +280,52 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
  * state.  You'll need to have another data source to find the resolution of
  * the now missing resources
  */
-AwsManager.prototype._compareStates = function (newState, previousState) {
-  var nowMissing = {
+AwsManager.prototype._compareStates = function (newState, previousState, deadState) {
+  assert(newState);
+  assert(previousState);
+  assert(deadState);
+
+  var missingIds = {
     instances: [],
     requests: [],
   };
 
+  // to make comparison of states easier, we create a list of all the ids of
+  // both spot requests and instances in each of the two compared states
+  var allInstancesInPreviousState = previousState.instances.map(function(instance) {
+    return instance.InstanceId;
+  });
+  var allRequestsInPreviousState = previousState.requests.map(function(request) {
+    return request.SpotInstanceRequestId;
+  });
   var allInstancesInNewState = newState.instances.map(function(instance) {
     return instance.InstanceId;
   });
-
   var allRequestsInNewState = newState.requests.map(function(request) {
     return request.SpotInstanceRequestId;
   });
 
-  previousState.instances.forEach(function (instance) {
-    var id = instance.InstanceId;
-    if (allInstancesInNewState.includes(id)) {
-      debug('instance %s has not terminated yet', id);
-    } else {
-      debug('instance %s has terminated', id);
-      nowMissing.instances.push(instance);
-    }
+  // find all the instances and request ids which were in the previous state
+  // but not in the new state
+  missingIds.instances = allInstancesInPreviousState.filter(function(id) {
+    return !allInstancesInNewState.includes(id);
+  });
+  missingIds.requests = allRequestsInPreviousState.filter(function(id) {
+    return !allRequestsInNewState.includes(id);
   });
 
-  previousState.requests.forEach(function (request) {
-    var id = request.SpotInstanceRequestId;
-    if (allRequestsInNewState.includes(id)) {
-      debug('spot request %s is still unfulfilled', id);
-    } else {
-      debug('spot request %s is no longer open', id);
-      nowMissing.requests.push(request);
-    }
-  });
-
-  return nowMissing;
+  // Now let's grab those instances and requests which are absent, but instead
+  // let's use their new state object instead of the old one.  This is to avoid
+  // the problem of getting the stale state info in the later methods which
+  // need information about why the state change occured
+  return {
+    instances: deadState.instances.filter(function(instance) {
+      return missingIds.instances.includes(instance.InstanceId);
+    }),
+    requests: deadState.requests.filter(function(request) {
+      return missingIds.requests.includes(request.SpotInstanceRequestId);
+    }),
+  };
 };
 
 
@@ -324,12 +349,12 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
     that.reportSpotRequestsFulfilled({
       provisionerId: that.provisionerId,
       region: request.Region,
-      az: request.Placement.AvailabilityZone,
-      instanceType: request.InstanceType,
+      az: request.LaunchSpecification.Placement.AvailabilityZone,
+      instanceType: request.LaunchSpecification.InstanceType,
       workerType: request.WorkerType,
       id: request.SpotInstanceRequestId,
       instanceId: request.InstanceId,
-      time: request.Status.UpdateTime,
+      time: dateForInflux(request.Status.UpdateTime),
     });
     debug('spot request %j fulfilled!', request);
   }
@@ -347,7 +372,7 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
       // do not have an api state which reflects that
       that.__awaitingSpotFulfilmentStatus.push({
         id: request.SpotInstanceRequestId,
-        time: new Date().toISOString(),
+        time: new Date(),
         iterationCount: 0,
       });
     } else {
@@ -362,8 +387,8 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
         instanceType: request.LaunchSpecification.InstanceType,
         workerType: request.WorkerType,
         id: request.SpotInstanceRequestId,
-        time: request.Status.UpdateTime,
-        bid: request.SpotPrice,
+        time: dateForInflux(request.Status.UpdateTime),
+        bid: parseFloat(request.SpotPrice, 10),
         state: request.State,
         statusCode: request.Status.Code,
         statusMsg: request.Status.Message,
@@ -414,8 +439,8 @@ AwsManager.prototype._reconcileStateDifferences = function(differences, deadStat
       workerType: instance.WorkerType,
       id: instance.InstanceId,
       spotRequestId: instance.SpotInstanceRequestId,
-      time: time,
-      launchTime: instance.LaunchTime,
+      time: dateForInflux(time),
+      launchTime: dateForInflux(instance.LaunchTime),
       stateCode: instance.State.Code,
       stateMsg: instance.State.Name,
       stateChangeCode: instance.StateReason.Code,

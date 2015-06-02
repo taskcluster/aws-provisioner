@@ -51,7 +51,7 @@ module.exports.spotRequestsFulfilled = new base.stats.Series({
     id: base.stats.types.String,
     instanceId: base.stats.types.String,
     // This is the true time per the ec2 api
-    time: base.stats.types.String,
+    time: base.stats.types.Number,
     bid: base.stats.types.Number,
   },
 });
@@ -67,7 +67,7 @@ module.exports.spotRequestsDied = new base.stats.Series({
     workerType: base.stats.types.String,
     id: base.stats.types.String,
     // This is the true time per the ec2 api
-    time: base.stats.types.String,
+    time: base.stats.types.Number,
     bid: base.stats.types.Number,
     state: base.stats.types.String,
     // These are the status fields
@@ -87,10 +87,10 @@ module.exports.instanceTerminated = new base.stats.Series({
     workerType: base.stats.types.String,
     id: base.stats.types.String,
     spotRequestId: base.stats.types.String,
-    time: base.stats.types.String,
-    launchTime: base.stats.types.String,
+    time: base.stats.types.Number,
+    launchTime: base.stats.types.Number,
     // These are the status fields
-    stateCode: base.stats.types.String,
+    stateCode: base.stats.types.Number,
     stateMsg: base.stats.types.String,
     stateChangeCode: base.stats.types.String,
     stateChangeMsg: base.stats.types.String,
@@ -105,7 +105,7 @@ module.exports.spotPriceFloorFound = new base.stats.Series({
     region: base.stats.types.String,
     az: base.stats.types.String,
     instanceType: base.stats.types.String,
-    time: base.stats.types.String,
+    time: base.stats.types.Number,
     price: base.stats.types.Number,
     reason: base.stats.types.String,
   },
