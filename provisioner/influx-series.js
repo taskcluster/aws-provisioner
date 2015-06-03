@@ -139,3 +139,15 @@ module.exports.provisionerIteration = new base.stats.Series({
     change: base.stats.types.Number,
   },
 });
+
+module.exports.workerTypeCheckIn = new base.stats.Series({
+  name: 'AwsProvisioner.WorkerTypeCheckIn',
+  columns: {
+    instanceId: base.stats.types.String,
+    requestId: base.stats.types.String,
+    region: base.stats.types.String,
+    az: base.stats.types.String,
+    instanceType: base.stats.types.String,
+    workerType: base.stats.types.String,
+  }
+});

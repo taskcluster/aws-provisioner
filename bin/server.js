@@ -9,9 +9,10 @@ var AwsManager = require('../provisioner/aws-manager');
 var v1 = require('../routes/v1');
 var Aws = require('multi-region-promised-aws');
 var _ = require('lodash');
+var series = require('../provisioner/influx-series');
 
 /** Launch server */
-var launch = function (profile) {
+var launch = function (profile, useNullInfluxDrain) {
   // Load configuration
   var cfg = base.config({
     defaults: require('../config/defaults'),
@@ -41,11 +42,23 @@ var launch = function (profile) {
   var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
   // Create InfluxDB connection for submitting statistics
-  var influx = new base.stats.Influx({
-    connectionString: cfg.get('influx:connectionString'),
-    maxDelay: cfg.get('influx:maxDelay'),
-    maxPendingPoints: cfg.get('influx:maxPendingPoints'),
-  });
+  var influx;
+  if (useNullInfluxDrain) {
+    var influx = new base.stats.NullDrain();
+
+    // Ugly*1000 but otherwise, it'll be really hard to get a reference to this
+    // drain aiui, which we need to get the number of pending points to make
+    // sure that the stat was submitted for real
+    module.exports.influx = influx;
+
+  } else {
+    var influx = new base.stats.Influx({
+      connectionString: cfg.get('influx:connectionString'),
+      maxDelay: cfg.get('influx:maxDelay'),
+      maxPendingPoints: cfg.get('influx:maxPendingPoints'),
+    });
+  }
+
 
   // Configure me an EC2 API instance.  This one should be able
   // to run in any region, which we'll limit by the ones
@@ -101,6 +114,7 @@ var launch = function (profile) {
   var validator = null;
   var publisher = null;
 
+
   var p = base.validator({
     folder: path.join(__dirname, '..', 'schemas'),
     constants: require('../schemas/constants'),
@@ -149,6 +163,7 @@ var launch = function (profile) {
         awsManager: awsManager,
         keyPrefix: keyPrefix,
         provisionerId: provisionerId,
+        reportWorkerTypeCheckIn: series.workerTypeCheckIn.reporter(influx),
       },
       validator: validator,
       authBaseUrl: cfg.get('taskcluster:authBaseUrl'),

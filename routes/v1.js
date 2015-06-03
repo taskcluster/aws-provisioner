@@ -304,6 +304,50 @@ api.declare({
   return p;
 });
 
+
+
+
+api.declare({
+  method: 'put',
+  route: '/check-in/:workerType',
+  name: 'workerCheckIn',
+  deferAuth: true,
+  scopes: ['aws-provisioner:check-in:<workerType>'],
+  input: SCHEMA_PREFIX_CONST + 'worker-type-check-in-request.json#',
+  title: 'Check-in for a workerType',
+  description: [
+    'Check in for a worker type',
+    '',
+    '*** EXPERIMENTAL ***',
+  ].join('\n'),
+}, async function (req, res) {
+  var input = req.body;
+  var workerType = req.params.workerType;
+
+  // Authenticate request with parameterized scope
+  if (!req.satisfies({workerType: workerType})) {
+    return;
+  }
+
+  // TODO:
+  // add series require() call to bin/server.js
+  // pass that through to here as context
+  // create a reporter there.
+
+  this.reportWorkerTypeCheckIn({
+    instanceId: input.instanceId,
+    requestId: input.requestId || '',
+    region: input.region,
+    az: input.az,
+    instanceType: input.instanceType,
+    workerType: workerType,
+  });
+
+  res.reply({outcome: 'success'});
+  return;
+});
+
+
 api.declare({
   method: 'get',
   route: '/list-worker-types',

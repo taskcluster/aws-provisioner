@@ -99,6 +99,29 @@ describe('provisioner api server', function () {
     });
   });
 
+  describe('worker type checkin', function () {
+    it('should be able to check in a worker type', function() {
+      var testData = {
+        instanceId: 'i-abcde1234',
+        requestId: 'sir-abcde3123',
+        region: 'us-west-2',
+        az: 'us-west-2b',
+        instanceType: 'r3.xlarge',
+      };
+
+      subject.influx.pendingPoints().should.equal(0);
+      var p = subject.awsProvisioner.workerCheckIn('test', testData); 
+
+      p.then(function(x) {
+        return subject.influx.close().then(function() {
+          subject.influx.pendingPoints().should.equal(1);
+        });
+      });
+
+      return p;
+    });
+  });
+
   describe('listing worker types', function () {
     it('should return a list', function () {
       var p = subject.awsProvisioner.listWorkerTypes();
