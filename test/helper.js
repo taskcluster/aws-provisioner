@@ -53,7 +53,9 @@ mocha.before(async () => {
     clients: defaultClients,
   });
 
-  webServer = await bin.server('test');
+  webServer = await bin.server('test', true);
+  // Ugh, again pretty ugly
+  exports.influx = bin.server.influx;
 
   // Create client for working with API
   exports.baseUrl = 'http://localhost:' + webServer.address().port + '/v1';
