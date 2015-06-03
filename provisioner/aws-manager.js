@@ -399,7 +399,7 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
 
     deadState.requests.forEach(function (requestMightHave) {
       if (requestMightHave.SpotInstanceRequestId === requestAwaiting) {
-        if (requestMightHave.State === 'active' && requestMightHave.Status.Code === 'filfilled') {
+        if (requestMightHave.State === 'active' && requestMightHave.Status.Code === 'fulfilled') {
           plotSpotFulfilment(requestMightHave);
           keepInTheList = false;
         }
