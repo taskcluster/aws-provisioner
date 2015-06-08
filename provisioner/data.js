@@ -86,6 +86,32 @@ var WorkerType = base.Entity.configure({
   context: ['provisionerId', 'keyPrefix'],
 });
 
+// We want to add a lastModified field
+WorkerType = WorkerType.configure({
+  version: 2,
+  properties: {
+    // These fields are documented in Version 1 of this Entity
+    workerType: base.Entity.types.String,
+    launchSpecification: base.Entity.types.JSON,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minPrice: base.Entity.types.Number,
+    maxPrice: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON,
+    canUseSpot: base.Entity.types.JSON,
+    instanceTypes: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+    // Store the date of last modification for this entity
+    lastModified: base.Entity.types.Date,
+  },
+  migrate: function (item) {
+    item.lastModified = new Date();
+    return item;
+  },
+  context: ['provisionerId', 'keyPrefix'],
+});
+
 /**
  * Create a workerType in the table.  The properties
  * should not have a workerType key since that will be

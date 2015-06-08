@@ -54,6 +54,7 @@ var baseWorkerType = {
   maxPrice: 0.5,
   canUseOndemand: false,
   canUseSpot: true,
+  lastModified: new Date(),
   instanceTypes: [
     {
       instanceType: 'c3.xlarge',

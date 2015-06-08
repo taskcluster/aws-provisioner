@@ -86,7 +86,7 @@ api.declare({
   deferAuth: true,
   scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
   input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  output: SCHEMA_PREFIX_CONST + 'get-worker-type2-response.json#',
   title: 'Create new Worker Type',
   description: [
     'Create a worker type and ensure that all EC2 regions have the required',
@@ -95,6 +95,8 @@ api.declare({
 }, async function (req, res) {
   var input = req.body;
   var workerType = req.params.workerType;
+
+  input.lastModified = new Date();
 
   // Authenticate request with parameterized scope
   if (!req.satisfies({workerType: workerType})) {
@@ -177,7 +179,7 @@ api.declare({
   // Shouldn't we just have a single scope for modifying/creating/deleting workerTypes
   scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
   input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
-  output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  output: SCHEMA_PREFIX_CONST + 'get-worker-type2-response.json#',
   title: 'Update Worker Type',
   description: [
     'Update a workerType and ensure that all regions have the require',
@@ -206,10 +208,13 @@ api.declare({
 
   var wType = await this.WorkerType.load({workerType: workerType});
 
+  var modDate = new Date();
+
   await wType.modify(function (w) {
     // We know that data that gets to here is valid per-schema
     Object.keys(input).forEach(function (key) {
       w[key] = input[key];
+      w.lastModified = modDate;
     });
   });
 
@@ -231,7 +236,7 @@ api.declare({
     'aws-provisioner:manage-worker-type:<workerType>',
   ],
   input: undefined,  // No input
-  output: SCHEMA_PREFIX_CONST + 'get-worker-type-response.json#',
+  output: SCHEMA_PREFIX_CONST + 'get-worker-type2-response.json#',
   title: 'Get Worker Type',
   description: [
     'Retreive a WorkerType definition',

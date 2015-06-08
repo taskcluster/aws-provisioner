@@ -63,6 +63,8 @@ describe('provisioner api server', function () {
 
       p = p.then(function (result) {
         // TODO: Make sure it publishes to pulse
+        result.lastModified.should.be.a.Date;  //eslint-disable-line no-unused-expressions
+        delete result.lastModified;
         result.should.eql(expectedBefore);
         console.log('insert done');
         return result;
@@ -73,6 +75,8 @@ describe('provisioner api server', function () {
       });
 
       p = p.then(function (result) {
+        result.lastModified.should.be.a.Date; //eslint-disable-line no-unused-expressions
+        delete result.lastModified;
         result.should.eql(expectedAfter);
         console.log('update done');
       });
@@ -82,6 +86,8 @@ describe('provisioner api server', function () {
       });
 
       p = p.then(function (result) {
+        result.lastModified.should.be.a.Date; //eslint-disable-line no-unused-expressions
+        delete result.lastModified;
         result.should.eql(expectedAfter);
         console.log('fetch updated copy done');
       });
