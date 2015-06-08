@@ -1,8 +1,13 @@
 'use strict';
 var base = require('taskcluster-base');
 var data = require('../provisioner/data.js');
-var _ = require('lodash');
 var slugid = require('slugid');
+var mock = require('./mock-workers');
+
+// for convenience
+var makeRegion = mock.makeRegion;
+var makeInstanceType = mock.makeInstanceType;
+var makeWorkerType = mock.makeWorkerType;
 
 var cfg = base.config({
   defaults: require('../config/defaults'),
@@ -42,71 +47,12 @@ var subject = data.WorkerType.setup({
   //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
 });
 
-var baseWorkerType = {
-  launchSpec: {
-    SecurityGroups: [
-      'docker-worker',
-    ],
-  },
-  lastModified: new Date(),
-  minCapacity: 0,
-  maxCapacity: 20,
-  scalingRatio: 0,
-  minPrice: 0,
-  maxPrice: 0.5,
-  canUseOndemand: false,
-  canUseSpot: true,
-  scopes: [],
-  secrets: {},
-  userData: {},
-  instanceTypes: [
-    {
-      instanceType: 'c3.xlarge',
-      capacity: 1,
-      utility: 1,
-    },
-    {
-      instanceType: 'c3.2xlarge',
-      capacity: 2,
-      utility: 2,
-    },
-  ],
-  regions: [
-    {
-      region: 'us-west-2',
-      launchSpec: {
-        ImageId: 'ami-1dfcd32d',
-      },
-    },
-  ],
-};
-
-function makeRegion (overwrites) {
-  return _.defaults(overwrites || {}, {
-    region: 'us-west-2',
-    launchSpec: {
-      ImageId: 'ami-1bdf21d',
-    },
-  });
-}
-
-function makeInstanceType (overwrites) {
-  return _.defaults(overwrites || {}, {
-    instanceType: 't1.micro',
-    capacity: 1,
-    utility: 1,
-  });
-}
-
-function makeWorkerType (overwrites) {
-  return _.defaults(overwrites || {}, baseWorkerType);
-}
-
 describe('worker type', function () {
 
   // This duplicates the api test a little i guess but why not :/
   it('should be able to be created, updated and deleted', async function () {
     var wType = makeWorkerType({
+      lastModified: new Date(),
       regions: [makeRegion()],
       instanceTypes: [makeInstanceType()],
     });
@@ -119,6 +65,7 @@ describe('worker type', function () {
     asCreated.should.eql(asLoaded);
 
     var asModified = await asLoaded.modify(w => {
+      w.lastModified = new Date();
       w.minCapacity++;
     });
 
@@ -130,6 +77,7 @@ describe('worker type', function () {
   describe('generating launch specifications', function () {
     it('should create a launch spec with valid data', async function () {
       var wType = makeWorkerType({
+        lastModified: new Date(),
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
@@ -210,6 +158,7 @@ describe('worker type', function () {
 
     it('should create valid user data', function () {
       var wType = makeWorkerType({
+        lastModified: new Date(),
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
@@ -234,7 +183,9 @@ describe('worker type', function () {
     // hooks and use modify in each test
     beforeEach(async function () {
       wName = slugid.v4();
-      wType = await subject.create(wName, makeWorkerType());
+      wType = await subject.create(wName, makeWorkerType({
+        lastModified: new Date(),
+      }));
     });
 
     afterEach(async function () {
@@ -317,7 +268,9 @@ describe('worker type', function () {
     // hooks and use modify in each test
     beforeEach(async function () {
       wName = slugid.v4();
-      wType = await subject.create(wName, makeWorkerType());
+      wType = await subject.create(wName, makeWorkerType({
+        lastModified: new Date(),
+      }));
     });
 
     afterEach(async function () {
@@ -417,6 +370,7 @@ describe('worker type', function () {
       wName = slugid.v4();
       wType = await subject.create(wName, makeWorkerType({
         maxPrice: 6,
+        lastModified: new Date(),
         regions: [
           makeRegion({region: 'region1'}),
           makeRegion({region: 'region2'}),

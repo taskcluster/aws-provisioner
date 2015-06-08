@@ -85,7 +85,7 @@ api.declare({
   name: 'createWorkerType',
   deferAuth: true,
   scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
-  input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
+  input: SCHEMA_PREFIX_CONST + 'create-worker-type2-request.json#',
   output: SCHEMA_PREFIX_CONST + 'get-worker-type2-response.json#',
   title: 'Create new Worker Type',
   description: [
@@ -178,7 +178,7 @@ api.declare({
   deferAuth: true,
   // Shouldn't we just have a single scope for modifying/creating/deleting workerTypes
   scopes: ['aws-provisioner:manage-worker-type:<workerType>'],
-  input: SCHEMA_PREFIX_CONST + 'create-worker-type-request.json#',
+  input: SCHEMA_PREFIX_CONST + 'create-worker-type2-request.json#',
   output: SCHEMA_PREFIX_CONST + 'get-worker-type2-response.json#',
   title: 'Update Worker Type',
   description: [
