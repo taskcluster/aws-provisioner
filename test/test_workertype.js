@@ -42,11 +42,12 @@ var subject = data.WorkerType.setup({
 });
 
 var baseWorkerType = {
-  launchSpecification: {
+  launchSpec: {
     SecurityGroups: [
       'docker-worker',
     ],
   },
+  lastModified: new Date(),
   minCapacity: 0,
   maxCapacity: 20,
   scalingRatio: 0,
@@ -54,29 +55,25 @@ var baseWorkerType = {
   maxPrice: 0.5,
   canUseOndemand: false,
   canUseSpot: true,
-  lastModified: new Date(),
+  scopes: [],
+  secrets: {},
+  userData: {},
   instanceTypes: [
     {
       instanceType: 'c3.xlarge',
       capacity: 1,
       utility: 1,
-      overwrites: {
-        UserData: 'eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImNsaSIsInByb3Zpc2lvbmVySWQiOiJhd3MtcHJvdmlzaW9uZXIifQ==',
-      },
     },
-     {
+    {
       instanceType: 'c3.2xlarge',
       capacity: 2,
       utility: 2,
-      overwrites: {
-        UserData: 'eyJjYXBhY2l0eSI6NSwid29ya2VyVHlwZSI6ImNsaSIsInByb3Zpc2lvbmVySWQiOiJhd3MtcHJvdmlzaW9uZXIifQ==',
-      },
     },
   ],
   regions: [
     {
       region: 'us-west-2',
-      overwrites: {
+      launchSpec: {
         ImageId: 'ami-1dfcd32d',
       },
     },
@@ -86,7 +83,7 @@ var baseWorkerType = {
 function makeRegion (overwrites) {
   return _.defaults(overwrites || {}, {
     region: 'us-west-2',
-    overwrites: {
+    launchSpec: {
       ImageId: 'ami-1bdf21d',
     },
   });
@@ -97,7 +94,6 @@ function makeInstanceType (overwrites) {
     instanceType: 't1.micro',
     capacity: 1,
     utility: 1,
-    overwrites: {},
   });
 }
 
@@ -165,7 +161,7 @@ describe('worker type', function () {
 
     it('should fail with region specific key in general', function () {
       var wType = makeWorkerType({
-        launchSpecification: {
+        launchSpec: {
           ImageId: 'ami-1234579',
         },
       });
@@ -174,21 +170,21 @@ describe('worker type', function () {
 
     it('should fail with region specific key in instance type', function () {
       var wType = makeWorkerType({
-        instanceTypes: [makeInstanceType({overwrites: {ImageId: 'ami-1234558'}})],
+        instanceTypes: [makeInstanceType({launchSpec: {ImageId: 'ami-1234558'}})],
       });
       shouldThrow(wType);
     });
 
     it('should fail with instance type specific key in region', function () {
       var wType = makeWorkerType({
-        regions: [makeRegion({overwrites: {InstanceType: 'c3.small'}})],
+        regions: [makeRegion({launchSpec: {InstanceType: 'c3.small'}})],
       });
       shouldThrow(wType);
     });
 
     it('should fail with instance type specific key in general', function () {
       var wType = makeWorkerType({
-        launchSpecification: {
+        launchSpec: {
           InstanceType: 'ami-1234558',
         },
       });

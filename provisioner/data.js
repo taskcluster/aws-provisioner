@@ -92,20 +92,83 @@ WorkerType = WorkerType.configure({
   properties: {
     // These fields are documented in Version 1 of this Entity
     workerType: base.Entity.types.String,
-    launchSpecification: base.Entity.types.JSON,
     minCapacity: base.Entity.types.Number,
     maxCapacity: base.Entity.types.Number,
     scalingRatio: base.Entity.types.Number,
     minPrice: base.Entity.types.Number,
     maxPrice: base.Entity.types.Number,
-    canUseOndemand: base.Entity.types.JSON,
-    canUseSpot: base.Entity.types.JSON,
+    canUseOndemand: base.Entity.types.JSON, // delete this
+    canUseSpot: base.Entity.types.JSON, // delete this
     instanceTypes: base.Entity.types.JSON,
     regions: base.Entity.types.JSON,
     // Store the date of last modification for this entity
     lastModified: base.Entity.types.Date,
+    // Global base UserData object for overwriting
+    userData: base.Entity.types.JSON,
+    // Global base LaunchSpecification object for overwriting
+    launchSpec: base.Entity.types.JSON,
+    // Global base secrets object for overwriting
+    secrets: base.Entity.types.JSON,
+    // Global base scope list for appending, these are the scopes that
+    // temporary TC credentials will be issued against
+    scopes: base.Entity.types.JSON,
   },
   migrate: function (item) {
+    console.log('Upgrading a workerType to version 2');
+    console.log(JSON.stringify(item, null, 2));
+    var oldUserData;
+    if (item.launchSpecification.UserData) {
+      oldUserData = JSON.parse(new Buffer(item.launchSpecification.UserData, 'base64').toString());
+    } else {
+      oldUserData = {};
+    }
+    var oldLaunchSpec = item.launchSpecification;
+    delete item.launchSpecification;
+    delete oldLaunchSpec.UserData;
+    item.launchSpec = lodash.clone(oldLaunchSpec);
+    item.secrets = {};
+    item.scopes = [];
+    item.userData = lodash.clone(oldUserData);
+
+    // Now, strip out the UserData and LaunchSpec stuff from existing entries
+    // and put them in the right structure then create empty scopes and secrets
+    item.regions.forEach(r => {
+      // Let's get the old launch spec and user data
+      var oldUserData;
+      if (r.overwrites && r.overwrites.UserData) {
+        oldUserData = JSON.parse(new Buffer(r.overwrites.UserData, 'base64').toString());
+      } else {
+        oldUserData = {};
+      }
+      var oldOverwrites = r.overwrites;
+      delete r.overwrites;
+
+      // Now set them up
+      r.userData = oldUserData;
+      r.launchSpec = oldOverwrites;
+      r.secrets = {};
+      r.scopes = [];
+
+    });
+
+    item.instanceTypes.forEach(t => {
+      // Let's get the old launch spec and user data
+      var oldUserData;
+      if (t.overwrites && t.overwrites.UserData) {
+        oldUserData = JSON.parse(new Buffer(t.overwrites.UserData, 'base64').toString());
+      } else {
+        oldUserData = {};
+      }
+      var oldOverwrites = t.overwrites;
+      delete t.overwrites;
+
+      // Now set them up
+      t.userData = oldUserData;
+      t.launchSpec = oldOverwrites;
+      t.secrets = {};
+      t.scopes = [];
+    });
+
     item.lastModified = new Date();
     return item;
   },
@@ -258,24 +321,42 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   assert(keyPrefix);
   assert(provisionerId);
 
-  var hasRegion = false;
-  worker.regions.forEach(function (r) {
+  // Find the region objects, assert if region is not found
+  var regionOverwriteObjects = {};
+  var foundRegion = false;
+  worker.regions.forEach((r) => {
     if (r.region === region) {
-      hasRegion = true;
+      // We want to make sure that we've not already found this region
+      if (foundRegion) {
+        throw new Error('Region must be unique');
+      }
+      foundRegion = true;
+      regionOverwriteObjects.launchSpec = r.launchSpec || {};
+      regionOverwriteObjects.userData = r.userData || {};
+      regionOverwriteObjects.secrets = r.secrets || {};
+      regionOverwriteObjects.scopes = r.scopes || [];
+      // Remember that we need to have an ImageId
+      assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
     }
   });
-  if (!hasRegion) {
-    throw new Error('workerType not configured for ' + region);
-  }
-  var hasType = false;
-  worker.instanceTypes.forEach(function (r) {
-    if (r.instanceType === instanceType) {
-      hasType = true;
+  assert(foundRegion, 'Region for workertype not found');
+
+  // Find the instanceType overwrites object, assert if type is not found
+  var instanceTypeOverwriteObjects = {};
+  var foundInstanceType = false;
+  worker.instanceTypes.forEach((t) => {
+    if (t.instanceType === instanceType) {
+      if (foundInstanceType) {
+        throw new Error('InstanceType must be unique');
+      }
+      foundInstanceType = true;
+      instanceTypeOverwriteObjects.launchSpec = t.launchSpec || {};
+      instanceTypeOverwriteObjects.userData = t.userData || {};
+      instanceTypeOverwriteObjects.secrets = t.secrets || {};
+      instanceTypeOverwriteObjects.scopes = t.scopes || [];
     }
   });
-  if (!hasType) {
-    throw new Error('workerType not configured for ' + instanceType);
-  }
+  assert(foundInstanceType, 'InstanceType for workertype not found');
 
   // These are keys that are only allowable in the set of type specific
   // overwrites.  Only keys which are strictly related to instance type
@@ -291,83 +372,52 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   var regionSpecificKeys = [
     'ImageId', // AMI IDs (ImageId) are created and are different per-region
   ];
-
-  // Find the region overwrites object
-  var regionOverwrites;
-  worker.regions.forEach(function (r) {
-    if (r.region === region) {
-      assert(!regionOverwrites, 'regions must be unique');
-      regionOverwrites = r.overwrites;
-    }
-  });
-  assert(regionOverwrites);
-
-  // Find the instanceType overwrites object
-  var typeOverwrites;
-  worker.instanceTypes.forEach(function (t) {
-    if (t.instanceType === instanceType) {
-      assert(!typeOverwrites, 'instanceTypes must be unique');
-      typeOverwrites = t.overwrites;
-    }
-  });
-  assert(typeOverwrites);
-
   // Check for type specific keys in the general keys and region keys
   typeSpecificKeys.forEach(function (key) {
-    if (worker.launchSpecification[key]) {
+    if (worker.launchSpec[key]) {
       throw new Error(key + ' is type specific, not general');
     }
-    if (regionOverwrites[key]) {
+    if (regionOverwriteObjects.launchSpec[key]) {
       throw new Error(key + ' is type specific, not type specific');
     }
   });
 
   // Check for region specific keys in the general and type keys
   regionSpecificKeys.forEach(function (key) {
-    if (worker.launchSpecification[key]) {
+    if (worker.launchSpec[key]) {
       throw new Error(key + ' is region specific, not general');
     }
-    if (typeOverwrites[key]) {
+    if (instanceTypeOverwriteObjects.launchSpec[key]) {
       throw new Error(key + ' is type specific, not region specific');
     }
   });
 
-  // InstanceTypes should be unique inside of a worker
-  var allInstanceTypes = [];
-  worker.instanceTypes.forEach(function (i) {
-    if (allInstanceTypes.includes(i.instanceType)) {
-      throw new Error(worker.workerType + ' has duplicated instanceType ' + i.instanceType);
-    } else {
-      allInstanceTypes.push(i);
+
+  var config = {};
+
+  // Do the cascading overwrites of the object things
+  ['launchSpec', 'userData', 'secrets'].forEach(x => {
+    config[x] = lodash.cloneDeep(worker[x] || {});
+    lodash.assign(config[x], regionOverwriteObjects[x]);
+    lodash.assign(config[x], instanceTypeOverwriteObjects[x]);
+  });
+
+  // Generate the complete list of scopes;
+  config.scopes = lodash.cloneDeep(worker.scopes);
+  regionOverwriteObjects.scopes.forEach(scope => {
+    if (!config.scopes.includes(scope)) {
+      config.scopes.push(scope);
+    }
+  });
+  instanceTypeOverwriteObjects.scopes.forEach(scope => {
+    if (!config.scopes.includes(scope)) {
+      config.scopes.push(scope);
     }
   });
 
-  // Regions should be unique inside of a worker
-  var allRegions = [];
-  worker.regions.forEach(function (r) {
-    if (allRegions.includes(r.region)) {
-      throw new Error(worker.workerType + ' has duplicated region ' + r.region);
-    } else {
-      allRegions.push(r);
-    }
-  });
-
-  // Start with the general options
-  var launchSpec = lodash.cloneDeep(worker.launchSpecification);
-
-  // Now overwrite things
-  lodash.assign(launchSpec, regionOverwrites);
-  lodash.assign(launchSpec, typeOverwrites);
-
-  // set the KeyPair and InstanceType correctly
-  launchSpec.KeyName = keyPrefix + worker.workerType;
-  launchSpec.InstanceType = instanceType;
-
-  // We want to make sure that whatever UserData is in there is in
-  // base64
-  if (!/^[A-Za-z0-9+/=]*$/.exec(launchSpec.UserData)) {
-    throw new Error('Launch specification does not contain Base64: ' + launchSpec.UserData);
-  }
+  // Set the KeyPair and InstanceType correctly
+  config.launchSpec.KeyName = keyPrefix + worker.workerType;
+  config.launchSpec.InstanceType = instanceType;
 
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
@@ -381,32 +431,19 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   });
   assert(capacity);
 
-  // We're going to try to read in the stored UserData field and use
-  // it as the basis for our generated UserData
-  // Note that we're enforcing here that UserData will contain
-  // JSON encoded values.  If the stored UserData is not in a format
-  // which is not parsable as Base64(Json(x)) then we're going to
-  // include it verbatim as a key
-  var userData = {};
-  try {
-    userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
-    if (typeof userData !== 'object') {
-      userData = {
-        stringUserData: userData,
-      };
-    }
-  } catch(e) {
-    debug('Stored user data for ' + worker.workerType + ' is invalid');
-  }
+  assert(!config.userData.secrets);
+  config.userData.secrets = {
+    extra: config.secrets
+  };
+  config.userData.capacity = capacity;
+  config.userData.workerType = worker.workerType;
+  config.userData.provisionerId = provisionerId;
+  config.userData.region = region;
+  config.userData.instanceType = instanceType;
+  config.userData.launchSpecGenerated = new Date().toISOString();
+  config.userData.workerModified = worker.lastModified.toISOString();
 
-  userData.capacity = capacity;
-  userData.workerType = worker.workerType;
-  userData.provisionerId = provisionerId;
-  userData.region = region;
-  userData.instanceType = instanceType;
-  userData.launchSpecGenerated = new Date().toISOString();
-
-  launchSpec.UserData = new Buffer(JSON.stringify(userData)).toString('base64');
+  config.launchSpec.UserData = new Buffer(JSON.stringify(config.userData)).toString('base64');
 
   // These are the keys that we require to be set.  They
   // are not listed as required in the api docs, but we
@@ -421,7 +458,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
 
   // Now check that we have all the mandatory keys
   mandatoryKeys.forEach(function (key) {
-    assert(launchSpec[key], 'Your launch spec must have key ' + key);
+    assert(config.launchSpec[key], 'Your launch spec must have key ' + key);
   });
 
   // These are the additional keys which *might* be specified
@@ -440,7 +477,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   ]);
 
   // Now check that there are no unknown keys
-  Object.keys(launchSpec).forEach(function (key) {
+  Object.keys(config.launchSpec).forEach(function (key) {
     assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
   });
 
@@ -450,10 +487,11 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   ];
 
   disallowedKeys.forEach(function (key) {
-    assert(!launchSpec[key], 'Your launch spec must not have key ' + key);
+    assert(!config.launchSpec[key], 'Your launch spec must not have key ' + key);
   });
 
-  return launchSpec;
+  console.log(JSON.stringify(config.launchSpec, null, 2));
+  return config.launchSpec;
 };
 
 /**
