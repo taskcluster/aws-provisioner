@@ -10,13 +10,24 @@ properties:
     description: |
       The ID of the workerType
     pattern: ^[A-Za-z0-9+/=_-]{1,22}$
-  launchSpecification:
+  launchSpec:
     type: object
     description: |
-      AWS LaunchSpecification values shared by all regions and all instance-types.
-      This launch spec should not contain either an InstanceType or ImageId.  The
-      former should always be a key in the types object and the latter should be
-      an overwrite in the regions object
+      Launch Specification entries which are used in all regions and all instance types
+  secrets:
+    type: object
+    description: |
+      Static secrets entries which are used in all regions and all instance types
+  userData:
+    type: object
+    description: |
+      UserData entries which are used in all regions and all instance types
+  scopes:
+    type: list
+    items: 
+      type: string
+    description: |
+      Scopes to issue credentials to for all regions
   minCapacity:
     type: number
     description: |
@@ -92,16 +103,32 @@ properties:
             types.  It is multiplied by the spot price from Amazon to figure out
             which instance type is the cheapest one
           type: number
-        overwrites:
+        launchSpec:
           type: object
           description: |
-            This object contains LaunchSpecification keys which will overwrite
-            the keys from the General launch spec
+            LaunchSpecification entries unique to this InstanceType
+        secrets:
+          type: object
+          description: |
+            Static Secrets unique to this InstanceType
+        userData:
+          type: object
+          description: |
+            UserData entries unique to this InstanceType
+        scopes:
+          type: list
+          items:
+            type: string
+          description: |
+            Scopes which should be included for this InstanceType
       required:
         - instanceType
         - capacity
         - utility
-        - overwrites
+        - launchSpec
+        - secrets
+        - userData
+        - scopes
       additionalProperties: false
   regions:
     type: array
@@ -113,24 +140,43 @@ properties:
           type: string
           description: |
             The Amazon AWS Region being configured.  Example: us-west-1
-        overwrites:
+        launchSpec:
           type: object
           description: |
-            This object contains LaunchSpecification keys which will overwrite keys
-            from the general LaunchSpecificiation
+            LaunchSpecification entries unique to this Region
           properties:
             ImageId:
               type: string
               description: Per-region AMI ImageId
           required:
             - ImageId
+        secrets:
+          type: object
+          description: |
+            Static Secrets unique to this Region
+        userData:
+          type: object
+          description: |
+            UserData entries unique to this Region
+        scopes:
+          type: list
+          items:
+            type: string
+          description: |
+            Scopes which should be included for this Region
       additionalProperties: false
       required:
-        - overwrites
+        - launchSpec
+        - secrets
+        - userData
+        - scopes
 additionalProperties: false
 required:
   - workerType
-  - launchSpecification
+  - launchSpec
+  - userData
+  - secrets
+  - scopes
   - maxCapacity
   - scalingRatio
   - minPrice

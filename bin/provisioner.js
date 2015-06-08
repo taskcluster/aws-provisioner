@@ -38,6 +38,7 @@ var launch = function (profile) {
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
   var pubKey = cfg.get('provisioner:awsInstancePubkey');
   var provisionerId = cfg.get('provisioner:id');
+  var provisionerBaseUrl = cfg.get('server:publicUrl');
   var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
   var influx = new base.stats.Influx({
@@ -52,6 +53,7 @@ var launch = function (profile) {
     context: {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
+      provisionerBaseUrl: provisionerBaseUrl,
     },
   });
 

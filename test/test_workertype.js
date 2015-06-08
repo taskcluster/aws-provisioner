@@ -35,6 +35,7 @@ var subject = data.WorkerType.setup({
   context: {
     keyPrefix: keyPrefix,
     provisionerId: provisionerId,
+    provisionerBaseUrl: cfg.get('server:publicUrl'),
   },
   //account: cfg.get('azure:accountName'),
   //credentials: cfg.get('taskcluster:credentials'),
@@ -132,7 +133,7 @@ describe('worker type', function () {
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
-      subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId');
+      subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId', 'url');
     });
 
     function shouldThrow (wType) {
@@ -212,7 +213,8 @@ describe('worker type', function () {
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
-      var launchSpec = subject.createLaunchSpec('us-west-1', 'c3.small', wType, 'keyPrefix', 'provisionerId');
+      var launchSpec = subject.createLaunchSpec('us-west-1', 'c3.small', wType,
+                          'keyPrefix', 'provisionerId', 'url').launchSpec;
       var userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
 
       userData.capacity.should.equal(1);

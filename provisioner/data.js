@@ -4,6 +4,7 @@ var assert = require('assert');
 var lodash = require('lodash');
 var debug = require('debug')('aws-provisioner:WorkerType');
 var util = require('util');
+var slugid = require('slugid');
 
 var KEY_CONST = 'worker-type';
 
@@ -172,7 +173,7 @@ WorkerType = WorkerType.configure({
     item.lastModified = new Date();
     return item;
   },
-  context: ['provisionerId', 'keyPrefix'],
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix'],
 });
 
 /**
@@ -295,7 +296,8 @@ WorkerType.prototype.capacityOfType = function (instanceType) {
 WorkerType.prototype.createLaunchSpec = function (region, instanceType) {
   assert(region);
   assert(instanceType);
-  return WorkerType.createLaunchSpec(region, instanceType, this, this.keyPrefix, this.provisionerId);
+  return WorkerType.createLaunchSpec(region, instanceType,
+      this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl);
 };
 
 /**
@@ -313,13 +315,14 @@ WorkerType.prototype.testLaunchSpecs = function () {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix, provisionerId) {
+WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix, provisionerId, provisionerBaseUrl) {
   // These are the keys which are only applicable to a given region.
   assert(region);
   assert(instanceType);
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
+  assert(provisionerBaseUrl);
 
   // Find the region objects, assert if region is not found
   var regionOverwriteObjects = {};
@@ -392,7 +395,6 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     }
   });
 
-
   var config = {};
 
   // Do the cascading overwrites of the object things
@@ -431,10 +433,6 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   });
   assert(capacity);
 
-  assert(!config.userData.secrets);
-  config.userData.secrets = {
-    extra: config.secrets
-  };
   config.userData.capacity = capacity;
   config.userData.workerType = worker.workerType;
   config.userData.provisionerId = provisionerId;
@@ -442,6 +440,34 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   config.userData.instanceType = instanceType;
   config.userData.launchSpecGenerated = new Date().toISOString();
   config.userData.workerModified = worker.lastModified.toISOString();
+  config.userData.provisionerBaseUrl = provisionerBaseUrl;
+  config.userData.securityToken = slugid.v4();
+
+  config.userData.data = {};
+  config.userData.extra = {};
+
+  var dataKeys = [
+    'capacity',
+    'workerType',
+    'provisionerId',
+    'region',
+    'instanceType',
+    'workerModified',
+    'provisionerBaseUrl',
+    'securityToken',
+  ];
+
+  dataKeys.forEach(udk => {
+    config.userData.data[udk] = config.userData[udk];
+  });
+
+  var extraKeys = [
+    'launchSpecGenerated',
+  ];
+
+  extraKeys.forEach(udk => {
+    config.userData.extra[udk] = config.userData[udk];
+  });
 
   config.launchSpec.UserData = new Buffer(JSON.stringify(config.userData)).toString('base64');
 
@@ -490,8 +516,17 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     assert(!config.launchSpec[key], 'Your launch spec must not have key ' + key);
   });
 
-  console.log(JSON.stringify(config.launchSpec, null, 2));
-  return config.launchSpec;
+  /**
+   * We want to return all of the generated data.  There is a little redundancy here
+   * but it's not much and I'd rather optimize for easy look up
+   */
+  return {
+    launchSpec: config.launchSpec,
+    secrets: config.secrets, // Remember these are static secrets
+    scopes: config.scopes,
+    userData: config.userData,
+    securityToken: config.userData.securityToken,
+  };
 };
 
 /**
@@ -499,10 +534,11 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId) {
+WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisionerBaseUrl) {
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
+  assert(provisionerBaseUrl);
   var errors = [];
   var launchSpecs = {};
   worker.regions.forEach(function (r) {
@@ -511,7 +547,7 @@ WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId) {
     worker.instanceTypes.forEach(function (t) {
       var type = t.instanceType;
       try {
-        var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId);
+        var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId, provisionerBaseUrl);
         launchSpecs[region][type] = x;
       } catch (e) {
         errors.push(e);
