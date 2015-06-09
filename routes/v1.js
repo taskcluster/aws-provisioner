@@ -110,11 +110,17 @@ api.declare({
   // We want to make sure that every single possible generated LaunchSpec
   // would be valid before we even try to store it
   try {
-    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId);
+    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl);
   } catch (err) {
     // We handle invalid launch spec errors
-    if (!err && err.code !== 'InvalidLaunchSpecifications') {
+    if (err && err.code !== 'InvalidLaunchSpecifications') {
       throw err;
+    }
+    debug('InvalidLaunchSpecifications!');
+    if (err.reasons) {
+      err.reasons.forEach(reason => {
+        debug('%j', reason);
+      });
     }
     res.status(400).json({
       message: 'Invalid launchSpecification',
@@ -192,11 +198,17 @@ api.declare({
   if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   try {
-    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId);
+    this.WorkerType.testLaunchSpecs(input, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl);
   } catch (err) {
     // We handle invalid launch spec errors
-    if (!err && err.code !== 'InvalidLaunchSpecifications') {
+    if (err && err.code !== 'InvalidLaunchSpecifications') {
       throw err;
+    }
+    debug('InvalidLaunchSpecifications!');
+    if (err.reasons) {
+      err.reasons.forEach(reason => {
+        debug('%j', reason);
+      });
     }
     return res.status(400).json({
       message: 'Invalid launchSpecification',

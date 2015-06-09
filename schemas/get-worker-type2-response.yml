@@ -23,7 +23,7 @@ properties:
     description: |
       UserData entries which are used in all regions and all instance types
   scopes:
-    type: list
+    type: array
     items: 
       type: string
     description: |
@@ -116,7 +116,7 @@ properties:
           description: |
             UserData entries unique to this InstanceType
         scopes:
-          type: list
+          type: array
           items:
             type: string
           description: |
@@ -159,7 +159,7 @@ properties:
           description: |
             UserData entries unique to this Region
         scopes:
-          type: list
+          type: array
           items:
             type: string
           description: |

@@ -62,7 +62,6 @@ describe('provisioner api server', function () {
     console.log(JSON.stringify(wDefinition, null, 2));
     var p = subject.awsProvisioner.createWorkerType(wName, wDefinition);
 
-    /*
     p = p.then(function (result) {
       // TODO: Make sure it publishes to pulse
       result.lastModified.should.be.a.Date;  //eslint-disable-line no-unused-expressions
@@ -102,7 +101,6 @@ describe('provisioner api server', function () {
       result.should.eql({});
       console.log('remove done');
     });
-    */
 
     return p;
   });
