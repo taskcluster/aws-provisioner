@@ -354,6 +354,130 @@ api.declare({
 });
 
 api.declare({
+  method: 'put',
+  route: '/secret/:token',
+  name: 'createSecret',
+  scopes: ['aws-provisioner:create-secret'],
+  input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
+  //output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
+  title: 'Create new Secret',
+  description: [
+    'Insert a secret into the secret storage.  This should not',
+    'normally be done through this API, but is provided for testing',
+    'and completeness',
+  ].join('\n'),
+}, async function (req, res) {
+  var input = req.body;
+  var token = req.params.token;
+
+  var secret;
+  try {
+    secret = await this.Secret.create(token, this.provisionerId, input);
+  } catch (err) {
+    if (err.code !== 'EntityAlreadyExists') {
+      throw err;
+    }
+
+    secret = await this.Secret.load({
+      token: token,
+      provisionerId: this.provisionerId,
+    });
+
+    var match = [
+      'workerType',
+      'secrets',
+    ].every((key) => {
+      return _.isEqual(secret[key], input[key]);
+    });
+
+    // If we don't have a match we return 409, otherwise we continue as this is
+    // is an idempotent operation.
+    if (!match) {
+      res.status(409).json({
+        error: 'Secret already exists with different definition',
+      });
+      return;
+    }
+  }
+
+  res.reply({outcome: 'success'});
+  return;
+});
+
+api.declare({
+  method: 'get',
+  route: '/secret/:token',
+  name: 'getSecret',
+  //input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
+  output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
+  title: 'Get a Secret',
+  description: [
+    'Retreive a secret from storage.  It is important that this secret is',
+    'deleted by the consumer, or else the secrets will be visible to any',
+    'process which can read HTTP on the worker localhost interface.',
+  ].join('\n'),
+}, async function (req, res) {
+  var input = req.body;
+  var token = req.params.token;
+
+  var p = this.Secret.load({
+    token: token,
+    provisionerId: this.provisionerId,
+  });
+
+  p = p.then(function(secret) {
+    return res.reply(secret.secrets);
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, token);
+    return err;
+  });
+
+  return p;
+});
+
+api.declare({
+  method: 'delete',
+  route: '/secret/:token',
+  name: 'removeSecret',
+  //input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
+  //output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
+  title: 'Remove a Secret',
+  description: [
+    'Remove a secret.  It is very important that the consumer of a ',
+    'secret delete the secret from storage before handing over control',
+    'to another process or else it could read the HTTP UserData endpoint',
+    'and use the getSecrete() api here to get the secrets',
+  ].join('\n'),
+}, async function (req, res) {
+  var input = req.body;
+  var token = req.params.token;
+
+  var p = this.Secret.load({
+    token: token,
+    provisionerId: this.provisionerId,
+  });
+
+  p = p.then(function(secret) {
+    return secret.remove();
+  });
+
+  p = p.then(function() {
+    res.reply({outcome: 'success'});
+  });
+
+  p = p.catch(function(err) {
+    errorHandler(err, res, token);
+    return err;
+  });
+
+  return p;
+});
+
+/** Utility methods below */
+
+api.declare({
   method: 'get',
   route: '/worker-type/:workerType/launch-specifications',
   name: 'getLaunchSpecs',

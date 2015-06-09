@@ -950,28 +950,12 @@ AwsManager.prototype._reconcileInternalState = function () {
  * in the EC2 API.  This makes sure that we don't ignroe spot requests
  * that we've made but not yet seen.  This avoids run-away provisioning
  */
-AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
+AwsManager.prototype.requestSpotInstance = function (launchInfo, bid) {
   var that = this;
   assert(bid, 'Must specify a spot bid');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
 
-  assert(workerType.getRegion(bid.region));
-  assert(workerType.getInstanceType(bid.type));
-
   assert(this.ec2.regions.includes(bid.region));
-
-  var launchInfo = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
-  console.log('Here is the stuff from creating a launch spec');
-  console.log(JSON.stringify(launchInfo, null, 2));
-
-
-  // Add the availability zone info
-  launchInfo.launchSpec.Placement = {
-    AvailabilityZone: bid.zone,
-  };
-
-  // TODO: Insert things into secret storage using launchInfo.securityToken and launchInfo.secrets
-  // TODO: Generate credentials with launchInfo.scopes
 
   var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
@@ -987,11 +971,11 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
 
   p = p.then(function (spotReq) {
     debug('submitted spot request %s for $%d for %s in %s/%s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
+      spotReq.SpotInstanceRequestId, bid.price, launchInfo.workerType, bid.region, bid.zone, bid.type);
     debug('Used this userdata: %j', launchInfo.userData);
 
     var info = {
-      workerType: workerType.workerType,
+      workerType: launchInfo.workerType,
       request: spotReq,
       bid: bid,
       submitted: new Date(),

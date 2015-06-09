@@ -5,6 +5,7 @@ var base = require('taskcluster-base');
 var provision = require('../provisioner/provision');
 var Aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
+var secret = require('../provisioner/secret');
 var AwsManager = require('../provisioner/aws-manager');
 var awsPricing = require('../provisioner/aws-pricing');
 var Cache = require('../lib/cache');
@@ -47,6 +48,11 @@ var launch = function (profile) {
     maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
+  var Secret = secret.setup({
+    table: cfg.get('provisioner:secretTableName'),
+    credentials: cfg.get('azure'),
+  });
+
   var WorkerType = data.WorkerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
@@ -72,6 +78,7 @@ var launch = function (profile) {
 
   var config = {
     WorkerType: WorkerType,
+    Secret: Secret,
     queue: queue,
     provisionerId: provisionerId,
     taskcluster: cfg.get('taskcluster'),

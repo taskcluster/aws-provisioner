@@ -27,6 +27,10 @@ function Provisioner (cfg) {
   assert(cfg.WorkerType);
   this.WorkerType = cfg.WorkerType;
 
+  // We should have a Secret Entity
+  assert(cfg.Secret);
+  this.Secret = cfg.Secret;
+
   // We should have a Queue
   assert(cfg.queue);
   this.queue = cfg.queue;
@@ -198,6 +202,37 @@ Provisioner.prototype.runAllProvisionersOnce = function () {
 };
 
 /**
+ * Figure out how to create the launch information based on a bid then
+ * insert the secrets into the secret storage
+ */
+Provisioner.prototype.spawn = function (workerType, bid) {
+  assert(workerType);
+  assert(bid);
+
+  var launchInfo = workerType.createLaunchSpec(bid.region, bid.type);
+
+  // This should probably move from here to createLaunchSpec but that
+  // can happen later
+  launchInfo.launchSpec.Placement = {
+    AvailabilityZone: bid.zone,
+  };
+
+  // TODO: Generate temporary credentials and stick 'em in around about
+  //       here
+
+  var p = this.Secret.create(launchInfo.securityToken, this.provisionerId, {
+    workerType: workerType.workerType,
+    secrets: launchInfo.secrets,
+  });
+
+  p = p.then(()=> {
+    this.awsManager.requestSpotInstance(launchInfo, bid);
+  });
+  
+  return p;
+};
+
+/**
  * Provision a specific workerType.  This promise will have a value of true if
  * everything worked.  Another option is resolving to the name of the worker to
  * make it easier to see which failed, but I'd prefer that to be tracked in the
@@ -245,7 +280,7 @@ Provisioner.prototype.provisionType = function (workerType, pricing) {
         q = q.then(function () {
           return new Promise(function (resolve, reject) {
             setTimeout(function () {
-              that.awsManager.requestSpotInstance(workerType, bid).then(resolve, reject);
+              that.spawn(workerType, bid).then(resolve, reject);
             }, 500);
           });
         });
@@ -258,7 +293,7 @@ Provisioner.prototype.provisionType = function (workerType, pricing) {
 
           return new Promise(function (resolve, reject) {
             setTimeout(function () {
-              that.awsManager.requestSpotInstance(workerType, bid).then(resolve, reject);
+              that.spawn(workerType, bid).then(resolve, reject);
             }, 1500);
           });
         });

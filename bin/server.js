@@ -4,6 +4,7 @@ var path = require('path');
 var debug = require('debug')('aws-provisioner:bin:server');
 var base = require('taskcluster-base');
 var data = require('../provisioner/data');
+var secret = require('../provisioner/secret');
 var exchanges = require('../provisioner/exchanges');
 var AwsManager = require('../provisioner/aws-manager');
 var v1 = require('../routes/v1');
@@ -98,6 +99,12 @@ var launch = function (profile) {
     //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
   });
 
+  // Configure WorkerType entities
+  var Secret = secret.setup({
+    table: cfg.get('provisioner:secretTableName'),
+    credentials: cfg.get('azure'),
+  });
+
   // Setup Pulse exchanges and create a publisher
   // First create a validator and then publisher
   var validator = null;
@@ -139,7 +146,10 @@ var launch = function (profile) {
   // We also want to make sure that the table is created.  We could
   // probably do this earlier
   p = p.then(function () {
-    return WorkerType.ensureTable();
+    return Promise.all([
+        WorkerType.ensureTable(),
+        Secret.ensureTable(),
+    ]);
   });
 
   p = p.then(function () {
@@ -147,6 +157,7 @@ var launch = function (profile) {
     return v1.setup({
       context: {
         WorkerType: WorkerType,
+        Secret: Secret,
         publisher: publisher,
         awsManager: awsManager,
         keyPrefix: keyPrefix,

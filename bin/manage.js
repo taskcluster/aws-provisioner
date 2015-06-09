@@ -301,16 +301,22 @@ program
 
     var accountName = cfg.get('azure:accountName');
     var tableName = cfg.get('provisioner:workerTypeTableName');
+    var secretTable = cfg.get('provisioner:secretTable');
 
     var auth = new tc.Auth();
 
     var p = auth.azureTableSAS(accountName, tableName);
 
     p = p.then(function (outcome) {
+      return auth.azureTableSAS(accountName, secretTable);
+    });
+
+    p = p.then(function (outcome) {
       console.log(JSON.stringify({
         outcome: 'success',
         sas: outcome,
         tableName: tableName,
+        secretTable: secretTable,
       }, null, 2));
     });
 

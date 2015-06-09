@@ -2,6 +2,7 @@ module.exports = {
   provisioner: {
     id:                   'aws-provisioner2-test',
     workerTypeTableName:  'atablefortesting',
+    secretTableName:      'ProvisionerSecretTest',
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2-test',
     awsKeyPrefix:         'aws-provisioner2-test-managed:',

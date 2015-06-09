@@ -538,6 +538,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     scopes: config.scopes,
     userData: config.userData,
     securityToken: config.userData.securityToken,
+    workerType: worker.workerType,
   };
 };
 
