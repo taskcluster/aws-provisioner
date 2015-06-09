@@ -419,6 +419,7 @@ api.declare({
 }, async function (req, res) {
   var input = req.body;
   var token = req.params.token;
+  var that = this;
 
   var p = this.Secret.load({
     token: token,
@@ -426,6 +427,7 @@ api.declare({
   });
 
   p = p.then(function(secret) {
+    that.reportSecurityTokenRetreived({securityToken: token});
     return res.reply(secret.secrets);
   });
 

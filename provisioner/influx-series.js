@@ -36,6 +36,15 @@ module.exports.spotRequestsSubmitted = new base.stats.Series({
     // Both the bid and price will be the pre-safety factor number
     bid: base.stats.types.Number,
     price: base.stats.types.Number,
+    securityToken: base.stats.types.String,
+  },
+});
+
+// Store when a security token was retreived
+module.exports.securityTokenRetreived = new base.stats.Series({
+  name: 'AwsProvisioner.SecurityTokenRetreived',
+  columns: {
+    securityToken: base.stats.types.String,
   },
 });
 

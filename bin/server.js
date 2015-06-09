@@ -10,6 +10,7 @@ var AwsManager = require('../provisioner/aws-manager');
 var v1 = require('../routes/v1');
 var Aws = require('multi-region-promised-aws');
 var _ = require('lodash');
+var series = require('../provisioner/influx-series');
 
 /** Launch server */
 var launch = function (profile) {
@@ -163,6 +164,7 @@ var launch = function (profile) {
         keyPrefix: keyPrefix,
         provisionerId: provisionerId,
         provisionerBaseUrl: provisionerBaseUrl,
+        reportSecurityTokenRetreived: series.securityTokenRetreived.reporter(influx),
       },
       validator: validator,
       authBaseUrl: cfg.get('taskcluster:authBaseUrl'),

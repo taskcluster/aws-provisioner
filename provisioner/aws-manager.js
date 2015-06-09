@@ -994,6 +994,7 @@ AwsManager.prototype.requestSpotInstance = function (launchInfo, bid) {
       id: info.request.SpotInstanceRequestId,
       bid: bid.price,
       price: bid.truePrice,  // ugh, naming!
+      securityToken: launchInfo.securityToken,
     });
 
     that.reportAmiUsage({
