@@ -138,6 +138,11 @@ WorkerType = WorkerType.configure({
       var oldUserData;
       if (r.overwrites && r.overwrites.UserData) {
         oldUserData = JSON.parse(new Buffer(r.overwrites.UserData, 'base64').toString());
+        ['capacity', 'provisionerId', 'workerType'].forEach(key => {
+          if (oldUserData[key]) {
+            delete oldUserData[key];
+          }
+        });
       } else {
         oldUserData = {};
       }
@@ -157,6 +162,11 @@ WorkerType = WorkerType.configure({
       var oldUserData;
       if (t.overwrites && t.overwrites.UserData) {
         oldUserData = JSON.parse(new Buffer(t.overwrites.UserData, 'base64').toString());
+        ['capacity', 'provisionerId', 'workerType'].forEach(key => {
+          if (oldUserData[key]) {
+            delete oldUserData[key];
+          }
+        });
       } else {
         oldUserData = {};
       }
@@ -171,6 +181,8 @@ WorkerType = WorkerType.configure({
     });
 
     item.lastModified = new Date();
+    console.log('===>');
+    console.log(JSON.stringify(item, null, 2));
     return item;
   },
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix'],

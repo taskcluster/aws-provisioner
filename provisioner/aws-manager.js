@@ -960,17 +960,23 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
 
   assert(this.ec2.regions.includes(bid.region));
 
-  var launchSpec = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
+  var launchInfo = workerType.createLaunchSpec(bid.region, bid.type, this.keyPrefix);
+  console.log('Here is the stuff from creating a launch spec');
+  console.log(JSON.stringify(launchInfo, null, 2));
+
 
   // Add the availability zone info
-  launchSpec.Placement = {
+  launchInfo.launchSpec.Placement = {
     AvailabilityZone: bid.zone,
   };
+
+  // TODO: Insert things into secret storage using launchInfo.securityToken and launchInfo.secrets
+  // TODO: Generate credentials with launchInfo.scopes
 
   var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
     Type: 'one-time',
-    LaunchSpecification: launchSpec,
+    LaunchSpecification: launchInfo.launchSpec,
     SpotPrice: bid.price.toString(),
   });
 
@@ -982,9 +988,7 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
   p = p.then(function (spotReq) {
     debug('submitted spot request %s for $%d for %s in %s/%s for %s',
       spotReq.SpotInstanceRequestId, bid.price, workerType.workerType, bid.region, bid.zone, bid.type);
-    var userData = new Buffer(launchSpec.UserData, 'base64').toString();
-    userData = JSON.stringify(JSON.parse(userData), null, 2);
-    debug('Used this userdata: %s', userData);
+    debug('Used this userdata: %j', launchInfo.userData);
 
     var info = {
       workerType: workerType.workerType,
@@ -1010,7 +1014,7 @@ AwsManager.prototype.requestSpotInstance = function (workerType, bid) {
 
     that.reportAmiUsage({
       provisionerId: that.provisionerId,
-      ami: launchSpec.ImageId,
+      ami: launchInfo.launchSpec.ImageId,
       region: info.bid.region,
       az: info.bid.zone,
       instanceType: info.bid.type,
