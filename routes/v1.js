@@ -119,7 +119,7 @@ api.declare({
     debug('InvalidLaunchSpecifications!');
     if (err.reasons) {
       err.reasons.forEach(reason => {
-        debug('%j', reason);
+        debug(reason);
       });
     }
     res.status(400).json({
@@ -195,6 +195,10 @@ api.declare({
   var input = req.body;
   var workerType = req.params.workerType;
 
+  var modDate = new Date();
+
+  input.lastModified = modDate;
+
   if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   try {
@@ -207,7 +211,7 @@ api.declare({
     debug('InvalidLaunchSpecifications!');
     if (err.reasons) {
       err.reasons.forEach(reason => {
-        debug('%j', reason);
+        debug(reason);
       });
     }
     return res.status(400).json({
@@ -219,8 +223,6 @@ api.declare({
   }
 
   var wType = await this.WorkerType.load({workerType: workerType});
-
-  var modDate = new Date();
 
   await wType.modify(function (w) {
     // We know that data that gets to here is valid per-schema

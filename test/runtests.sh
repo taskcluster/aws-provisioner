@@ -14,7 +14,6 @@ eslint \
 # Run tests
 mocha                                   \
   test/badworkertype_test.js            \
-  test/test_server.js                   \
   test/manageworkertype_test.js         \
   test/test_workertype.js               \
   ;

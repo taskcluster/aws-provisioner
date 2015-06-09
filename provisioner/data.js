@@ -317,12 +317,12 @@ WorkerType.prototype.testLaunchSpecs = function () {
  */
 WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix, provisionerId, provisionerBaseUrl) {
   // These are the keys which are only applicable to a given region.
-  assert(region);
-  assert(instanceType);
-  assert(worker);
-  assert(keyPrefix);
-  assert(provisionerId);
-  assert(provisionerBaseUrl);
+  assert(region, 'must specifiy region');
+  assert(instanceType, 'must specify instanceType');
+  assert(worker, 'must provide a worker object');
+  assert(keyPrefix, 'must provide key prefix');
+  assert(provisionerId, 'must provide provisioner id');
+  assert(provisionerBaseUrl, 'must provide provisioner base url');
 
   // Find the region objects, assert if region is not found
   var regionOverwriteObjects = {};
@@ -431,7 +431,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
       capacity = t.capacity;
     }
   });
-  assert(capacity);
+  assert(capacity, 'must have a capacity');
 
   config.userData.capacity = capacity;
   config.userData.workerType = worker.workerType;
@@ -555,7 +555,6 @@ WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisi
     });
   });
   if (errors.length > 0) {
-    console.dir(errors);
     var err = new Error('Launch specifications are invalid');
     err.code = 'InvalidLaunchSpecifications';
     err.reasons = errors;

@@ -1,48 +1,24 @@
 'use strict';
+var helper = require('./helper');
+var slugid = require('slugid');
+var assume = require('assume');
+var debug = require('debug')('test');
+var _ = require('lodash');
+var mock = require('./mock-workers');
 
-suite('Manage WorkerType', () => {
-  var helper = require('./helper');
-  var slugid = require('slugid');
-  var assume = require('assume');
-  var debug = require('debug')('test');
-  var _ = require('lodash');
+// for convenience
+// var makeRegion = mock.makeRegion;
+// var makeInstanceType = mock.makeInstanceType;
+var makeWorkerType = mock.makeWorkerType;
+
+describe('provisioner worker type api', () => {
 
   var id = slugid.v4();
-  var workerTypeDefinition = {
-    launchSpecification: {
-      SecurityGroups: [
-        'default',
-      ],
-      UserData: 'eyJhIjoxfQ==',
-    },
-    minCapacity: 4,
-    maxCapacity: 30,
-    scalingRatio: 1.1,
-    minPrice: 0.2,
-    maxPrice: 1,
-    canUseOndemand: false,
-    canUseSpot: true,
-    instanceTypes: [
-      {
-        instanceType: 'm3.medium',
-        capacity: 1,
-        utility: 1,
-        overwrites: {
-          UserData: 'eyJhIjoxfQ==',
-        },
-      },
-    ],
-    regions: [
-      {
-        region: 'us-west-1',
-        overwrites: {
-          ImageId: 'ami-42908907',
-        },
-      },
-    ],
-  };
+  var workerTypeDefinition = makeWorkerType();
+  var workerTypeChanged = _.clone(workerTypeDefinition);
+  workerTypeChanged.maxCapacity = 15;
 
-  test('createWorkerType (idempotent)', async () => {
+  it('should be able to create a worker (idempotent)', async () => {
     debug('### Create workerType');
     await helper.awsProvisioner.createWorkerType(id, workerTypeDefinition);
 
@@ -50,22 +26,25 @@ suite('Manage WorkerType', () => {
     await helper.awsProvisioner.createWorkerType(id, workerTypeDefinition);
   });
 
-  test('updateWorkerType', async () => {
+  it('should be able to update a worker', async () => {
     debug('### Load workerType');
     var wType = await helper.awsProvisioner.workerType(id);
-    assume(wType.maxCapacity).equals(30);
+    assume(wType.maxCapacity).equals(20);
 
     debug('### Update workerType');
-    await helper.awsProvisioner.updateWorkerType(id, _.defaults({
-      maxCapacity: 15,
-    }, workerTypeDefinition));
+    try {
+      await helper.awsProvisioner.updateWorkerType(id, workerTypeChanged);
+    } catch (e) {
+      console.log(JSON.stringify(e));
+      throw e;
+    }
 
     debug('### Load workerType (again)');
     var wType = await helper.awsProvisioner.workerType(id);
     assume(wType.maxCapacity).equals(15);
   });
 
-  test('removeWorkerType', async () => {
+  it('should be able to remove a worker', async () => {
     debug('### Remove workerType');
     await helper.awsProvisioner.removeWorkerType(id);
 
