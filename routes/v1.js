@@ -462,10 +462,6 @@ api.declare({
 
 });
 
-// NOTE: there should be some sort of updateIfOlderThan function in the aws manager
-// that only does the update once every X seconds.
-var awsStateLastUpdated = 0;
-var awsStateUpdated = null;
 api.declare({
   method: 'get',
   route: '/aws-state/',
@@ -477,17 +473,7 @@ api.declare({
     '',
     '**Warning** this api end-point is **not stable**',
   ].join('\n'),
-}, async function (req, res) {
-
-  // Update once a minute
-  if (Date.now() - awsStateLastUpdated > 2 * 60 * 1000) {
-    awsStateLastUpdated = Date.now();
-    awsStateUpdated = this.awsManager.update();
-  }
-
-  // wait for ui state to be updated
-  await awsStateUpdated;
-
+}, function (req, res) {
   res.reply(this.awsManager.emulateOldStateFormat());
 });
 
