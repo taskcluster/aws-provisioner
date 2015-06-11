@@ -77,7 +77,7 @@ var launch = async function (profile) {
       debug('Failed to update awsManager: %s, %j', err. err, err.stack);
     }
     setTimeout(updateAwsState, 2 * 60 * 1000);
-  }
+  };
   // Start the update loop in 15 seconds so the rest of the server has a chance
   // to start-up...
   setTimeout(updateAwsState, 15 * 1000);
