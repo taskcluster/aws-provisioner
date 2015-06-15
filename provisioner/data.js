@@ -398,7 +398,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
       throw new Error(key + ' is type specific, not general');
     }
     if (regionOverwriteObjects.launchSpec[key]) {
-      throw new Error(key + ' is type specific, not type specific');
+      throw new Error(key + ' is type specific, not region');
     }
   });
 
@@ -408,7 +408,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
       throw new Error(key + ' is region specific, not general');
     }
     if (instanceTypeOverwriteObjects.launchSpec[key]) {
-      throw new Error(key + ' is type specific, not region specific');
+      throw new Error(key + ' is region specific, not type');
     }
   });
 
