@@ -22,7 +22,7 @@ var Secret = base.Entity.configure({
 });
 
 // we pass through the json from the HTTP post request body
-Secret.create = function(token, provisionerId, body) {
+Secret.create = function (token, provisionerId, body) {
   assert(typeof body === 'object');
   assert(body.workerType);
   assert(body.secrets);
@@ -38,12 +38,12 @@ Secret.create = function(token, provisionerId, body) {
   return base.Entity.create.call(this, properties);
 };
 
-Secret.prototype.modify = function() {
+Secret.prototype.modify = function () {
   throw new Error('No modifications to secrets are allowed');
 };
 
-Secret.prototype.listAll = function() {
+Secret.prototype.listAll = function () {
   throw new Error();
 };
 
-module.exports = Secret
+module.exports = Secret;

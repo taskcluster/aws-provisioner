@@ -3,6 +3,7 @@ var base = require('taskcluster-base');
 var assert = require('assert');
 var lodash = require('lodash');
 var debug = require('debug')('aws-provisioner:WorkerType');
+var debugMigrate = require('debug')('aws-provisioner:migrate:WorkerType');
 var util = require('util');
 var slugid = require('slugid');
 
@@ -115,75 +116,79 @@ WorkerType = WorkerType.configure({
     scopes: base.Entity.types.JSON,
   },
   migrate: function (item) {
-    console.log('Upgrading a workerType to version 2');
-    console.log(JSON.stringify(item, null, 2));
-    var oldUserData;
-    if (item.launchSpecification.UserData) {
-      oldUserData = JSON.parse(new Buffer(item.launchSpecification.UserData, 'base64').toString());
-    } else {
-      oldUserData = {};
+    // First, let's set up the static/easy data
+    var newWorker = {
+      workerType: item.workerType,
+      minCapacity: item.minCapacity || 0,
+      maxCapacity: item.maxCapacity,
+      scalingRatio: item.scalingRatio,
+      minPrice: item.minPrice,
+      maxPrice: item.maxPrice,
+      canUseOnDemand: item.canUseOnDemand,
+      canUseSpot: item.canUseSpot,
+      lastModified: new Date(),
+    };
+
+    // We do this three times, lets just stick it into a function
+    function fixUserData (x) {
+      var ud = JSON.parse(new Buffer(x, 'base64').toString());
+      // These keys get overwriten automatically by the provisioner
+      // so we don't really need them to ever be in UserData
+      ['provisionerId', 'workerType', 'capacity'].forEach(y => {
+        delete ud[y];
+      });
+      return ud;
     }
-    var oldLaunchSpec = item.launchSpecification;
-    delete item.launchSpecification;
-    delete oldLaunchSpec.UserData;
-    item.launchSpec = lodash.clone(oldLaunchSpec);
-    item.secrets = {};
-    item.scopes = [];
-    item.userData = lodash.clone(oldUserData);
 
-    // Now, strip out the UserData and LaunchSpec stuff from existing entries
-    // and put them in the right structure then create empty scopes and secrets
-    item.regions.forEach(r => {
-      // Let's get the old launch spec and user data
-      var oldUserData;
-      if (r.overwrites && r.overwrites.UserData) {
-        oldUserData = JSON.parse(new Buffer(r.overwrites.UserData, 'base64').toString());
-        ['capacity', 'provisionerId', 'workerType'].forEach(key => {
-          if (oldUserData[key]) {
-            delete oldUserData[key];
-          }
-        });
-      } else {
-        oldUserData = {};
-      }
-      var oldOverwrites = r.overwrites;
-      delete r.overwrites;
+    // Global User Data
+    if (item.launchSpecification.UserData) {
+      newWorker.userData = fixUserData(item.launchSpecification.UserData);
+    }
 
-      // Now set them up
-      r.userData = oldUserData;
-      r.launchSpec = oldOverwrites;
-      r.secrets = {};
-      r.scopes = [];
+    // We want to make sure that the global user data is correct
+    newWorker.launchSpec = lodash.cloneDeep(item.launchSpecification);
+    delete newWorker.launchSpec.UserData;
 
+    // Now we set up defaults for the secrets and scopes
+    newWorker.secrets = {};
+    newWorker.scopes = [];
+    
+
+    // Now let's fix up the regions
+    newWorker.regions = item.regions.map(r => {
+      var region = {
+        region: r.region,
+        secrets: {},
+        scopes: [],
+      };
+
+      region.userData = fixUserData(r.overwrites.UserData);
+      region.launchSpec = lodash.cloneDeep(r.overwrites);
+      delete region.launchSpec.UserData;
+
+      return region
     });
 
-    item.instanceTypes.forEach(t => {
-      // Let's get the old launch spec and user data
-      var oldUserData;
-      if (t.overwrites && t.overwrites.UserData) {
-        oldUserData = JSON.parse(new Buffer(t.overwrites.UserData, 'base64').toString());
-        ['capacity', 'provisionerId', 'workerType'].forEach(key => {
-          if (oldUserData[key]) {
-            delete oldUserData[key];
-          }
-        });
-      } else {
-        oldUserData = {};
-      }
-      var oldOverwrites = t.overwrites;
-      delete t.overwrites;
+    // Now let's fix up the instance types
+    newWorker.instanceTypes = item.instanceTypes.map(t => {
+      var it = {
+        instanceType: t.instanceType,
+        capacity: t.capacity,
+        utility: t.utility,
+        secrets: {},
+        scopes: [],
+      };
 
-      // Now set them up
-      t.userData = oldUserData;
-      t.launchSpec = oldOverwrites;
-      t.secrets = {};
-      t.scopes = [];
+      it.userData = fixUserData(t.overwrites.UserData);
+      it.launchSpec = lodash.cloneDeep(t.overwrite);
+      delete it.launchSpec.UserData;
+
+      return it;
     });
 
-    item.lastModified = new Date();
-    console.log('===>');
-    console.log(JSON.stringify(item, null, 2));
-    return item;
+    debugMirgrate('Updated Worker from V1 -> V2:\n%j\n-->%j', item, newWorker);
+
+    return newWorker;
   },
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix'],
 });

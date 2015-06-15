@@ -2,16 +2,8 @@
 var helper = require('./helper');
 var slugid = require('slugid');
 var assume = require('assume');
-var debug = require('debug')('test');
-var _ = require('lodash');
-var mock = require('./mock-workers');
 
-// for convenience
-// var makeRegion = mock.makeRegion;
-// var makeInstanceType = mock.makeInstanceType;
-var makeWorkerType = mock.makeWorkerType;
-
-describe('provisioner worker type api', () => {
+describe('secrets api', () => {
 
   var token = slugid.v4();
   var secretToAdd = {
@@ -19,8 +11,8 @@ describe('provisioner worker type api', () => {
     secrets: {
       key1: true,
       key2: 123,
-      key3: "sample",
-      key4: { a: 123},
+      key3: 'sample',
+      key4: {a: 123},
     },
   };
 

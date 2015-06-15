@@ -166,6 +166,7 @@ properties:
             Scopes which should be included for this Region
       additionalProperties: false
       required:
+        - region
         - launchSpec
         - secrets
         - userData
@@ -177,6 +178,7 @@ required:
   - userData
   - secrets
   - scopes
+  - minCapacity
   - maxCapacity
   - scalingRatio
   - minPrice

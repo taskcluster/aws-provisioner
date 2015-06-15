@@ -228,7 +228,7 @@ Provisioner.prototype.spawn = function (workerType, bid) {
   p = p.then(()=> {
     this.awsManager.requestSpotInstance(launchInfo, bid);
   });
-  
+
   return p;
 };
 

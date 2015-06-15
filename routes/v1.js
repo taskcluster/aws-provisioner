@@ -417,7 +417,6 @@ api.declare({
     'process which can read HTTP on the worker localhost interface.',
   ].join('\n'),
 }, async function (req, res) {
-  var input = req.body;
   var token = req.params.token;
   var that = this;
 
@@ -426,12 +425,12 @@ api.declare({
     provisionerId: this.provisionerId,
   });
 
-  p = p.then(function(secret) {
+  p = p.then(function (secret) {
     that.reportSecurityTokenRetreived({securityToken: token});
     return res.reply(secret.secrets);
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, token);
     return err;
   });
@@ -453,7 +452,6 @@ api.declare({
     'and use the getSecrete() api here to get the secrets',
   ].join('\n'),
 }, async function (req, res) {
-  var input = req.body;
   var token = req.params.token;
 
   var p = this.Secret.load({
@@ -461,15 +459,15 @@ api.declare({
     provisionerId: this.provisionerId,
   });
 
-  p = p.then(function(secret) {
+  p = p.then(function (secret) {
     return secret.remove();
   });
 
-  p = p.then(function() {
+  p = p.then(function () {
     res.reply({outcome: 'success'});
   });
 
-  p = p.catch(function(err) {
+  p = p.catch(function (err) {
     errorHandler(err, res, token);
     return err;
   });

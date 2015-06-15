@@ -307,14 +307,13 @@ program
 
     var p = auth.azureTableSAS(accountName, tableName);
 
-    p = p.then(function (outcome) {
+    p = p.then(function () {
       return auth.azureTableSAS(accountName, secretTable);
     });
 
-    p = p.then(function (outcome) {
+    p = p.then(function () {
       console.log(JSON.stringify({
         outcome: 'success',
-        sas: outcome,
         tableName: tableName,
         secretTable: secretTable,
       }, null, 2));
