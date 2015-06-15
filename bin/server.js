@@ -13,7 +13,7 @@ var _ = require('lodash');
 var series = require('../provisioner/influx-series');
 
 /** Launch server */
-var launch = function (profile) {
+var launch = async function (profile) {
   // Load configuration
   var cfg = base.config({
     defaults: require('../config/defaults'),
@@ -73,11 +73,17 @@ var launch = function (profile) {
 
   // We want to be updating the Aws State so that api clients can easily
   // access the information with the minimum overhead possible
-  function updateAwsState () {
-    awsManager.update().done();
-  }
-  updateAwsState();
-  setTimeout(updateAwsState, 2 * 60 * 1000);
+  let updateAwsState = async () => {
+    try {
+      await awsManager.update();
+    } catch (err) {
+      debug('Failed to update awsManager: %s, %j', err. err, err.stack);
+    }
+    setTimeout(updateAwsState, 2 * 60 * 1000);
+  };
+  // Start the update loop in 15 seconds so the rest of the server has a chance
+  // to start-up...
+  setTimeout(updateAwsState, 15 * 1000);
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
@@ -106,12 +112,15 @@ var launch = function (profile) {
     credentials: cfg.get('azure'),
   });
 
+  // Get promise for workerType table created (we'll await it later)
+  let tablesCreated = Promise.all([
+      WorkerType.ensureTable(),
+      Secret.ensureTable(),
+  ]);
+
   // Setup Pulse exchanges and create a publisher
   // First create a validator and then publisher
-  var validator = null;
-  var publisher = null;
-
-  var p = base.validator({
+  let validator = await base.validator({
     folder: path.join(__dirname, '..', 'schemas'),
     constants: require('../schemas/constants'),
     publish: cfg.get('provisioner:publishMetaData') === 'true',
@@ -119,82 +128,56 @@ var launch = function (profile) {
     aws: cfg.get('aws'),
   });
 
-  p = p.then(function (validator_) {
-    validator = validator_;
-    return exchanges.setup({
-      credentials: cfg.get('pulse'),
-      exchangePrefix: cfg.get('provisioner:exchangePrefix'),
-      validator: validator,
-      referencePrefix: 'aws-provisioner/v1/exchanges.json',
-      publish: cfg.get('provisioner:publishMetaData') === 'true',
-      aws: cfg.get('aws'),
-      drain: influx,
-      component: cfg.get('provisioner:statsComponent'),
-      process: 'server',
-    });
-  });
-
   // Store the publisher to inject it as context into the API
-  p = p.then(function (publisher_) {
-    publisher = publisher_;
+  let publisher = await exchanges.setup({
+    credentials: cfg.get('pulse'),
+    exchangePrefix: cfg.get('provisioner:exchangePrefix'),
+    validator: validator,
+    referencePrefix: 'aws-provisioner/v1/exchanges.json',
+    publish: cfg.get('provisioner:publishMetaData') === 'true',
+    aws: cfg.get('aws'),
+    drain: influx,
+    component: cfg.get('provisioner:statsComponent'),
+    process: 'server',
   });
 
-  // Warm the Aws State Cache
-  p = p.then(function () {
-    return awsManager.update();
+  // We also want to make sure that the table is created.
+  await tablesCreated;
+
+  // Create API router and publish reference if needed
+  let router = await v1.setup({
+    context: {
+      WorkerType: WorkerType,
+      Secret: Secret,
+      publisher: publisher,
+      awsManager: awsManager,
+      keyPrefix: keyPrefix,
+      provisionerId: provisionerId,
+    },
+    validator: validator,
+    authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
+    credentials: cfg.get('taskcluster:credentials'),
+    publish: cfg.get('provisioner:publishMetaData') === 'true',
+    baseUrl: cfg.get('server:publicUrl') + '/v1',
+    referencePrefix: 'aws-provisioner/v1/api.json',
+    aws: cfg.get('aws'),
+    component: cfg.get('provisioner:statsComponent'),
+    drain: influx,
   });
 
-  // We also want to make sure that the table is created.  We could
-  // probably do this earlier
-  p = p.then(function () {
-    return Promise.all([
-        WorkerType.ensureTable(),
-        Secret.ensureTable(),
-    ]);
+  // Create app
+  let app = base.app({
+    port: Number(process.env.PORT || cfg.get('server:port')),
+    env: cfg.get('server:env'),
+    forceSSL: cfg.get('server:forceSSL'),
+    trustProxy: cfg.get('server:trustProxy'),
   });
 
-  p = p.then(function () {
-    // Create API router and publish reference if needed
-    return v1.setup({
-      context: {
-        WorkerType: WorkerType,
-        Secret: Secret,
-        publisher: publisher,
-        awsManager: awsManager,
-        keyPrefix: keyPrefix,
-        provisionerId: provisionerId,
-        provisionerBaseUrl: provisionerBaseUrl,
-        reportSecurityTokenRetreived: series.securityTokenRetreived.reporter(influx),
-      },
-      validator: validator,
-      authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
-      credentials: cfg.get('taskcluster:credentials'),
-      publish: cfg.get('provisioner:publishMetaData') === 'true',
-      baseUrl: cfg.get('server:publicUrl') + '/v1',
-      referencePrefix: 'aws-provisioner/v1/api.json',
-      aws: cfg.get('aws'),
-      component: cfg.get('provisioner:statsComponent'),
-      drain: influx,
-    });
-  });
+  // Mount API router
+  app.use('/v1', router);
 
-  p = p.then(function (router) {
-    // Create app
-    var app = base.app({
-      port: Number(process.env.PORT || cfg.get('server:port')),
-      env: cfg.get('server:env'),
-      forceSSL: cfg.get('server:forceSSL'),
-      trustProxy: cfg.get('server:trustProxy'),
-    });
-
-    // Mount API router
-    app.use('/v1', router);
-
-    // Create server
-    return app.createServer();
-  });
-
-  return p;
+  // Create server
+  return app.createServer();
 };
 
 // If server.js is executed start the server
