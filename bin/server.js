@@ -144,6 +144,8 @@ var launch = async function (profile) {
   // We also want to make sure that the table is created.
   await tablesCreated;
 
+  let reportSecurityTokenRetreived = series.securityTokenRetreived.reporter(influx);
+
   // Create API router and publish reference if needed
   let router = await v1.setup({
     context: {
@@ -154,6 +156,7 @@ var launch = async function (profile) {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
+      reportSecurityTokenRetreived: reportSecurityTokenRetreived,
     },
     validator: validator,
     authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
