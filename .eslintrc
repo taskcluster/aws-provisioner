@@ -38,6 +38,7 @@
     "radix": 2,
     "yoda": [1, "never"],
     "strict": [2, "global"],
+    "new-cap": 0,
     "comma-dangle": [2, "always-multiline"]
   }
 }
