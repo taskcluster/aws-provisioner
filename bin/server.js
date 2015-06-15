@@ -153,6 +153,7 @@ var launch = async function (profile) {
       awsManager: awsManager,
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
+      provisionerBaseUrl: provisionerBaseUrl,
     },
     validator: validator,
     authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
