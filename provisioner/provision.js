@@ -223,7 +223,7 @@ Provisioner.prototype.spawn = function (workerType, bid) {
     workerType: workerType.workerType,
     secrets: launchInfo.secrets,
     scopes: launchInfo.scopes,
-    expiration: taskcluster.fromNow('4 days'),
+    expiration: taskcluster.fromNow('40 mins'),
   });
 
   p = p.then(()=> {
