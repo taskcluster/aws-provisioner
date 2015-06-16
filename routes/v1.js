@@ -145,7 +145,10 @@ api.declare({
 
     // Check the it matches the existing workerType
     var match = [
-      'launchSpecification',
+      'launchSpec',
+      'userData',
+      'secrets',
+      'scopes',
       'minCapacity',
       'maxCapacity',
       'scalingRatio',
@@ -394,7 +397,8 @@ api.declare({
       'secrets',
       'token',
       'scopes',
-      //'expiration'
+      //'expiration' weird stuff is happening here.  going to assume that
+      // we should probably do some sort of Date.toISOString() comparison or something
     ].every((key) => {
       return _.isEqual(secret[key], input[key]);
     });
@@ -438,11 +442,11 @@ api.declare({
     return res.reply({
       data: secret.secrets,
       scopes: secret.scopes,
-      credentials: {'big': 'smalls'}/*taskcluster.createTemporaryCredentials({
+      credentials: taskcluster.createTemporaryCredentials({
         scopes: secret.scopes,
         expiry: secret.expiration,
-        credentials: 'NOT YET!',
-      }),*/
+        credentials: that.credentials,
+      }),
     });
   });
 

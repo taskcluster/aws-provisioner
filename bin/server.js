@@ -157,6 +157,7 @@ var launch = async function (profile) {
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
       reportSecurityTokenRetreived: reportSecurityTokenRetreived,
+      credentials: cfg.get('taskcluster:credentials'),
     },
     validator: validator,
     authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
