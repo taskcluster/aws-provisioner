@@ -1,6 +1,7 @@
 'use strict';
 var debug = require('debug')('routes:v1');
 var base = require('taskcluster-base');
+var taskcluster = require('taskcluster-client');
 var _ = require('lodash');
 
 // Common schema prefix
@@ -359,7 +360,6 @@ api.declare({
   name: 'createSecret',
   scopes: ['aws-provisioner:create-secret'],
   input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
-  //output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
   title: 'Create new Secret',
   description: [
     'Insert a secret into the secret storage.  This should not',
@@ -372,7 +372,13 @@ api.declare({
 
   var secret;
   try {
-    secret = await this.Secret.create(token, this.provisionerId, input);
+    secret = await this.Secret.create({
+      token: token,
+      workerType: input.workerType,
+      secrets: input.secrets,
+      scopes: input.scopes,
+      expiration: new Date(input.expiration),
+    });
   } catch (err) {
     if (err.code !== 'EntityAlreadyExists') {
       throw err;
@@ -386,6 +392,9 @@ api.declare({
     var match = [
       'workerType',
       'secrets',
+      'token',
+      'scopes',
+      //'expiration'
     ].every((key) => {
       return _.isEqual(secret[key], input[key]);
     });
@@ -422,12 +431,19 @@ api.declare({
 
   var p = this.Secret.load({
     token: token,
-    provisionerId: this.provisionerId,
   });
 
   p = p.then(function (secret) {
     that.reportSecurityTokenRetreived({securityToken: token});
-    return res.reply(secret.secrets);
+    return res.reply({
+      data: secret.secrets,
+      scopes: secret.scopes,
+      credentials: {'big': 'smalls'}/*taskcluster.createTemporaryCredentials({
+        scopes: secret.scopes,
+        expiry: secret.expiration,
+        credentials: 'NOT YET!',
+      }),*/
+    });
   });
 
   p = p.catch(function (err) {

@@ -379,14 +379,14 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   assert(foundInstanceType, 'InstanceType for workertype not found');
 
   // These are keys that are only allowable in the set of type specific
-  // overwrites.  Only keys which are strictly related to instance type
+  // launchSpec.  Only keys which are strictly related to instance type
   // should ever be here.
   var typeSpecificKeys = [
     'InstanceType', // InstanceType decides which instancetype to use...
   ];
 
   // These are keys that are only allowable in the set of region specific
-  // overwrites.  Only things which are strictly linked to the region
+  // launchSpec.  Only things which are strictly linked to the region
   // should ever be in this list.
   // TODO: Are kernel ids region specific as well?
   var regionSpecificKeys = [
@@ -450,42 +450,22 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   });
   assert(capacity, 'must have a capacity');
 
-  config.userData.capacity = capacity;
-  config.userData.workerType = worker.workerType;
-  config.userData.provisionerId = provisionerId;
-  config.userData.region = region;
-  config.userData.instanceType = instanceType;
-  config.userData.launchSpecGenerated = new Date().toISOString();
-  config.userData.workerModified = worker.lastModified.toISOString();
-  config.userData.provisionerBaseUrl = provisionerBaseUrl;
-  config.userData.securityToken = slugid.v4();
+  var securityToken = slugid.v4();
 
-  config.userData.data = {};
-  config.userData.extra = {};
-
-  var dataKeys = [
-    'capacity',
-    'workerType',
-    'provisionerId',
-    'region',
-    'instanceType',
-    'workerModified',
-    'provisionerBaseUrl',
-    'securityToken',
-  ];
-
-  dataKeys.forEach(udk => {
-    config.userData.data[udk] = config.userData[udk];
-  });
-
-  var extraKeys = [
-    'launchSpecGenerated',
-  ];
-
-  extraKeys.forEach(udk => {
-    config.userData.extra[udk] = config.userData[udk];
-  });
-
+  config.userData = {
+    data: config.userData,
+    capacity: capacity,
+    workerType: worker.workerType,
+    provisionerId: provisionerId,
+    region: region,
+    instanceType: instanceType,
+    launchSpecGenerated: new Date().toISOString(),
+    workerModified: worker.lastModified.toISOString(),
+    provisionerBaseUrl: provisionerBaseUrl,
+    securityToken: securityToken,
+  };
+  
+  assert(!config.launchSpec.UserData, 'Dont specify UserData in launchSpec');
   config.launchSpec.UserData = new Buffer(JSON.stringify(config.userData)).toString('base64');
 
   // These are the keys that we require to be set.  They
@@ -496,7 +476,6 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     'ImageId',
     'InstanceType',
     'KeyName',
-    'UserData',
   ];
 
   // Now check that we have all the mandatory keys
@@ -517,6 +496,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     'Placement',
     'RamdiskId',
     'SubnetId',
+    'UserData',
   ]);
 
   // Now check that there are no unknown keys
@@ -542,7 +522,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     secrets: config.secrets, // Remember these are static secrets
     scopes: config.scopes,
     userData: config.userData,
-    securityToken: config.userData.securityToken,
+    securityToken: securityToken,
     workerType: worker.workerType,
   };
 };

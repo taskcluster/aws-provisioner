@@ -5,6 +5,7 @@ var debug = require('debug')('aws-provisioner:provision');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 var shuffle = require('knuth-shuffle');
+var taskcluster = require('taskcluster-client');
 
 var series = require('./influx-series');
 
@@ -217,12 +218,12 @@ Provisioner.prototype.spawn = function (workerType, bid) {
     AvailabilityZone: bid.zone,
   };
 
-  // TODO: Generate temporary credentials and stick 'em in around about
-  //       here
-
-  var p = this.Secret.create(launchInfo.securityToken, this.provisionerId, {
+  var p = this.Secret.create({
+    token: launchInfo.securityToken,
     workerType: workerType.workerType,
     secrets: launchInfo.secrets,
+    scopes: launchInfo.scopes,
+    expiration: taskcluster.fromNow('4 days'),
   });
 
   p = p.then(()=> {

@@ -2,6 +2,7 @@
 var helper = require('./helper');
 var slugid = require('slugid');
 var assume = require('assume');
+var taskcluster = require('taskcluster-client');
 
 describe('secrets api', () => {
 
@@ -14,6 +15,9 @@ describe('secrets api', () => {
       key3: 'sample',
       key4: {a: 123},
     },
+    scopes: ['ascope'],
+    token: token,
+    expiration: taskcluster.fromNow('1 day'),
   };
 
   it('should be able to create a secret (idempotent)', async () => {
@@ -23,7 +27,7 @@ describe('secrets api', () => {
 
   it('should be able to load a secret', async () => {
     var loadedSecret = await helper.awsProvisioner.getSecret(token);
-    assume(loadedSecret).to.eql(secretToAdd.secrets);
+    assume(loadedSecret.data).to.eql(secretToAdd.secrets);
   });
 
   it('should be able to remove a secret', async () => {
