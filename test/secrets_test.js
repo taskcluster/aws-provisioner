@@ -30,7 +30,8 @@ describe('secrets api', () => {
     assume(loadedSecret.data).to.eql(secretToAdd.secrets);
   });
 
-  it('should be able to remove a secret', async () => {
+  it('should be able to remove a secret (idempotent)', async () => {
+    await helper.awsProvisioner.removeSecret(token);
     await helper.awsProvisioner.removeSecret(token);
 
     try {

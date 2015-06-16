@@ -474,22 +474,20 @@ api.declare({
 }, async function (req, res) {
   var token = req.params.token;
 
-  var p = this.Secret.load({
+  var p = this.Secret.remove({
     token: token,
-    provisionerId: this.provisionerId,
-  });
-
-  p = p.then(function (secret) {
-    return secret.remove();
-  });
+  }, true);
 
   p = p.then(function () {
-    res.reply({outcome: 'success'});
+    res.status(204).end();
   });
 
   p = p.catch(function (err) {
-    errorHandler(err, res, token);
-    return err;
+    if (err.code === 'ResourceNotFound') {
+      res.status(204).end();
+    } else {
+      errorHandler(err, res, token);
+    }
   });
 
   return p;
