@@ -1,9 +1,5 @@
 'use strict';
-
 var base = require('taskcluster-base');
-var assert = require('assert');
-var debug = require('debug')('aws-provisioner:Secret')
-var taskcluster = require('taskcluster-client');
 
 var Secret = base.Entity.configure({
   version: 1,

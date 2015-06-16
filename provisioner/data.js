@@ -152,7 +152,6 @@ WorkerType = WorkerType.configure({
     // Now we set up defaults for the secrets and scopes
     newWorker.secrets = {};
     newWorker.scopes = [];
-    
 
     // Now let's fix up the regions
     newWorker.regions = item.regions.map(r => {
@@ -166,7 +165,7 @@ WorkerType = WorkerType.configure({
       region.launchSpec = lodash.cloneDeep(r.overwrites);
       delete region.launchSpec.UserData;
 
-      return region
+      return region;
     });
 
     // Now let's fix up the instance types
@@ -186,7 +185,7 @@ WorkerType = WorkerType.configure({
       return it;
     });
 
-    debugMirgrate('Updated Worker from V1 -> V2:\n%j\n-->%j', item, newWorker);
+    debugMigrate('Updated Worker from V1 -> V2:\n%j\n-->%j', item, newWorker);
 
     return newWorker;
   },
@@ -464,7 +463,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     provisionerBaseUrl: provisionerBaseUrl,
     securityToken: securityToken,
   };
-  
+
   assert(!config.launchSpec.UserData, 'Dont specify UserData in launchSpec');
   config.launchSpec.UserData = new Buffer(JSON.stringify(config.userData)).toString('base64');
 
