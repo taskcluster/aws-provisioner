@@ -421,7 +421,6 @@ api.declare({
   method: 'get',
   route: '/secret/:token',
   name: 'getSecret',
-  //input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
   output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
   title: 'Get a Secret',
   description: [
@@ -444,7 +443,7 @@ api.declare({
       scopes: secret.scopes,
       credentials: taskcluster.createTemporaryCredentials({
         scopes: secret.scopes,
-        expiry: secret.expiration,
+        expiry: taskcluster.fromNow('96 hours'),
         credentials: that.credentials,
       }),
     });
@@ -462,8 +461,6 @@ api.declare({
   method: 'delete',
   route: '/secret/:token',
   name: 'removeSecret',
-  //input: SCHEMA_PREFIX_CONST + 'create-secret-request.json#',
-  //output: SCHEMA_PREFIX_CONST + 'get-secret-response.json#',
   title: 'Remove a Secret',
   description: [
     'Remove a secret.  It is very important that the consumer of a ',
