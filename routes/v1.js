@@ -178,7 +178,7 @@ api.declare({
   });
 
   var workerjson = wType.json();
-  delete workerjson[canUseOnDemand];
+  delete workerjson['canUseOnDemand'];
   workerjson.canUseOndemand = false;
   res.reply(workerjson);
   return;
