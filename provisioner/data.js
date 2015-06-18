@@ -157,24 +157,32 @@ WorkerType = WorkerType.configure({
 
     // Now let's fix up the regions
     newWorker.regions = item.regions.map(r => {
+      var ud = {};
+      if (r.overwrites && r.overwrites.UserData) {
+        ud = fixUserData(r.overwrites.UserData);
+      }
       return {
         region: r.region,
         secrets: {},
         scopes: [],
-        userData: fixUserData(r.overwrites.UserData),
+        userData: ud,
         launchSpec: lodash.omit(lodash.cloneDeep(r.overwrites), 'UserData'),
       };
     });
 
     // Now let's fix up the instance types
     newWorker.instanceTypes = item.instanceTypes.map(t => {
+      var ud = {};
+      if (t.overwrites && t.overwrites.UserData) {
+        ud = fixUserData(t.overwrites.UserData);
+      }
       return {
         instanceType: t.instanceType,
         capacity: t.capacity,
         utility: t.utility,
         secrets: {},
         scopes: [],
-        userData: fixUserData(t.overwrites.UserData),
+        userData: ud,
         launchSpec: lodash.omit(lodash.cloneDeep(t.overwrites), 'UserData'),
       };
     });
