@@ -177,7 +177,10 @@ api.declare({
     workerType: workerType,
   });
 
-  res.reply(wType.json());
+  var workerjson = wType.json();
+  delete workerjson[canUseOnDemand];
+  workerjson.canUseOndemand = false;
+  res.reply(workerjson);
   return;
 });
 
@@ -267,7 +270,11 @@ api.declare({
   var p = this.WorkerType.load({workerType: workerType});
 
   p = p.then(function (worker) {
-    return res.reply(worker.json());
+    var workerjson = worker.json();
+    workerjson.canUseOndemand = false;
+    delete workerjson['canUseOnDemand'];
+
+    return res.reply(workerjson);
   });
 
   p = p.catch(function (err) {
