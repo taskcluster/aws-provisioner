@@ -146,7 +146,7 @@ WorkerType = WorkerType.configure({
       scalingRatio: item.scalingRatio,
       minPrice: item.minPrice,
       maxPrice: item.maxPrice,
-      canUseOnDemand: item.canUseOnDemand,
+      canUseOndemand: item.canUseOndemand,
       canUseSpot: item.canUseSpot,
       lastModified: new Date(),
       secrets: {},
