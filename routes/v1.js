@@ -437,7 +437,6 @@ api.declare({
   });
 
   p = p.then(function (secret) {
-    that.reportSecurityTokenRetreived({securityToken: token});
     return res.reply({
       data: secret.secrets,
       scopes: secret.scopes,
@@ -447,6 +446,41 @@ api.declare({
         credentials: that.credentials,
       }),
     });
+  });
+
+  p = p.catch(function (err) {
+    errorHandler(err, res, token);
+    return err;
+  });
+
+  return p;
+});
+
+api.declare({
+  method: 'get',
+  route: '/instance-started/:instanceId/:token',
+  name: 'instanceStarted',
+  title: 'Report an instance starting',
+  description: [
+    'An instance will report in by giving its instance id as well',
+    'as its security token.  The token is given and checked to ensure',
+    'that it matches a real token that exists to ensure that random',
+    'machines do not check in',
+  ].join('\n'),
+}, async function (req, res) {
+  var instanceId = req.params.instanceId;
+  var token = req.params.token;
+  var that = this;
+
+  var p = this.Secret.load({
+    token: token,
+  });
+
+  p = p.then(function (secret) {
+    that.reportInstanceStarted({
+      id: instanceId,
+    });
+    return res.status(204).end();
   });
 
   p = p.catch(function (err) {

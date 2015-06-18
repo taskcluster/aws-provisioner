@@ -9,6 +9,28 @@ var slugid = require('slugid');
 
 var KEY_CONST = 'worker-type';
 
+// We do this three times, lets just stick it into a function
+function fixUserData (x) {
+  var ud = {};
+  try {
+    if (typeof x === 'string') {
+      ud = JSON.parse(new Buffer(x, 'base64').toString());
+    } else if (typeof x === 'object') {
+      ud = lodash.deepClone(x);
+    } else {
+      debugMigrate('[alert-operator] this userData (%j) is garbage', x);
+    }
+  } catch (e) {
+    debugMigrate('[alert-operator] error fixing UserData (%j) for migration %j %s', x, e, e.stack||'');
+  }
+  // These keys get overwriten automatically by the provisioner
+  // so we don't really need them to ever be in UserData
+  ['provisionerId', 'workerType', 'capacity'].forEach(y => {
+    delete ud[y];
+  });
+  return ud;
+}
+
 /**
  * This WorkerType class is used to store and manipulate the definitions
  * of worker types.  A WorkerType contains the information needed by
@@ -127,62 +149,34 @@ WorkerType = WorkerType.configure({
       canUseOnDemand: item.canUseOnDemand,
       canUseSpot: item.canUseSpot,
       lastModified: new Date(),
+      secrets: {},
+      scopes: [],
+      userData: fixUserData(item.launchSpecification.UserData),
+      launchSpec: lodash.omit(lodash.cloneDeep(item.launchSpecification), 'UserData'),
     };
-
-    // We do this three times, lets just stick it into a function
-    function fixUserData (x) {
-      var ud = JSON.parse(new Buffer(x, 'base64').toString());
-      // These keys get overwriten automatically by the provisioner
-      // so we don't really need them to ever be in UserData
-      ['provisionerId', 'workerType', 'capacity'].forEach(y => {
-        delete ud[y];
-      });
-      return ud;
-    }
-
-    // Global User Data
-    if (item.launchSpecification.UserData) {
-      newWorker.userData = fixUserData(item.launchSpecification.UserData);
-    }
-
-    // We want to make sure that the global user data is correct
-    newWorker.launchSpec = lodash.cloneDeep(item.launchSpecification);
-    delete newWorker.launchSpec.UserData;
-
-    // Now we set up defaults for the secrets and scopes
-    newWorker.secrets = {};
-    newWorker.scopes = [];
 
     // Now let's fix up the regions
     newWorker.regions = item.regions.map(r => {
-      var region = {
+      return {
         region: r.region,
         secrets: {},
         scopes: [],
+        userData: fixUserData(r.overwrites.UserData),
+        launchSpec: lodash.omit(lodash.cloneDeep(r.overwrites), 'UserData'),
       };
-
-      region.userData = fixUserData(r.overwrites.UserData);
-      region.launchSpec = lodash.cloneDeep(r.overwrites);
-      delete region.launchSpec.UserData;
-
-      return region;
     });
 
     // Now let's fix up the instance types
     newWorker.instanceTypes = item.instanceTypes.map(t => {
-      var it = {
+      return {
         instanceType: t.instanceType,
         capacity: t.capacity,
         utility: t.utility,
         secrets: {},
         scopes: [],
+        userData: fixUserData(t.overwrites.UserData),
+        launchSpec: lodash.omit(lodash.cloneDeep(t.overwrites), 'UserData'),
       };
-
-      it.userData = fixUserData(t.overwrites.UserData);
-      it.launchSpec = lodash.cloneDeep(t.overwrite);
-      delete it.launchSpec.UserData;
-
-      return it;
     });
 
     debugMigrate('Updated Worker from V1 -> V2:\n%j\n-->%j', item, newWorker);
