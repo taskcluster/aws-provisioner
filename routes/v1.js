@@ -465,7 +465,8 @@ api.declare({
     'An instance will report in by giving its instance id as well',
     'as its security token.  The token is given and checked to ensure',
     'that it matches a real token that exists to ensure that random',
-    'machines do not check in',
+    'machines do not check in.  We could generate a different token',
+    'but that seems like overkill',
   ].join('\n'),
 }, async function (req, res) {
   var instanceId = req.params.instanceId;
@@ -476,7 +477,7 @@ api.declare({
     token: token,
   });
 
-  p = p.then(function (secret) {
+  p = p.then(function () {
     that.reportInstanceStarted({
       id: instanceId,
     });
