@@ -3,6 +3,7 @@
 process.env.DEBUG = '';
 
 var fs = require('fs');
+var path = require('path');
 var base = require('taskcluster-base');
 var tc = require('taskcluster-client');
 var api = require('../routes/v1');
@@ -10,14 +11,15 @@ var Promise = require('promise');
 var program = require('commander');
 var pkgData = require('../package.json');
 
+var localhostAddress = 'http://localhost:5557/v1';
+var realBaseAddress = 'https://taskcluster-aws-provisioner2.herokuapp.com/v1';
+
 function errorHandler (err) {
   console.log(JSON.stringify({
     outcome: 'failure',
     err: err,
     stack: err.stack || 'no-stack',
   }, null, 2));
-
-  // This is pretty ugly...
   throw err;
 }
 
@@ -50,6 +52,12 @@ function slurp (filenames) {
 }
 
 function writeWorkerTypes (client, workerTypes) {
+  if (!fs.existsSync('workers')) {
+    fs.mkdirSync('workers');
+  } else {
+    throw new Error('Worker type output already exists');
+  }
+
   var p = Promise.all(workerTypes.map(function (name) {
     return client.workerType(name);
   }));
@@ -57,7 +65,7 @@ function writeWorkerTypes (client, workerTypes) {
   p = p.then(function (res) {
     var filenames = [];
     res.forEach(function (worker) {
-      var filename = worker.workerType + '.json';
+      var filename = path.join('workers', worker.workerType + '.json');
       filenames.push(filename);
       fs.writeFileSync(filename.replace(' ', '_'), JSON.stringify(worker, null, 2));
     });
@@ -69,17 +77,27 @@ function writeWorkerTypes (client, workerTypes) {
 }
 
 function createClient () {
-  var references = api.reference({baseUrl: program.url});
+  var url = program.url;
+
+  if (program.localhost && program.production) {
+    console.log('--localhost and --production are mutually exclusive');
+  } else if (program.localhost) {
+    url = localhostAddress;
+  } else if (program.production) {
+    url = realBaseAddress;
+  }
+
+  var references = api.reference({baseUrl: url});
   var AwsProvisioner = tc.createClient(references);
   return new AwsProvisioner();
 }
 
-// var realBaseAddress = 'https://taskcluster-aws-provisioner2.herokuapp.com/v1'
 program
   .version(pkgData.version || 'unknown')
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
-  .option('-u, --url [url]', 'URL for the API to work against', 'http://localhost:5557/v1');
-  //.option('-u, --url [url]', 'URL for the API to work against', realBaseAddress);
+  .option('-u, --url [url]', 'Use arbitrary URL', 'http://localhost:5557/v1')
+  .option('--localhost', 'Force URL' + localhostAddress)
+  .option('--production', 'Force URL' + realBaseAddress);
 
 program
   .command('help')
@@ -144,6 +162,75 @@ program
     });
 
     p = p.catch(errorHandler);
+  });
+
+program
+  .command('modify-all <nodeModule>')
+  .description('modify all server-side worker types using the function exported by the nodeModule')
+  .action(function(nodeModule) {
+    var modifier = require(nodeModule);
+    var client = createClient();
+
+    var r = client.listWorkerTypes();
+
+    r = r.then(function(workers) {
+      return Promise.all(workers.map(function(workerTypeName) {
+        var p = client.workerType(workerTypeName);
+
+        p = p.then(function (workerType) {
+          var modified = modifier(workerType);
+          delete modified.lastModified;
+          delete modified.workerType;
+          return modified
+        });
+
+        p = p.then(function (workerType) {
+          return client.updateWorkerType(workerTypeName, workerType);
+        });
+
+        return p;
+      }));
+    });
+
+    r.done();
+  });
+
+program
+  .command('modify <nodeModule> <workerTypes...>')
+  .description('modify specified server-side worker types using the function exported by the nodeModule')
+  .action(function(nodeModule, workerTypes) {
+    var modifier = require(nodeModule);
+    var client = createClient();
+
+    Promise.all(workerTypes.map(function(workerTypeName) {
+      var p = client.workerType(workerTypeName);
+
+      p = p.then(function (workerType) {
+        var modified = modifier(workerType);
+        delete modified.lastModified;
+        delete modified.workerType;
+        return modified
+      });
+
+      p = p.then(function (workerType) {
+        return client.updateWorkerType(workerTypeName, workerType);
+      });
+
+      return p;
+
+    })).done();
+  });
+
+program
+  .command('modify-file <nodeModule> <filenames...>')
+  .description('modify specified local worker types using the function exported by the nodeModule')
+  .action(function(nodeModule, filenames) {
+    var modifier = require(nodeModule);
+    filenames.forEach(function (filename) {
+      var original = JSON.parse(fs.readFileSync(filename));
+      var modified = modifier(original);
+      fs.writeFileSync(filename + '_modified', JSON.stringify(modified, null, 2));
+    });
   });
 
 program
