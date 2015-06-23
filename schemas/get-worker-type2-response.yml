@@ -76,7 +76,8 @@ properties:
       True if this worker type is allowed spot instances.  Currently ignored
       as all instances are Spot
   lastModified:
-    type: date
+    type: string
+    format: date-time
     description: |
       ISO Date string (e.g. new Date().toISOString()) which represents the time
       when this worker type definition was last altered (inclusive of creation)
