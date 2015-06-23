@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env babel-node
 'use strict';
 process.env.DEBUG = '';
 
@@ -167,21 +167,21 @@ program
 program
   .command('modify-all <nodeModule>')
   .description('modify all server-side worker types using the function exported by the nodeModule')
-  .action(function(nodeModule) {
+  .action(function (nodeModule) {
     var modifier = require(nodeModule);
     var client = createClient();
 
     var r = client.listWorkerTypes();
 
-    r = r.then(function(workers) {
-      return Promise.all(workers.map(function(workerTypeName) {
+    r = r.then(function (workers) {
+      return Promise.all(workers.map(function (workerTypeName) {
         var p = client.workerType(workerTypeName);
 
         p = p.then(function (workerType) {
           var modified = modifier(workerType);
           delete modified.lastModified;
           delete modified.workerType;
-          return modified
+          return modified;
         });
 
         p = p.then(function (workerType) {
@@ -198,18 +198,18 @@ program
 program
   .command('modify <nodeModule> <workerTypes...>')
   .description('modify specified server-side worker types using the function exported by the nodeModule')
-  .action(function(nodeModule, workerTypes) {
+  .action(function (nodeModule, workerTypes) {
     var modifier = require(nodeModule);
     var client = createClient();
 
-    Promise.all(workerTypes.map(function(workerTypeName) {
+    Promise.all(workerTypes.map(function (workerTypeName) {
       var p = client.workerType(workerTypeName);
 
       p = p.then(function (workerType) {
         var modified = modifier(workerType);
         delete modified.lastModified;
         delete modified.workerType;
-        return modified
+        return modified;
       });
 
       p = p.then(function (workerType) {
@@ -224,7 +224,7 @@ program
 program
   .command('modify-file <nodeModule> <filenames...>')
   .description('modify specified local worker types using the function exported by the nodeModule')
-  .action(function(nodeModule, filenames) {
+  .action(function (nodeModule, filenames) {
     var modifier = require(nodeModule);
     filenames.forEach(function (filename) {
       var original = JSON.parse(fs.readFileSync(filename));
