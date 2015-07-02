@@ -4,12 +4,13 @@ var Promise = require('promise');
 var debug = require('debug')('aws-provisioner:provision');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
-var shuffle = require('knuth-shuffle');
 var taskcluster = require('taskcluster-client');
 
 var series = require('./influx-series');
 
 var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
+var MAX_KILL_TIME = 1000 * 30;
+var MAX_FAILURES = 15;
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -79,61 +80,90 @@ var stats = {
   failure: 0,
 };
 
+// For when you want to be really certain that the program will
+// exit
+function exitTimer(time) {
+  var t = time || 30000;
+  setTimeout(() => {
+    debug('hey, so you probably are trying to figure out');
+    debug('why this process suddenly disappeared.  a major');
+    debug('error occured and you only get %d ms to exit after', t);
+    debug('before we process.exit(44). handle things faster!');
+    process.exit(44);
+  }, t);
+}
+
 /**
  * Start running a provisioner.
  */
 Provisioner.prototype.run = function () {
-  var that = this;
-
   this.__keepRunning = true;
+
   this.__watchDog.on('expired', function () {
-    debug('[alert-operator] Provisioner is stuck, killing');
+    debug('[alert-operator] provisioning iteration exceeded max time');
+    exitTimer(MAX_KILL_TIME);
     throw new Error('WatchDog expired');
   });
+
   this.__watchDog.start();
 
-  function provisionIteration () {
+  var provisionIteration = async () => {
     debug('starting iteration %d, successes %d, failures %d',
-          stats.iterations++,
+          stats.iterations,
           stats.success,
           stats.failure);
 
-    that.__watchDog.touch();
+    this.__watchDog.touch();
 
     // We should make sure that we're not just permanently failing
     // We also don't want to
-    if (stats.iterations > 20 && stats.failures > stats.success) {
-      debug('[alert-operator] killing provisioner because it has run ' +
-            'for a while but has failed lots of iterations');
+    if (stats.failure > MAX_FAILURES) {
+      debug('[alert-operator] dieing after %d failures', MAX_FAILURES);
+      exitTimer(MAX_KILL_TIME);
       throw new Error('provisioner is failing a lot');
+    } else {
+      debug(stats);
     }
 
-    var p = that.runAllProvisionersOnce();
+    var outcome;
 
-    p = p.then(function () {
+    try {
+      await this.runAllProvisionersOnce();
       stats.success++;
-      if (that.__keepRunning && !process.env.PROVISION_ONCE) {
-        debug('success. next iteration in %d seconds',
-          Math.round(that.provisionIterationInterval / 1000));
-        setTimeout(provisionIteration, that.provisionIterationInterval);
-      } else {
-        debug('Done! Not scheduling another provisioning iteration');
-      }
-    });
-
-    p = p.catch(function (err) {
+      stats.iterations++;
+      outcome = 'succeeded';
+    } catch (err) {
       stats.failure++;
-      debug('[alert-operator] failure in provisioning');
+      stats.iterations++;
+      outcome = 'failed';
+      debug('[alert-operator] provisioning iteration failure');
       if (err.stack) {
-        debug('[alert-operator] %s', err.stack.replace('\n', '\\n'));
+        debug('[alert-operator] stack: %s', err.stack.replace('\n', '\\n'));
       }
-      setTimeout(provisionIteration, that.provisionIterationInterval);
-    });
+    }
+
+    debug('provisioning iteration %s', outcome);
+
+    if (this.__keepRunning && !process.env.PROVISION_ONCE) {
+      debug('scheduling another iteration in %d seconds', 
+        Math.round(this.provisionIterationInterval / 1000));
+      setTimeout(() => {
+        provisionIteration().catch(() => {
+          process.exit(1);
+        });
+      }, this.provisionIterationInterval);
+    } else {
+      debug('not scheduling further iterations');
+    }
   }
 
   // To ensure that the first iteration is not called differently that
   // subsequent ones, we'll call it with a zero second timeout
-  setTimeout(provisionIteration, 0);
+  setTimeout(() => {
+    provisionIteration().catch(() => {
+      process.exit(1);
+    });
+  }, 0);
 
 };
 
@@ -164,7 +194,7 @@ Provisioner.prototype.runAllProvisionersOnce = function () {
   ]);
 
   p = p.then(function (res) {
-    var workerTypes = shuffle.knuthShuffle(res[0].slice(0));
+    var workerTypes = res[0];
 
     // We'll use this twice here... let's generate it only once
     var workerNames = workerTypes.map(function (x) {

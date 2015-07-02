@@ -13,7 +13,7 @@ module.exports = {
     publishMetaData:      'false',
     statsComponent:       undefined,
     awsKeyPrefix:         undefined,
-    iterationInterval:    1000 * 10,
+    iterationInterval:    1000 * 1,
     awsInstancePubkey:    undefined,
     allowedRegions:       undefined, // comma seperated list
     maxInstanceLife:      '- 96 hours',
