@@ -253,7 +253,7 @@ WorkerType.listWorkerTypes = function () {
  * with a given workerType
  */
 WorkerType.prototype.json = function () {
-  return JSON.parse(JSON.stringify(this.__properties));
+  return JSON.parse(JSON.stringify(this._properties));
 };
 
 /**

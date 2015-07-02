@@ -22,7 +22,7 @@
     "promise": "6.0.1",
     "sinon": "^1.15.4",
     "slugid": "1.0.3",
-    "taskcluster-base": "0.7.21",
+    "taskcluster-base": "0.7.29",
     "taskcluster-client": "0.22.2"
   },
   "devDependencies": {
