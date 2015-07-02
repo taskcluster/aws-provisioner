@@ -10,26 +10,26 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "babel":                          "^5.1.11",
-    "commander":                      "^2.6.0",
-    "debug":                          "2.1.0",
-    "joi":                            "^5.1.0",
-    "knuth-shuffle":                  "^1.0.1",
-    "lodash":                         "^3.7.0",
-    "multi-region-promised-aws":      "0.0.5",
-    "node-uuid":                      "^1.4.2",
-    "promise":                        "6.0.1",
-    "sinon":                          "^1.12.2",
-    "slugid":                         "1.0.3",
-    "taskcluster-base":               "0.7.21",
-    "taskcluster-client":             "0.22.2",
-    "assume":                         "^1.2.4"
+    "assume": "^1.2.4",
+    "babel": "^5.1.11",
+    "commander": "^2.6.0",
+    "debug": "2.1.0",
+    "joi": "^5.1.0",
+    "knuth-shuffle": "^1.0.1",
+    "lodash": "^3.7.0",
+    "multi-region-promised-aws": "0.0.5",
+    "node-uuid": "^1.4.2",
+    "promise": "6.0.1",
+    "sinon": "^1.15.4",
+    "slugid": "1.0.3",
+    "taskcluster-base": "0.7.21",
+    "taskcluster-client": "0.22.2"
   },
   "devDependencies": {
-    "babel-eslint":                   "^2.0.2",
-    "eslint":                         "^0.17.1",
-    "mocha":                          "2.0.1",
-    "should":                         "^4.3.0"
+    "babel-eslint": "^2.0.2",
+    "eslint": "^0.17.1",
+    "mocha": "2.0.1",
+    "should": "^4.3.0"
   },
   "engines": {
     "node": "0.12.x"
