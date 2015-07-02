@@ -5,12 +5,13 @@ var debug = require('debug')('aws-provisioner:provision');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 var taskcluster = require('taskcluster-client');
+var awsPricing = require('./aws-pricing');
 
 var series = require('./influx-series');
 
-var MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
-var MAX_KILL_TIME = 1000 * 30;
-var MAX_FAILURES = 15;
+const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
+const MAX_KILL_TIME = 1000 * 30;
+const MAX_FAILURES = 15;
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -36,10 +37,6 @@ function Provisioner (cfg) {
   // We should have a Queue
   assert(cfg.queue);
   this.queue = cfg.queue;
-
-  // We should have a Pricing Cache
-  assert(cfg.pricingCache);
-  this.pricingCache = cfg.pricingCache;
 
   // We should have an influx object
   assert(cfg.influx);
@@ -121,8 +118,6 @@ Provisioner.prototype.run = function () {
       debug('[alert-operator] dieing after %d failures', MAX_FAILURES);
       exitTimer(MAX_KILL_TIME);
       throw new Error('provisioner is failing a lot');
-    } else {
-      debug(stats);
     }
 
     var outcome;
@@ -182,15 +177,13 @@ Provisioner.prototype.stop = function () {
 /**
  * Run provisioners for all known worker types once
  */
-Provisioner.prototype.runAllProvisionersOnce = function () {
+Provisioner.prototype.runAllProvisionersOnce = async function () {
   var that = this;
 
-  debug('provisioner id is "%s"', this.provisionerId);
   var p = Promise.all([
     this.WorkerType.loadAll(),
     this.awsManager.update(),
-    // Remember that we cache pricing data!
-    this.pricingCache.get(),
+    awsPricing(this.awsManager.ec2),
   ]);
 
   p = p.then(function (res) {

@@ -74,7 +74,6 @@ var launch = function (profile) {
       maxInstanceLife,
       influx);
   var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
-  var pricingCache = new Cache(0, awsPricing, ec2);
 
   var config = {
     WorkerType: WorkerType,
@@ -84,7 +83,6 @@ var launch = function (profile) {
     taskcluster: cfg.get('taskcluster'),
     influx: influx,
     awsManager: awsManager,
-    pricingCache: pricingCache,
     provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
   };
 

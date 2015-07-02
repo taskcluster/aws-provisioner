@@ -14,14 +14,6 @@ function AwsPricing (regions, pricing, zoneInfo) {
 }
 
 /**
- * Get the pricing dictionary... This is a little ugly
- * but it works... Ideas welcomed
- */
-AwsPricing.prototype.get = function () {
-  return this.__pricing;
-};
-
-/**
  * List the available availability zones
  */
 AwsPricing.prototype.availableAvailabilityZones = function () {
