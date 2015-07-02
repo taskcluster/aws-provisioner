@@ -206,8 +206,8 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
   debug('configured workers:           %j', workerNames);
   debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
 
-  return await Promise.all(workerTypes.map(async worker => {
-    return await this.provisionType(worker, pricing);
+  return Promise.all(workerTypes.map(async worker => {
+    return this.provisionType(worker, pricing);
   }));
 };
 
@@ -235,7 +235,7 @@ Provisioner.prototype.spawn = async function (workerType, bid) {
     expiration: taskcluster.fromNow('40 minutes'),
   });
   
-  return await this.awsManager.requestSpotInstance(launchInfo, bid);
+  return this.awsManager.requestSpotInstance(launchInfo, bid);
 };
 
 /**
@@ -272,14 +272,23 @@ Provisioner.prototype.provisionType = async function (workerType, pricing) {
     // the minimum capacity
     var bids = workerType.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
 
-    // We need to start the promise chain somewhere
     var q = Promise.resolve();
+
+    bids.forEach(bid => {
+      q.then(function() {
+        return this.spawn(workerType, bid);
+      }).then(function(x) {
+        return delay 
+      });
+    });
+
+    return q
 
     // To avoid API errors, we're going to run all of these promises
     // sequentially and with a slight break between the calls
-    return await Promise.all(bids.map(bid => {
-      return this.spawn(workerType, bid);
-    }));
+    /*return Promise.all(bids.map(bid => {
+      return this.spawn(workerType, bid).then(delay(1000));
+    }));*/
   } else if (change < 0) {
     // We want to cancel spot requests when we no longer need them, but only
     // down to the minimum capacity
@@ -293,3 +302,13 @@ Provisioner.prototype.provisionType = async function (workerType, pricing) {
   }
 
 };
+
+function delay(t, resVal) {
+  return new Promise(function(resolve) {
+    debug('delaying');
+    setTimeout(() => {
+      debug('running now');
+      resolve(resVal);
+    }, t);
+  });
+}
