@@ -142,23 +142,24 @@ Provisioner.prototype.run = function () {
     if (this.__keepRunning && !process.env.PROVISION_ONCE) {
       debug('scheduling another iteration in %d seconds', 
         Math.round(this.provisionIterationInterval / 1000));
-      setTimeout(() => {
-        provisionIteration().catch(() => {
-          process.exit(1);
-        });
-      }, this.provisionIterationInterval);
+      sched(this.provisionIterationInterval);
     } else {
       debug('not scheduling further iterations');
     }
   }
 
+  function sched (t) {
+    setTimeout(() => {
+      provisionIteration().catch(err => {
+        debug('[alert-operator] failure! %s %s', err, err.stack); 
+        process.exit(1);
+      });
+    }, t);
+  }
+
   // To ensure that the first iteration is not called differently that
   // subsequent ones, we'll call it with a zero second timeout
-  setTimeout(() => {
-    provisionIteration().catch(() => {
-      process.exit(1);
-    });
-  }, 0);
+  sched(0);
 
 };
 
@@ -180,56 +181,41 @@ Provisioner.prototype.stop = function () {
 Provisioner.prototype.runAllProvisionersOnce = async function () {
   var that = this;
 
-  var p = Promise.all([
+  var res = await Promise.all([
     this.WorkerType.loadAll(),
-    this.awsManager.update(),
     awsPricing(this.awsManager.ec2),
+    this.awsManager.update(),
   ]);
 
-  p = p.then(function (res) {
-    var workerTypes = res[0];
+  var workerTypes = res[0];
+  var pricing = res[1];
 
-    // We'll use this twice here... let's generate it only once
-    var workerNames = workerTypes.map(function (x) {
-      return x.workerType;
-    });
-
-    debug('configured workers:           %j', workerNames);
-    debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
-    var houseKeeping = [
-      that.awsManager.rougeKiller(workerNames),
-      that.awsManager.zombieKiller(),
-      that.awsManager.ensureTags(),
-    ];
-
-    // Remember that this thing caches stuff inside itself
-    Array.prototype.push.apply(houseKeeping, workerNames.map(function (name) {
-      return that.awsManager.createKeyPair(name);
-    }));
-
-    // We're just intercepting here... we want to pass the
-    // resolution value this handler got to the next one!
-    return Promise.all(houseKeeping).then(function () {
-      return res;
-    });
+  var workerNames = workerTypes.map(x => {
+    return x.workerType; // can't remember the nice es7 for this
   });
 
-  p = p.then(function (res) {
-    var workerTypes = res[0];
-    var pricing = res[2];
-    return Promise.all(workerTypes.map(function (workerType) {
-      return that.provisionType(workerType, pricing);
-    }));
-  });
+  await Promise.all([
+    this.awsManager.rougeKiller(workerNames),
+    this.awsManager.zombieKiller(),
+    this.awsManager.ensureTags(),
+    workerNames.map(name => {
+      return this.awsManager.createKeyPair(name);
+    }),
+  ]);
 
-  return p;
+  debug('configured workers:           %j', workerNames);
+  debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
+
+  return await Promise.all(workerTypes.map(async worker => {
+    return await this.provisionType(worker, pricing);
+  }));
 };
 
 /**
  * Figure out how to create the launch information based on a bid then
  * insert the secrets into the secret storage
  */
-Provisioner.prototype.spawn = function (workerType, bid) {
+Provisioner.prototype.spawn = async function (workerType, bid) {
   assert(workerType);
   assert(bid);
 
@@ -241,19 +227,15 @@ Provisioner.prototype.spawn = function (workerType, bid) {
     AvailabilityZone: bid.zone,
   };
 
-  var p = this.Secret.create({
+  await this.Secret.create({
     token: launchInfo.securityToken,
     workerType: workerType.workerType,
     secrets: launchInfo.secrets,
     scopes: launchInfo.scopes,
     expiration: taskcluster.fromNow('40 minutes'),
   });
-
-  p = p.then(()=> {
-    this.awsManager.requestSpotInstance(launchInfo, bid);
-  });
-
-  return p;
+  
+  return await this.awsManager.requestSpotInstance(launchInfo, bid);
 };
 
 /**
@@ -262,79 +244,52 @@ Provisioner.prototype.spawn = function (workerType, bid) {
  * make it easier to see which failed, but I'd prefer that to be tracked in the
  * caller. Note that awsState as passed in should be specific to a workerType
  */
-Provisioner.prototype.provisionType = function (workerType, pricing) {
+Provisioner.prototype.provisionType = async function (workerType, pricing) {
   var that = this;
 
-  var p = this.queue.pendingTasks(this.provisionerId, workerType.workerType);
+  var result = await this.queue.pendingTasks(
+      this.provisionerId, workerType.workerType);
+  var pendingTasks = result.pendingTasks;
+  var runningCapacity = this.awsManager.capacityForType(workerType, ['running']);
+  var pendingCapacity = this.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
+  var change = workerType.determineCapacityChange(
+      runningCapacity, pendingCapacity, pendingTasks);
+  debug('%s: %d running capacity, %d pending capacity and %d pending tasks',
+      workerType.workerType, runningCapacity, pendingCapacity, pendingTasks);
 
-  p = p.then(function (result) {
-    var pending = result.pendingTasks;
-    // Remember that we send the internally tracked state so that we can
-    // offset the count that we get here
-    var runningCapacity = that.awsManager.capacityForType(workerType, ['running']);
-    var pendingCapacity = that.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
-    var change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pending);
-
-    debug('%s: %d running capacity, %d pending capacity and %d pending jobs',
-        workerType.workerType, runningCapacity, pendingCapacity, pending);
-
-    if (typeof pending !== 'number') {
-      console.error(pending);
-      pending = 0;
-      debug('GRRR! Queue.pendingTasks(str, str) is returning garbage!  Assuming 0');
-    }
-
-    // Report on the stats for this iteration
-    that.reportProvisioningIteration({
-      provisionerId: that.provisionerId,
-      workerType: workerType.workerType,
-      pendingTasks: pending,
-      runningCapacity: runningCapacity,
-      pendingCapacity: pendingCapacity,
-      change: change,
-    });
-
-    if (change > 0) {
-      // We want to create bids when we have a change or when we have less then the minimum capacity
-      var bids = workerType.determineSpotBids(that.awsManager.ec2.regions, pricing, change);
-      var q = Promise.resolve();
-      // To avoid API errors, we're going to run all of these promises sequentially
-      // and with a slight break between the calls
-      bids.forEach(function (bid) {
-        q = q.then(function () {
-          return new Promise(function (resolve, reject) {
-            setTimeout(function () {
-              that.spawn(workerType, bid).then(resolve, reject);
-            }, 500);
-          });
-        });
-
-        // We don't want to stop provisioning because one instance failed, but we will
-        // increase the time out a little
-        q = q.catch(function (err) {
-          console.log('[alert-operator] ' + workerType.workerType + ' ' + err);
-          console.log(err.stack);
-
-          return new Promise(function (resolve, reject) {
-            setTimeout(function () {
-              that.spawn(workerType, bid).then(resolve, reject);
-            }, 1500);
-          });
-        });
-      });
-
-      return q;
-    } else if (change < 0) {
-      // We want to cancel spot requests when we no longer need them, but only
-      // down to the minimum capacity
-      var capacityToKill = -change;
-      debug('killing up to %d capacity', capacityToKill);
-      return that.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
-    } else {
-      debug('no change needed');
-    }
-
+  // Report on the stats for this iteration
+  this.reportProvisioningIteration({
+    provisionerId: this.provisionerId,
+    workerType: workerType.workerType,
+    pendingTasks: pendingTasks,
+    runningCapacity: runningCapacity,
+    pendingCapacity: pendingCapacity,
+    change: change,
   });
 
-  return p;
+  if (change > 0) {
+    // We want to create bids when we have a change or when we have less then
+    // the minimum capacity
+    var bids = workerType.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
+
+    // We need to start the promise chain somewhere
+    var q = Promise.resolve();
+
+    // To avoid API errors, we're going to run all of these promises
+    // sequentially and with a slight break between the calls
+    return await Promise.all(bids.map(bid => {
+      return this.spawn(workerType, bid);
+    }));
+  } else if (change < 0) {
+    // We want to cancel spot requests when we no longer need them, but only
+    // down to the minimum capacity
+    var capacityToKill = -change;
+
+    debug('killing up to %d capacity of spot requests and pending instances', capacityToKill);
+
+    return this.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
+  } else {
+    debug('no change needed');
+  }
+
 };
