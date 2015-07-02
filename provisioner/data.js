@@ -17,7 +17,7 @@ function fixUserData (x) {
       ud = JSON.parse(new Buffer(x, 'base64').toString());
     } else if (typeof x === 'object') {
       ud = lodash.deepClone(x);
-    } else {
+    } else if (typeof x !== 'undefined') {
       debugMigrate('[alert-operator] this userData (%j) is garbage', x);
     }
   } catch (e) {
