@@ -113,7 +113,7 @@ Provisioner.prototype.run = async function () {
       // We should make sure that we're not just permanently failing
       // We also don't want to
       if (this.__stats.consecFail > MAX_FAILURES) {
-        debug('[alert-operator] dieing after %d consecutive failures',
+        debug('[alert-operator] dying after %d consecutive failures',
             MAX_FAILURES);
         exitTimer(MAX_KILL_TIME);
         throw new Error('provisioner is failing a lot');
