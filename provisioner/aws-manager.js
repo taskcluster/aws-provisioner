@@ -466,7 +466,7 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
           region: instance.Region,
           az: instance.Placement.AvailabilityZone,
           instanceType: instance.InstanceType,
-          time: new Date().toISOString(),
+          time: dateForInflux(new Date()),
           price: price,
           reason: 'instance-spot-killed',
         });
