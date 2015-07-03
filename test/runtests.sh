@@ -15,9 +15,6 @@ fi
 
 # Run tests
 mocha                                   \
-  test/badworkertype_test.js            \
-  test/manageworkertype_test.js         \
-  test/secrets_test.js                  \
-  test/test_workertype.js               \
+  test/*_test.js            \
   ;
 

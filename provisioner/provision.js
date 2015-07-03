@@ -6,6 +6,7 @@ var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 var taskcluster = require('taskcluster-client');
 var awsPricing = require('./aws-pricing');
+var delayer = require('../lib/delayer');
 
 var series = require('./influx-series');
 
@@ -64,18 +65,13 @@ function Provisioner (cfg) {
 
   this.__keepRunning = false;
   this.__watchDog = new WatchDog(MAX_PROVISION_ITERATION);
+  this.__stats = {
+    runs: 0,
+    consecFail: 0,
+  }
 }
 
 module.exports.Provisioner = Provisioner;
-
-/**
- * Store basic stats of each iteration
- */
-var stats = {
-  iterations: 0,
-  success: 0,
-  failure: 0,
-};
 
 // For when you want to be really certain that the program will
 // exit
@@ -105,31 +101,29 @@ Provisioner.prototype.run = function () {
   this.__watchDog.start();
 
   var provisionIteration = async () => {
-    debug('starting iteration %d, successes %d, failures %d',
-          stats.iterations,
-          stats.success,
-          stats.failure);
+    debug('starting iteration %d, consecutive failures %d',
+          this.__stats.runs, this.__stats.consecFail);
 
     this.__watchDog.touch();
 
     // We should make sure that we're not just permanently failing
     // We also don't want to
-    if (stats.failure > MAX_FAILURES) {
-      debug('[alert-operator] dieing after %d failures', MAX_FAILURES);
+    if (this.__stats.consecFail > MAX_FAILURES) {
+      debug('[alert-operator] dieing after %d consecutive failures',
+          MAX_FAILURES);
       exitTimer(MAX_KILL_TIME);
       throw new Error('provisioner is failing a lot');
     }
 
     var outcome;
 
+    this.__stats.runs++;
     try {
       await this.runAllProvisionersOnce();
-      stats.success++;
-      stats.iterations++;
+      this.__stats.consecFail = 0;
       outcome = 'succeeded';
     } catch (err) {
-      stats.failure++;
-      stats.iterations++;
+      this.__stats.consecFail++;
       outcome = 'failed';
       debug('[alert-operator] provisioning iteration failure');
       if (err.stack) {
@@ -170,9 +164,8 @@ Provisioner.prototype.run = function () {
 Provisioner.prototype.stop = function () {
   this.__keepRunning = false;
   this.__watchDog.stop();
-  stats.iterations = 0;
-  stats.success = 0;
-  stats.failure = 0;
+  this.__stats.runs = 0;
+  this.__stats.consecFail = 0;
 };
 
 /**
@@ -272,23 +265,21 @@ Provisioner.prototype.provisionType = async function (workerType, pricing) {
     // the minimum capacity
     var bids = workerType.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
 
+    // We need to start the promise chain somewhere
     var q = Promise.resolve();
 
+    // This returns a promise resolution handler that delays for the time then
+    // resolves with the previous promise's resolution value
+    var d = delayer(500);
+
+    // Chain all the promises together
     bids.forEach(bid => {
-      q.then(function() {
+      q = q.then(() => {
         return this.spawn(workerType, bid);
-      }).then(function(x) {
-        return delay 
-      });
+      }).then(d);
     });
 
     return q
-
-    // To avoid API errors, we're going to run all of these promises
-    // sequentially and with a slight break between the calls
-    /*return Promise.all(bids.map(bid => {
-      return this.spawn(workerType, bid).then(delay(1000));
-    }));*/
   } else if (change < 0) {
     // We want to cancel spot requests when we no longer need them, but only
     // down to the minimum capacity
@@ -302,13 +293,3 @@ Provisioner.prototype.provisionType = async function (workerType, pricing) {
   }
 
 };
-
-function delay(t, resVal) {
-  return new Promise(function(resolve) {
-    debug('delaying');
-    setTimeout(() => {
-      debug('running now');
-      resolve(resVal);
-    }, t);
-  });
-}
