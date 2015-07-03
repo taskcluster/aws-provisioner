@@ -73,8 +73,10 @@ function Provisioner (cfg) {
 
 module.exports.Provisioner = Provisioner;
 
-// For when you want to be really certain that the program will
-// exit
+/**
+ * For when you want to be really certain that the program will
+ * exit
+ */
 function exitTimer(time) {
   var t = time || 30000;
   setTimeout(() => {
@@ -123,6 +125,7 @@ Provisioner.prototype.run = async function () {
 
       this.__stats.runs++;
 
+      // Do the iterations
       try {
         await this.runAllProvisionersOnce();
         this.__stats.consecFail = 0;
