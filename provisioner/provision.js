@@ -89,10 +89,10 @@ function exitTimer(time) {
 /**
  * Start running a provisioner.
  */
-Provisioner.prototype.run = function () {
+Provisioner.prototype.run = async function () {
   this.__keepRunning = true;
 
-  this.__watchDog.on('expired', function () {
+  this.__watchDog.on('expired', () => {
     debug('[alert-operator] provisioning iteration exceeded max time');
     exitTimer(MAX_KILL_TIME);
     throw new Error('WatchDog expired');
@@ -100,61 +100,53 @@ Provisioner.prototype.run = function () {
 
   this.__watchDog.start();
 
-  var provisionIteration = async () => {
-    debug('starting iteration %d, consecutive failures %d',
-          this.__stats.runs, this.__stats.consecFail);
+  var d = delayer(this.provisionIterationInterval);
 
-    this.__watchDog.touch();
+  try {
+    do {
+      debug('starting iteration %d, consecutive failures %d',
+            this.__stats.runs, this.__stats.consecFail);
 
-    // We should make sure that we're not just permanently failing
-    // We also don't want to
-    if (this.__stats.consecFail > MAX_FAILURES) {
-      debug('[alert-operator] dieing after %d consecutive failures',
-          MAX_FAILURES);
-      exitTimer(MAX_KILL_TIME);
-      throw new Error('provisioner is failing a lot');
-    }
+      // If we don't do this, we'll have an uncaught exception
+      this.__watchDog.touch(); 
 
-    var outcome;
-
-    this.__stats.runs++;
-    try {
-      await this.runAllProvisionersOnce();
-      this.__stats.consecFail = 0;
-      outcome = 'succeeded';
-    } catch (err) {
-      this.__stats.consecFail++;
-      outcome = 'failed';
-      debug('[alert-operator] provisioning iteration failure');
-      if (err.stack) {
-        debug('[alert-operator] stack: %s', err.stack.replace('\n', '\\n'));
+      // We should make sure that we're not just permanently failing
+      // We also don't want to
+      if (this.__stats.consecFail > MAX_FAILURES) {
+        debug('[alert-operator] dieing after %d consecutive failures',
+            MAX_FAILURES);
+        exitTimer(MAX_KILL_TIME);
+        throw new Error('provisioner is failing a lot');
       }
-    }
 
-    debug('provisioning iteration %s', outcome);
+      var outcome;
 
-    if (this.__keepRunning && !process.env.PROVISION_ONCE) {
-      debug('scheduling another iteration in %d seconds', 
-        Math.round(this.provisionIterationInterval / 1000));
-      sched(this.provisionIterationInterval);
-    } else {
-      debug('not scheduling further iterations');
-    }
+      this.__stats.runs++;
+
+      try {
+        await this.runAllProvisionersOnce();
+        this.__stats.consecFail = 0;
+        outcome = 'succeeded';
+      } catch (err) {
+        this.__stats.consecFail++;
+        outcome = 'failed';
+        debug('[alert-operator] provisioning iteration failure');
+        if (err.stack) {
+          debug('[alert-operator] stack: %s', err.stack.replace('\n', '\\n'));
+        }
+      }
+
+      // Report on the iteration
+      debug('provisioning iteration %s', outcome);
+      debug('scheduling next iteration in %sms',
+          this.provisionIterationInterval);
+      // And delay for the next one so we don't overwhelm EC2
+      await d();
+    } while (this.__keepRunning && !process.env.PROVISION_ONCE);
+  } catch (err) {
+    exitTimer(MAX_KILL_TIME);
+    throw err;
   }
-
-  function sched (t) {
-    setTimeout(() => {
-      provisionIteration().catch(err => {
-        debug('[alert-operator] failure! %s %s', err, err.stack); 
-        process.exit(1);
-      });
-    }, t);
-  }
-
-  // To ensure that the first iteration is not called differently that
-  // subsequent ones, we'll call it with a zero second timeout
-  sched(0);
-
 };
 
 /**
@@ -172,8 +164,6 @@ Provisioner.prototype.stop = function () {
  * Run provisioners for all known worker types once
  */
 Provisioner.prototype.runAllProvisionersOnce = async function () {
-  var that = this;
-
   var res = await Promise.all([
     this.WorkerType.loadAll(),
     awsPricing(this.awsManager.ec2),
@@ -197,7 +187,7 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
   ]);
 
   debug('configured workers:           %j', workerNames);
-  debug('managed requests/instances:   %j', that.awsManager.knownWorkerTypes());
+  debug('managed requests/instances:   %j', this.awsManager.knownWorkerTypes());
 
   return Promise.all(workerTypes.map(async worker => {
     return this.provisionType(worker, pricing);
