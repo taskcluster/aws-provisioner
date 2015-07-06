@@ -1217,8 +1217,7 @@ AwsManager.prototype.killCancel = function (region, instances, requests) {
  * We use this function to do things like canceling spot requests that
  * exceed the number we require.
  */
-AwsManager.prototype.killCapacityOfWorkerType = function (workerType, count, states) {
-  var that = this;
+AwsManager.prototype.killCapacityOfWorkerType = async function (workerType, count, states) {
   assert(workerType);
   assert(typeof count === 'number');
   assert(states);
@@ -1227,69 +1226,72 @@ AwsManager.prototype.killCapacityOfWorkerType = function (workerType, count, sta
   var caps = {};
 
   // Build the mapping of capacity to instance type string
-  workerType.instanceTypes.forEach(function (t) {
+  workerType.instanceTypes.forEach(t => {
     caps[t.instanceType] = workerType.capacityOfType(t.instanceType);
   });
 
   var capacity = this.capacityForType(workerType, states);
+  debug('trying to find %d to kill out of %d capacity', count, capacity);
   var capToKill = 0;
-
-  // Should we continue?
-  function cont () {
-    return count <= capToKill && capacity - capToKill >= workerType.minCapacity;
-  }
 
   // Set up the storage for storing instance and sr ids by
   // region so we can cancel them easily later
   var toKill = {};
-  this.ec2.regions.forEach(function (region) {
+  this.ec2.regions.forEach(region => {
     toKill[region] = {
       instances: [],
       requests: [],
     };
   });
 
+  function cont() {
+    return count <= capToKill && capacity - capToKill >= workerType.minCapacity;
+  }
+
   // Now, let's go through the states starting with spot requests.
   if (states.includes('spotReq')) {
     // Let's shuffle things!
     var shuffledRequests = shuffle.knuthShuffle(this.requestsOfType(workerType.workerType));
-    shuffledRequests.forEach(function (request) {
+
+    for (var request of shuffledRequests) {
       if (cont()) {
         capToKill += caps[request.LaunchSpecification.InstanceType] || 1;
-        toKill[request.Region].push(request.SpotInstanceRequestId);
+        toKill[request.Region].requests.push(request.SpotInstanceRequestId);
       }
-    });
+    }
 
     // Remember that we do internal state a little differently
-    this.__internalState.forEach(function (sr) {
+    for (var sr of this.__internalState) {
       if (cont() && sr.request.WorkerType === workerType.workerType) {
         capToKill += caps[sr.request.LaunchSpecification.InstanceType] || 1;
-        toKill[sr.request.Region].push(sr.request.SpotInstanceRequestId);
+        toKill[sr.request.Region].requests.push(sr.request.SpotInstanceRequestId);
       }
-    });
+    }
   }
 
   var shuffledApiInstances = shuffle.knuthShuffle(this.instancesOfType(workerType.workerType));
-  shuffledApiInstances.forEach(function (instance) {
+  for (var instance of shuffledApiInstances) {
+    debug(instance);
+    debug(toKill);
     if (cont() && states.includes(instance.State.Name)) {
       capToKill += caps[instance.InstanceType] || 1;
-      toKill[instance.Region].push(instance.InstanceId);
+      toKill[instance.Region].instances.push(instance.InstanceId);
     }
-  });
+  }
 
   var deaths = [];
 
-  Object.keys(toKill).forEach(function (region) {
+  Object.keys(toKill).forEach(region => {
     var i = toKill[region].instances;
     var r = toKill[region].requests;
     if (i.length + r.length > 0) {
       debug('killing %d capacity of %s in states %j in %s\nInstances: %j\nRequests: %j',
           capToKill, workerType.workerType, states, region, i, r);
-      deaths.push(that.killCancel(region, i, r));
+      deaths.push(this.killCancel(region, i, r));
     }
   });
 
-  return Promise.all(deaths);
+  return await Promise.all(deaths);
 };
 
 /**

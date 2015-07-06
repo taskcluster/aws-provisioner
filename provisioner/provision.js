@@ -7,6 +7,7 @@ var WatchDog = require('../lib/watchdog');
 var taskcluster = require('taskcluster-client');
 var awsPricing = require('./aws-pricing');
 var delayer = require('../lib/delayer');
+var shuffle = require('knuth-shuffle');
 
 var series = require('./influx-series');
 
@@ -192,9 +193,50 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
   debug('configured workers:           %j', workerNames);
   debug('managed requests/instances:   %j', this.awsManager.knownWorkerTypes());
 
-  return Promise.all(workerTypes.map(async worker => {
-    return this.provisionType(worker, pricing);
-  }));
+  var forSpawning = [];
+
+  for (var worker of workerTypes) {
+    var change = await this.changeForType(worker, pricing);
+
+    if (change > 0) {
+      debug('%s needs %d capacity created', worker.workerType, change);
+      var bids = worker.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
+      // This could probably be done cleaner
+      bids.forEach(bid => {
+        forSpawning.push({workerType: worker, bid: bid});
+      });
+    } else if (change < 0) {
+      var capToKill = -change;
+      debug('%s needs %d capacity destroyed', worker.workerType, capToKill);
+      await this.awsManager.killCapacityOfWorkerType(
+            worker, capToKill, ['pending', 'spotReq']);
+    } else {
+      debug('%s needs no changes', worker.workerType);
+    }
+  }
+
+  var d = delayer(500);
+  var longD = delayer(2000);
+
+  // We want to have a maximum number of attempts
+  var attemptsLeft = forSpawning.length * 2;
+
+  // We want to shuffle up the bids so that we don't prioritize
+  // any particular worker type
+  forSpawning = shuffle.knuthShuffle(forSpawning);
+
+  while (forSpawning.length > 0 && attemptsLeft-- > 0) {
+    var toSpawn = forSpawning.shift();
+    try {
+      await this.spawn(toSpawn.workerType, toSpawn.bid);
+      await d();
+    } catch (err) {
+      await longD();
+      debug('ERROR! there was an error with bid %j: %j %s', toSpawn.bid, err, err.stack);
+      forSpawning.push(toSpawn);
+    }
+  }
+  
 };
 
 /**
@@ -219,12 +261,9 @@ Provisioner.prototype.spawn = async function (workerType, bid) {
 };
 
 /**
- * Provision a specific workerType.  This promise will have a value of true if
- * everything worked.  Another option is resolving to the name of the worker to
- * make it easier to see which failed, but I'd prefer that to be tracked in the
- * caller. Note that awsState as passed in should be specific to a workerType
+ * Determine the change for a given worker type
  */
-Provisioner.prototype.provisionType = async function (workerType, pricing) {
+Provisioner.prototype.changeForType = async function (workerType, pricing) {
   var that = this;
 
   var result = await this.queue.pendingTasks(
@@ -247,36 +286,15 @@ Provisioner.prototype.provisionType = async function (workerType, pricing) {
     change: change,
   });
 
-  if (change > 0) {
-    // We want to create bids when we have a change or when we have less then
-    // the minimum capacity
-    var bids = workerType.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
+  return change;
+};
 
-    // We need to start the promise chain somewhere
-    var q = Promise.resolve();
+Provisioner.prototype.destroyCapacity = async function (capacityToKill, workerType) {
+  // We want to cancel spot requests when we no longer need them, but only
+  // down to the minimum capacity
+  var capacityToKill = -change;
 
-    // This returns a promise resolution handler that delays for the time then
-    // resolves with the previous promise's resolution value
-    var d = delayer(500);
+  debug('killing up to %d capacity of spot requests and pending instances', capacityToKill);
 
-    // Chain all the promises together
-    bids.forEach(bid => {
-      q = q.then(() => {
-        return this.spawn(workerType, bid);
-      }).then(d);
-    });
-
-    return q
-  } else if (change < 0) {
-    // We want to cancel spot requests when we no longer need them, but only
-    // down to the minimum capacity
-    var capacityToKill = -change;
-
-    debug('killing up to %d capacity of spot requests and pending instances', capacityToKill);
-
-    return this.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
-  } else {
-    debug('no change needed');
-  }
-
+  return this.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
 };
