@@ -87,7 +87,11 @@ var launch = function (profile) {
   };
 
   var provisioner = new provision.Provisioner(config);
-  provisioner.run();
+  try {
+    provisioner.run();
+  } catch (err) {
+    debug('[alert-operator] Error: %j %s', err, err.stack)
+  }
 };
 
 // Only start up the server if we are running as a script
