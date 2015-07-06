@@ -205,13 +205,7 @@ Provisioner.prototype.spawn = async function (workerType, bid) {
   assert(workerType);
   assert(bid);
 
-  var launchInfo = workerType.createLaunchSpec(bid.region, bid.type);
-
-  // This should probably move from here to createLaunchSpec but that
-  // can happen later
-  launchInfo.launchSpec.Placement = {
-    AvailabilityZone: bid.zone,
-  };
+  var launchInfo = workerType.createLaunchSpec(bid);
 
   await this.Secret.create({
     token: launchInfo.securityToken,

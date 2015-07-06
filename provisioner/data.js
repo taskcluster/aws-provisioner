@@ -311,10 +311,9 @@ WorkerType.prototype.capacityOfType = function (instanceType) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function (region, instanceType) {
-  assert(region);
-  assert(instanceType);
-  return WorkerType.createLaunchSpec(region, instanceType,
+WorkerType.prototype.createLaunchSpec = function (bid) {
+  assert(bid);
+  return WorkerType.createLaunchSpec(bid,
       this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl);
 };
 
@@ -324,7 +323,7 @@ WorkerType.prototype.createLaunchSpec = function (region, instanceType) {
  * a dictionary of all the launch specs!
  */
 WorkerType.prototype.testLaunchSpecs = function () {
-  return WorkerType.testLaunchSpecs(this, this.keyPrefix, this.provisionerId);
+  return WorkerType.testLaunchSpecs(this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl);
 };
 
 /**
@@ -333,10 +332,12 @@ WorkerType.prototype.testLaunchSpecs = function () {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix, provisionerId, provisionerBaseUrl) {
+WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, provisionerBaseUrl) {
   // These are the keys which are only applicable to a given region.
-  assert(region, 'must specifiy region');
-  assert(instanceType, 'must specify instanceType');
+  assert(bid, 'must specify a bid');
+  assert(bid.region, 'bid must specify a region');
+  assert(bid.type, 'bid must specify a type');
+  assert(bid.zone, 'bid must specify an availability zone');
   assert(worker, 'must provide a worker object');
   assert(keyPrefix, 'must provide key prefix');
   assert(provisionerId, 'must provide provisioner id');
@@ -346,7 +347,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   var regionOverwriteObjects = {};
   var foundRegion = false;
   worker.regions.forEach((r) => {
-    if (r.region === region) {
+    if (r.region === bid.region) {
       // We want to make sure that we've not already found this region
       if (foundRegion) {
         throw new Error('Region must be unique');
@@ -366,7 +367,7 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
   var instanceTypeOverwriteObjects = {};
   var foundInstanceType = false;
   worker.instanceTypes.forEach((t) => {
-    if (t.instanceType === instanceType) {
+    if (t.instanceType === bid.type) {
       if (foundInstanceType) {
         throw new Error('InstanceType must be unique');
       }
@@ -435,16 +436,27 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     }
   });
 
-  // Set the KeyPair and InstanceType correctly
+  // Set the KeyPair, InstanceType and availability zone correctly
   config.launchSpec.KeyName = keyPrefix + worker.workerType;
-  config.launchSpec.InstanceType = instanceType;
+  config.launchSpec.InstanceType = bid.type;
+
+  // We want to make sure that we overwrite the least that we need
+  // to, so we check if there's already an object and set the key
+  // in that case
+  if (!config.launchSpec.Placement) {
+    config.launchSpec.Placement = {
+      AvailabilityZone: bid.zone,
+    }
+  } else {
+    config.launchSpec.Placement.AvailabilityZone = bid.zone;
+  }
 
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
   var capacity;
   worker.instanceTypes.forEach(function (t) {
-    if (t.instanceType === instanceType) {
+    if (t.instanceType === bid.type) {
       assert(!capacity, 'instanceTypes must be unique');
       capacity = t.capacity;
     }
@@ -458,8 +470,11 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
     capacity: capacity,
     workerType: worker.workerType,
     provisionerId: provisionerId,
-    region: region,
-    instanceType: instanceType,
+    region: bid.region,
+    availabilityZone: bid.zone,
+    instanceType: bid.type,
+    spotBid: bid.price,
+    price: bid.truePrice,
     launchSpecGenerated: new Date().toISOString(),
     workerModified: worker.lastModified.toISOString(),
     provisionerBaseUrl: provisionerBaseUrl,
@@ -507,7 +522,6 @@ WorkerType.createLaunchSpec = function (region, instanceType, worker, keyPrefix,
 
   // These are keys which we do not allow in the generated launch spec
   var disallowedKeys = [
-    'Placement',
   ];
 
   disallowedKeys.forEach(function (key) {
@@ -546,7 +560,14 @@ WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisi
     worker.instanceTypes.forEach(function (t) {
       var type = t.instanceType;
       try {
-        var x = WorkerType.createLaunchSpec(region, type, worker, keyPrefix, provisionerId, provisionerBaseUrl);
+        var bid = {
+          price: 1,
+          truePrice: 1,
+          region: region,
+          type: type,
+          zone: 'fakezone1',
+        };
+        var x = WorkerType.createLaunchSpec(bid, worker, keyPrefix, provisionerId, provisionerBaseUrl);
         launchSpecs[region][type] = x;
       } catch (e) {
         errors.push(e);
