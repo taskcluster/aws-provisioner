@@ -203,9 +203,9 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
       debug('%s needs %d capacity created', worker.workerType, change);
       var bids = worker.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
       // This could probably be done cleaner
-      bids.forEach(bid => {
+      for (let bid of bids) {
         forSpawning.push({workerType: worker, bid: bid});
-      });
+      }
     } else if (change < 0) {
       var capToKill = -change;
       debug('%s needs %d capacity destroyed', worker.workerType, capToKill);
@@ -290,7 +290,7 @@ Provisioner.prototype.changeForType = async function (workerType, pricing) {
   return change;
 };
 
-Provisioner.prototype.destroyCapacity = async function (capacityToKill, workerType) {
+Provisioner.prototype.destroyCapacity = function (capacityToKill, workerType) {
   // We want to cancel spot requests when we no longer need them, but only
   // down to the minimum capacity
   var capacityToKill = -change;

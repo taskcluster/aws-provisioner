@@ -1,17 +1,17 @@
 'use strict';
-var base = require('taskcluster-base');
-var assert = require('assert');
-var lodash = require('lodash');
-var debug = require('debug')('aws-provisioner:WorkerType');
-var debugMigrate = require('debug')('aws-provisioner:migrate:WorkerType');
-var util = require('util');
-var slugid = require('slugid');
+let base = require('taskcluster-base');
+let assert = require('assert');
+let lodash = require('lodash');
+let debug = require('debug')('aws-provisioner:WorkerType');
+let debugMigrate = require('debug')('aws-provisioner:migrate:WorkerType');
+let util = require('util');
+let slugid = require('slugid');
 
-var KEY_CONST = 'worker-type';
+const KEY_CONST = 'worker-type';
 
 // We do this three times, lets just stick it into a function
 function fixUserData (x) {
-  var ud = {};
+  let ud = {};
   try {
     if (typeof x === 'string') {
       ud = JSON.parse(new Buffer(x, 'base64').toString());
@@ -25,9 +25,9 @@ function fixUserData (x) {
   }
   // These keys get overwriten automatically by the provisioner
   // so we don't really need them to ever be in UserData
-  ['provisionerId', 'workerType', 'capacity'].forEach(y => {
+  for (let y of ['provisionerId', 'workerType', 'capacity']) {
     delete ud[y];
-  });
+  }
   return ud;
 }
 
@@ -40,7 +40,7 @@ function fixUserData (x) {
  * is not stored here.  The only time we fetch state here is for shutting
  * down everything.
  */
-var WorkerType = base.Entity.configure({
+let WorkerType = base.Entity.configure({
   version: 1,
   /* eslint-disable new-cap */
   partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
@@ -139,7 +139,7 @@ WorkerType = WorkerType.configure({
   },
   migrate: function (item) {
     // First, let's set up the static/easy data
-    var newWorker = {
+    let newWorker = {
       workerType: item.workerType,
       minCapacity: item.minCapacity || 0,
       maxCapacity: item.maxCapacity,
@@ -157,7 +157,7 @@ WorkerType = WorkerType.configure({
 
     // Now let's fix up the regions
     newWorker.regions = item.regions.map(r => {
-      var ud = {};
+      let ud = {};
       if (r.overwrites && r.overwrites.UserData) {
         ud = fixUserData(r.overwrites.UserData);
       }
@@ -172,7 +172,7 @@ WorkerType = WorkerType.configure({
 
     // Now let's fix up the instance types
     newWorker.instanceTypes = item.instanceTypes.map(t => {
-      var ud = {};
+      let ud = {};
       if (t.overwrites && t.overwrites.UserData) {
         ud = fixUserData(t.overwrites.UserData);
       }
@@ -211,39 +211,31 @@ WorkerType.create = function (workerType, properties) {
 /**
  * Return a list of all known workerTypes
  */
-WorkerType.loadAll = function () {
-  var workers = [];
+WorkerType.loadAll = async function () {
+  let workers = [];
 
-  var p = base.Entity.scan.call(this, {}, {
+  await base.Entity.scan.call(this, {}, {
     handler: function (item) {
       workers.push(item);
     },
   });
 
-  p = p.then(function () {
-    return workers;
-  });
-
-  return p;
+  return workers;
 };
 
 /**
  * Load the names of all known workerTypes
  */
-WorkerType.listWorkerTypes = function () {
-  var names = [];
+WorkerType.listWorkerTypes = async function () {
+  let names = [];
 
-  var p = base.Entity.scan.call(this, {}, {
+  await base.Entity.scan.call(this, {}, {
     handler: function (item) {
       names.push(item.workerType);
     },
   });
 
-  p = p.then(function () {
-    return names;
-  });
-
-  return p;
+  return names;
 };
 
 /**
@@ -261,9 +253,8 @@ WorkerType.prototype.json = function () {
  * and optionally a single property from it.
  */
 WorkerType.prototype.getInstanceType = function (instanceType) {
-  var types = this.instanceTypes.filter(function (t) {
-    return t.instanceType === instanceType;
-  });
+  let types = this.instanceTypes.filter(t => t.instanceType === instanceType);
+
   if (types.length === 1) {
     return types[0];
   } else if (types.length === 0) {
@@ -271,6 +262,7 @@ WorkerType.prototype.getInstanceType = function (instanceType) {
   } else {
     throw new Error(this.workerType + ' contains duplicate ' + instanceType);
   }
+
   return types[0];
 };
 
@@ -279,9 +271,8 @@ WorkerType.prototype.getInstanceType = function (instanceType) {
  * single property from it.
  */
 WorkerType.prototype.getRegion = function (region) {
-  var regions = this.regions.filter(function (r) {
-    return r.region === region;
-  });
+  let regions = this.regions.filter(r => r.region === region);
+
   if (regions.length === 1) {
     return regions[0];
   } else if (regions.length === 0) {
@@ -289,6 +280,7 @@ WorkerType.prototype.getRegion = function (region) {
   } else {
     throw new Error(this.workerType + ' contains duplicate ' + region);
   }
+
   return regions[0];
 };
 
@@ -344,9 +336,9 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   assert(provisionerBaseUrl, 'must provide provisioner base url');
 
   // Find the region objects, assert if region is not found
-  var regionOverwriteObjects = {};
-  var foundRegion = false;
-  worker.regions.forEach((r) => {
+  let regionOverwriteObjects = {};
+  let foundRegion = false;
+  for (let r of worker.regions) {
     if (r.region === bid.region) {
       // We want to make sure that we've not already found this region
       if (foundRegion) {
@@ -360,13 +352,13 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       // Remember that we need to have an ImageId
       assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
     }
-  });
+  }
   assert(foundRegion, 'Region for workertype not found');
 
   // Find the instanceType overwrites object, assert if type is not found
-  var instanceTypeOverwriteObjects = {};
-  var foundInstanceType = false;
-  worker.instanceTypes.forEach((t) => {
+  let instanceTypeOverwriteObjects = {};
+  let foundInstanceType = false;
+  for (let t of worker.instanceTypes) {
     if (t.instanceType === bid.type) {
       if (foundInstanceType) {
         throw new Error('InstanceType must be unique');
@@ -377,13 +369,13 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       instanceTypeOverwriteObjects.secrets = t.secrets || {};
       instanceTypeOverwriteObjects.scopes = t.scopes || [];
     }
-  });
+  }
   assert(foundInstanceType, 'InstanceType for workertype not found');
 
   // These are keys that are only allowable in the set of type specific
   // launchSpec.  Only keys which are strictly related to instance type
   // should ever be here.
-  var typeSpecificKeys = [
+  let typeSpecificKeys = [
     'InstanceType', // InstanceType decides which instancetype to use...
   ];
 
@@ -391,50 +383,54 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // launchSpec.  Only things which are strictly linked to the region
   // should ever be in this list.
   // TODO: Are kernel ids region specific as well?
-  var regionSpecificKeys = [
+  let regionSpecificKeys = [
     'ImageId', // AMI IDs (ImageId) are created and are different per-region
   ];
   // Check for type specific keys in the general keys and region keys
-  typeSpecificKeys.forEach(function (key) {
+  for (let key of typeSpecificKeys) {
     if (worker.launchSpec[key]) {
       throw new Error(key + ' is type specific, not general');
     }
     if (regionOverwriteObjects.launchSpec[key]) {
       throw new Error(key + ' is type specific, not region');
     }
-  });
+  }
 
   // Check for region specific keys in the general and type keys
-  regionSpecificKeys.forEach(function (key) {
+  for (let key of regionSpecificKeys) {
     if (worker.launchSpec[key]) {
       throw new Error(key + ' is region specific, not general');
     }
     if (instanceTypeOverwriteObjects.launchSpec[key]) {
       throw new Error(key + ' is region specific, not type');
     }
-  });
+  }
 
-  var config = {};
+  let config = {};
 
   // Do the cascading overwrites of the object things
-  ['launchSpec', 'userData', 'secrets'].forEach(x => {
+  for (let x of ['launchSpec', 'userData', 'secrets']) {
     config[x] = lodash.cloneDeep(worker[x] || {});
     lodash.assign(config[x], regionOverwriteObjects[x]);
     lodash.assign(config[x], instanceTypeOverwriteObjects[x]);
-  });
+  }
 
   // Generate the complete list of scopes;
   config.scopes = lodash.cloneDeep(worker.scopes);
-  regionOverwriteObjects.scopes.forEach(scope => {
+
+  // Region specific scopes
+  for (let scope of regionOverwriteObjects.scopes) {
     if (!config.scopes.includes(scope)) {
       config.scopes.push(scope);
     }
-  });
-  instanceTypeOverwriteObjects.scopes.forEach(scope => {
+  }
+
+  // Instance Type specific scopes
+  for (let scope of instanceTypeOverwriteObjects.scopes) {
     if (!config.scopes.includes(scope)) {
       config.scopes.push(scope);
     }
-  });
+  }
 
   // Set the KeyPair, InstanceType and availability zone correctly
   config.launchSpec.KeyName = keyPrefix + worker.workerType;
@@ -454,16 +450,16 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
-  var capacity;
-  worker.instanceTypes.forEach(function (t) {
+  let capacity;
+  for (let t of worker.instanceTypes) {
     if (t.instanceType === bid.type) {
       assert(!capacity, 'instanceTypes must be unique');
       capacity = t.capacity;
     }
-  });
+  }
   assert(capacity, 'must have a capacity');
 
-  var securityToken = slugid.v4();
+  let securityToken = slugid.v4();
 
   config.userData = {
     data: config.userData,
@@ -488,19 +484,19 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // are not listed as required in the api docs, but we
   // are going to say that they are required in our world
   // http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_LaunchSpecification.html
-  var mandatoryKeys = [
+  let mandatoryKeys = [
     'ImageId',
     'InstanceType',
     'KeyName',
   ];
 
   // Now check that we have all the mandatory keys
-  mandatoryKeys.forEach(function (key) {
+  for (let key of mandatoryKeys) {
     assert(config.launchSpec[key], 'Your launch spec must have key ' + key);
-  });
+  }
 
   // These are the additional keys which *might* be specified
-  var allowedKeys = mandatoryKeys.concat([
+  let allowedKeys = mandatoryKeys.concat([
     'SecurityGroups',
     'AddressingType',
     'BlockDeviceMappings',
@@ -516,17 +512,17 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   ]);
 
   // Now check that there are no unknown keys
-  Object.keys(config.launchSpec).forEach(function (key) {
+  for (let key of Object.keys(config.launchSpec)) {
     assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
-  });
+  }
 
   // These are keys which we do not allow in the generated launch spec
-  var disallowedKeys = [
+  let disallowedKeys = [
   ];
 
-  disallowedKeys.forEach(function (key) {
+  for (let key of disallowedKeys) {
     assert(!config.launchSpec[key], 'Your launch spec must not have key ' + key);
-  });
+  }
 
   /**
    * We want to return all of the generated data.  There is a little redundancy here
@@ -552,30 +548,30 @@ WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisi
   assert(keyPrefix);
   assert(provisionerId);
   assert(provisionerBaseUrl);
-  var errors = [];
-  var launchSpecs = {};
-  worker.regions.forEach(function (r) {
-    var region = r.region;
+  let errors = [];
+  let launchSpecs = {};
+  for (let r of worker.regions) {
+    let region = r.region;
     launchSpecs[region] = {};
-    worker.instanceTypes.forEach(function (t) {
-      var type = t.instanceType;
+    for (let t of worker.instanceTypes) {
+      let type = t.instanceType;
       try {
-        var bid = {
+        let bid = {
           price: 1,
           truePrice: 1,
           region: region,
           type: type,
           zone: 'fakezone1',
         };
-        var x = WorkerType.createLaunchSpec(bid, worker, keyPrefix, provisionerId, provisionerBaseUrl);
+        let x = WorkerType.createLaunchSpec(bid, worker, keyPrefix, provisionerId, provisionerBaseUrl);
         launchSpecs[region][type] = x;
       } catch (e) {
         errors.push(e);
       }
-    });
-  });
+    }
+  }
   if (errors.length > 0) {
-    var err = new Error('Launch specifications are invalid');
+    let err = new Error('Launch specifications are invalid');
     err.code = 'InvalidLaunchSpecifications';
     err.reasons = errors;
     throw err;
@@ -606,21 +602,21 @@ WorkerType.prototype.determineCapacityChange = function (runningCapacity, pendin
 
   // scalingRatio = 0.2   => keep pending tasks as 20% of runningCapacity
   // scalingRatio = 0     => keep pending tasks as  0% of runningCapacity
-  var desiredPending = Math.round(this.scalingRatio * runningCapacity);
+  let desiredPending = Math.round(this.scalingRatio * runningCapacity);
 
   // desiredPending < pending - pendingCapacity    =>   Create spot requests
   //                                        , otherwise Cancel spot requests
-  var capacityChange = pending - pendingCapacity - desiredPending;
+  let capacityChange = pending - pendingCapacity - desiredPending;
 
   // capacityChange > 0  => Create spot requests for capacityChange
   // capacityChange < 0  => cancel spot requests for capacityChange
-  var capacityAfterChange = capacityChange + pendingCapacity + runningCapacity;
+  let capacityAfterChange = capacityChange + pendingCapacity + runningCapacity;
 
   debug('%s: capacity change is %d, which will result in capacity %d',
         this.workerType, capacityChange, capacityAfterChange);
 
   // Ensure we are within limits
-  var newCapacityChange;
+  let newCapacityChange;
   if (capacityAfterChange >= this.maxCapacity) {
     // If there is more than max capacity we should always aim for maxCapacity
     newCapacityChange = this.maxCapacity - runningCapacity - pendingCapacity;
@@ -662,26 +658,26 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
   assert(pricing);
   assert(change);
   assert(typeof change === 'number');
-  var that = this;
+  let that = this;
 
-  var spotBids = [];
+  let spotBids = [];
 
-  var pricingData = pricing.maxPrices();
+  let pricingData = pricing.maxPrices();
 
   /* eslint-disable no-loop-func */
   while (change > 0) {
-    var cheapestType;
-    var cheapestRegion;
-    var cheapestZone;
-    var cheapestPrice;
-    var cheapestBid;
+    let cheapestType;
+    let cheapestRegion;
+    let cheapestZone;
+    let cheapestPrice;
+    let cheapestBid;
 
     // Utility Factors, by instance type
-    var uf = {};
+    let uf = {};
 
     // Create a utility factor mapping between ec2 instance type
     // name and the numeric utility factor for easier access
-    var types = this.instanceTypes.map(function (t) {
+    let types = this.instanceTypes.map(t => {
       uf[t.instanceType] = that.utilityOfType(t.instanceType);
       return t.instanceType;
     });
@@ -689,30 +685,53 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
     // Create a list of regions which is the subset of the regions
     // which this worker type is configured for and that the
     // provisioner is configured for
-    var regions = that.regions.filter(function (r) {
-      return managedRegions.includes(r.region);
-    }).map(function (r) {
-      return r.region;
-    });
+    let regions = that.regions
+        .filter(r => managedRegions.includes(r.region))
+        .map(r => r.region);
 
     // Instead of interleaving debug() calls, let's instead join all of these
     // into one single debug call
-    var priceDebugLog = [];
+    let priceDebugLog = [];
 
-    regions.forEach(function (region) {
-      types.forEach(function (type) {
+    for (let region of regions) {
+      for (let type of types) {
+        let zones = [];
         if (pricingData[region] && pricingData[region][type]) {
-          var zones = Object.keys(pricingData[region][type]);
-        } else {
-          zones = [];
+          zones = Object.keys(pricingData[region][type]);
         }
-        zones.forEach(function (zone) {
+        for (let zone of zones) {
           try {
-            var potentialBid = pricingData[region][type][zone];
+            let potentialBid = pricingData[region][type][zone];
+            let potentialPrice = potentialBid / uf[type];
+            if (!cheapestPrice) {
+              // If we don't already have a cheapest price, that means we
+              // should just take the first one we see
+              priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
+                    that.workerType, region, zone, type, potentialPrice, potentialBid));
+              cheapestPrice = potentialPrice;
+              cheapestRegion = region;
+              cheapestType = type;
+              cheapestZone = zone;
+              cheapestBid = potentialBid;
+            } else if (potentialPrice < cheapestPrice) {
+              // If we find that we have a cheaper option, let's switch to it
+              priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
+                    that.workerType,
+                    cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
+                    region, zone, type, potentialPrice, potentialBid));
+              cheapestPrice = potentialPrice;
+              cheapestRegion = region;
+              cheapestType = type;
+              cheapestZone = zone;
+              cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+            } else {
+              // If this option is not first and not cheapest, we'll
+              // ignore it but tell the logs that we did
+              priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
+                    that.workerType,
+                    region, zone, type, potentialPrice, potentialBid));
+            }
           } catch(err) {
-            console.dir(regions);
-            console.dir(zones);
-            console.dir(types);
             console.log(err);
             console.dir(pricingData);
             if (err.stack) {
@@ -720,42 +739,12 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
             }
             throw err;
           }
-          var potentialPrice = potentialBid / uf[type];
-
-          if (!cheapestPrice) {
-            // If we don't already have a cheapest price, that means we
-            // should just take the first one we see
-            priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
-                  that.workerType, region, zone, type, potentialPrice, potentialBid));
-            cheapestPrice = potentialPrice;
-            cheapestRegion = region;
-            cheapestType = type;
-            cheapestZone = zone;
-            cheapestBid = potentialBid;
-          } else if (potentialPrice < cheapestPrice) {
-            // If we find that we have a cheaper option, let's switch to it
-            priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
-                  that.workerType,
-                  cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
-                  region, zone, type, potentialPrice, potentialBid));
-            cheapestPrice = potentialPrice;
-            cheapestRegion = region;
-            cheapestType = type;
-            cheapestZone = zone;
-            cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
-          } else {
-            // If this option is not first and not cheapest, we'll
-            // ignore it but tell the logs that we did
-            priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
-                  that.workerType,
-                  region, zone, type, potentialPrice, potentialBid));
-          }
-        });
-      });
-    });
+        }
+      }
+    }
 
     if (cheapestPrice < that.minPrice) {
-      var oldCheapestBid = cheapestBid;
+      let oldCheapestBid = cheapestBid;
       cheapestBid = Math.ceil(that.minPrice / uf[cheapestType] * 1000000) / 1000000;
       priceDebugLog.push(util.format('%s price was too low %d --> %d',
             this.workerType, oldCheapestBid, cheapestBid));
