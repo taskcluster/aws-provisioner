@@ -147,6 +147,7 @@ Provisioner.prototype.run = async function () {
       // And delay for the next one so we don't overwhelm EC2
       await d();
     } while (this.__keepRunning && !process.env.PROVISION_ONCE);
+    this.__watchDog.stop();
   } catch (err) {
     exitTimer(MAX_KILL_TIME);
     throw err;

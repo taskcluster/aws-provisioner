@@ -68,9 +68,7 @@ module.exports = AwsManager;
  * Update the state from the AWS API and return a promise
  * with no resolution value when completed.
  */
-AwsManager.prototype.update = function () {
-  var that = this;
-
+AwsManager.prototype.update = async function () {
   // We fetch the living instance and spot requests separate from the dead ones
   // to make things a little easier to work with as there's really very little
   // in the provisioner which requires info on dead instances and spot requests
@@ -78,12 +76,12 @@ AwsManager.prototype.update = function () {
   // The choice in which bucket each instance or request should belong in comes
   // down to whether or not the resource is awaiting or currently working or
   // needs to be tidied up after
-  var p = Promise.all([
-    that.ec2.describeInstances({
+  var res = await Promise.all([
+    this.ec2.describeInstances({
       Filters: [
         {
           Name: 'key-name',
-          Values: [that.keyPrefix + '*'],
+          Values: [this.keyPrefix + '*'],
         },
         {
           Name: 'instance-state-name',
@@ -91,22 +89,22 @@ AwsManager.prototype.update = function () {
         },
       ],
     }),
-    that.ec2.describeSpotInstanceRequests({
+    this.ec2.describeSpotInstanceRequests({
       Filters: [
         {
           Name: 'launch.key-name',
-          Values: [that.keyPrefix + '*'],
+          Values: [this.keyPrefix + '*'],
         }, {
           Name: 'state',
           Values: ['open'],
         },
       ],
     }),
-    that.ec2.describeInstances({
+    this.ec2.describeInstances({
       Filters: [
         {
           Name: 'key-name',
-          Values: [that.keyPrefix + '*'],
+          Values: [this.keyPrefix + '*'],
         },
         {
           Name: 'instance-state-name',
@@ -114,11 +112,11 @@ AwsManager.prototype.update = function () {
         },
       ],
     }),
-    that.ec2.describeSpotInstanceRequests({
+    this.ec2.describeSpotInstanceRequests({
       Filters: [
         {
           Name: 'launch.key-name',
-          Values: [that.keyPrefix + '*'],
+          Values: [this.keyPrefix + '*'],
         }, {
           Name: 'state',
           Values: ['cancelled', 'failed', 'closed', 'active'],
@@ -127,60 +125,46 @@ AwsManager.prototype.update = function () {
     }),
   ]);
 
-  p = p.then(function (res) {
-    var livingInstances = res[0];
-    var livingSpotRequests = res[1];
-    var deadInstances = res[2];
-    var deadSpotRequests = {};
+  var livingInstances = res[0];
+  var livingSpotRequests = res[1];
+  var deadInstances = res[2];
+  var deadSpotRequests = {};
 
-    // NOTE: Dead spot request does not mean that the spot request failed,
-    //       just that it's no longer an open spot request...
+  // NOTE: Dead spot request does not mean that the spot request failed,
+  //       just that it's no longer an open spot request...
 
-    // TODO: Probably better to do a single set of describe calls and bucket
-    //       them in this section... hmm, no strong feelings until data
+  // TODO: Probably better to do a single set of describe calls and bucket
+  //       them in this section... hmm, no strong feelings until data
 
-    // Because we don't filter the spot requests, we'll need to make sure that
-    // we remove the SpotInstanceRequests per-region response so that
-    // that._classify() knows how to interpret the data
-    Object.keys(res[3]).forEach(function (region) {
-      deadSpotRequests[region] = res[3][region].SpotInstanceRequests;
-    });
-
-    // We don't currently handle this case because it seems to be deprecated in
-    // the docs.  We should be alerted if it begins to be used again
-    if (livingInstances.NextToken && livingInstances.NextToken !== '') {
-      console.log('[alert-operator] WARNING!  We have a ' +
-          'DescribeInstances NextToken and arent using it!!!');
-    }
-    var filteredSpotRequests = that._filterSpotRequests(livingSpotRequests);
-
-    // We store the last iteration's state
-    that.__previousApiState = that.__apiState;
-    that.__apiState = that._classify(livingInstances, filteredSpotRequests.good);
-    that.__deadState = that._classify(deadInstances, deadSpotRequests);
-
-    // remove this try/catch once this has been live for a while
-    try {
-      var stateDifferences = that._compareStates(that.__apiState, that.__previousApiState, that.__deadState);
-      that._reconcileStateDifferences(stateDifferences, that.__deadState, that.__apiState);
-    } catch(err) {
-      console.log('[alert-operator] failure in computing differences');
-      console.log(err);
-      if (err.stack) {
-        console.log(err.stack);
-      }
-    }
-
-    return that.handleStalledRequests(filteredSpotRequests.stalled);
+  // Because we don't filter the spot requests, we'll need to make sure that
+  // we remove the SpotInstanceRequests per-region response so that
+  // this._classify() knows how to interpret the data
+  Object.keys(res[3]).forEach(region => {
+    deadSpotRequests[region] = res[3][region].SpotInstanceRequests;
   });
 
-  p = p.then(function () {
-    // We want to make sure that our internal state is always up to date when
-    // we fetch the updated state
-    that._reconcileInternalState();
-  });
+  // We don't currently handle this case because it seems to be deprecated in
+  // the docs.  We should be alerted if it begins to be used again
+  if (livingInstances.NextToken && livingInstances.NextToken !== '') {
+    debug('[alert-operator] WARNING!  We have a ' +
+        'DescribeInstances NextToken and arent using it!!!');
+  }
+  var filteredSpotRequests = this._filterSpotRequests(livingSpotRequests);
 
-  return p;
+  // We store the last iteration's state
+  this.__previousApiState = this.__apiState;
+  this.__apiState = this._classify(livingInstances, filteredSpotRequests.good);
+  this.__deadState = this._classify(deadInstances, deadSpotRequests);
+
+  // remove this try/catch once this has been live for a while
+  var stateDifferences = this._compareStates(this.__apiState, this.__previousApiState, this.__deadState);
+  this._reconcileStateDifferences(stateDifferences, this.__deadState, this.__apiState);
+
+  await this.handleStalledRequests(filteredSpotRequests.stalled);
+
+  // We want to make sure that our internal state is always up to date when
+  // we fetch the updated state
+  this._reconcileInternalState();
 };
 
 /**
@@ -189,10 +173,9 @@ AwsManager.prototype.update = function () {
  * state about which type/region/zone combinations are not working well right
  * now
  */
-AwsManager.prototype.handleStalledRequests = function (spotReqs) {
-  var that = this;
-  return Promise.all(Object.keys(spotReqs).map(function (region) {
-    return that.killCancel(region, [], spotReqs[region].map(function (sr) {
+AwsManager.prototype.handleStalledRequests = async function (spotReqs) {
+  await Promise.all(Object.keys(spotReqs).map(region => {
+    return this.killCancel(region, [], spotReqs[region].map(sr => {
       debug('killing stalled spot request ' + sr.SpotInstanceRequestId);
       return sr.SpotInstanceRequestId;
     }));
@@ -207,7 +190,6 @@ AwsManager.prototype.handleStalledRequests = function (spotReqs) {
  * into these buckets.
  */
 AwsManager.prototype._filterSpotRequests = function (spotReqs) {
-  var that = this;
   var data = {
     good: {},
     stalled: {},
@@ -215,11 +197,11 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
 
   var now = new Date();
 
-  Object.keys(spotReqs).forEach(function (region) {
+  Object.keys(spotReqs).forEach(region => {
     data.good[region] = [];
     data.stalled[region] = [];
 
-    spotReqs[region].SpotInstanceRequests.forEach(function (sr) {
+    spotReqs[region].SpotInstanceRequests.forEach(sr => {
       // These are states which have a state of 'open' but which
       // are likely not to be fulfilled expeditiously
       var stalledStates = [
@@ -246,7 +228,7 @@ AwsManager.prototype._filterSpotRequests = function (spotReqs) {
       // We've found a spot price floor
       if (sr.Status.Code === 'price-too-low') {
         debug('found a canceled spot request, submitting pricing floor');
-        that.reportSpotPriceFloorFound({
+        this.reportSpotPriceFloorFound({
           region: region,
           az: sr.LaunchSpecification.Placement.AvailabilityZone,
           instanceType: sr.LaunchSpecification.InstanceType,
@@ -290,25 +272,17 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
 
   // to make comparison of states easier, we create a list of all the ids of
   // both spot requests and instances in each of the two compared states
-  var allInstancesInPreviousState = previousState.instances.map(function (instance) {
-    return instance.InstanceId;
-  });
-  var allRequestsInPreviousState = previousState.requests.map(function (request) {
-    return request.SpotInstanceRequestId;
-  });
-  var allInstancesInNewState = newState.instances.map(function (instance) {
-    return instance.InstanceId;
-  });
-  var allRequestsInNewState = newState.requests.map(function (request) {
-    return request.SpotInstanceRequestId;
-  });
+  var allInstancesInPreviousState = previousState.instances.map(i => i.InstanceId);
+  var allRequestsInPreviousState = previousState.requests.map(r => r.SpotInstanceRequestId);
+  var allInstancesInNewState = newState.instances.map(i => i.InstanceId);
+  var allRequestsInNewState = newState.requests.map(r => r.SpotInstanceRequestId);
 
   // find all the instances and request ids which were in the previous state
   // but not in the new state
-  missingIds.instances = allInstancesInPreviousState.filter(function (id) {
+  missingIds.instances = allInstancesInPreviousState.filter(id => {
     return !allInstancesInNewState.includes(id);
   });
-  missingIds.requests = allRequestsInPreviousState.filter(function (id) {
+  missingIds.requests = allRequestsInPreviousState.filter(id => {
     return !allRequestsInNewState.includes(id);
   });
 
@@ -317,10 +291,10 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
   // the problem of getting the stale state info in the later methods which
   // need information about why the state change occured
   return {
-    instances: deadState.instances.filter(function (instance) {
+    instances: deadState.instances.filter(instance => {
       return missingIds.instances.includes(instance.InstanceId);
     }),
-    requests: deadState.requests.filter(function (request) {
+    requests: deadState.requests.filter(request => {
       return missingIds.requests.includes(request.SpotInstanceRequestId);
     }),
   };
@@ -335,16 +309,15 @@ AwsManager.prototype._compareStates = function (newState, previousState, deadSta
  * This is how we ensure that we don't look the same spot request twice.
  */
 AwsManager.prototype._reconcileStateDifferences = function (differences, deadState, apiState) {
-  var that = this;
   assert(differences);
   assert(deadState);
   assert(apiState);
 
-  function plotSpotFulfilment (request) {
+  var plotSpotFulfilment = (request) => {
     // Once we go from open -> active with a status of fulfilled we can log this
     // spot request as successfully fulfilled.  This does not imply that
-    that.reportSpotRequestsFulfilled({
-      provisionerId: that.provisionerId,
+    this.reportSpotRequestsFulfilled({
+      provisionerId: this.provisionerId,
       region: request.Region,
       az: request.LaunchSpecification.Placement.AvailabilityZone,
       instanceType: request.LaunchSpecification.InstanceType,
@@ -354,20 +327,20 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
       time: dateForInflux(request.Status.UpdateTime),
     });
     debug('spot request %j fulfilled!', request);
-  }
+  };
 
   // We want to figure out what happened to each of the spot requests which are
   // no longer showing up as pending.  These can either be fulfilled or
   // rejected.  FOr those which are fulfilled we want to create a data point
   // which will let us trend how long spot request fulfilment takes.  For those
   // which fail we want stats on why they failed so we can later analyze this
-  differences.requests.forEach(function (request) {
+  differences.requests.forEach(request => {
     if (request.State === 'active' && request.Status.Code === 'fulfilled') {
       plotSpotFulfilment(request);
     } else if (request.State === 'open') {
       // Here we have those spot requests which are no longer unfulfilled but
       // do not have an api state which reflects that
-      that.__awaitingSpotFulfilmentStatus.push({
+      this.__awaitingSpotFulfilmentStatus.push({
         id: request.SpotInstanceRequestId,
         time: new Date(),
         iterationCount: 0,
@@ -377,8 +350,8 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
       // of bid amount here in their own special series for use in trying to
       // figure out what to bid.  We could use refused spot bids as a lower
       // limit for bids
-      that.reportSpotRequestsDied({
-        provisionerId: that.provisionerId,
+      this.reportSpotRequestsDied({
+        provisionerId: this.provisionerId,
         region: request.Region,
         az: request.LaunchSpecification.Placement.AvailabilityZone,
         instanceType: request.LaunchSpecification.InstanceType,
@@ -394,10 +367,10 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
     }
   });
 
-  this.__awaitingSpotFulfilmentStatus = this.__awaitingSpotFulfilmentStatus.filter(function (requestAwaiting) {
+  this.__awaitingSpotFulfilmentStatus = this.__awaitingSpotFulfilmentStatus.filter(requestAwaiting => {
     var keepInTheList = true;
 
-    deadState.requests.forEach(function (requestMightHave) {
+    deadState.requests.forEach(requestMightHave => {
       if (requestMightHave.SpotInstanceRequestId === requestAwaiting) {
         if (requestMightHave.State === 'active' && requestMightHave.Status.Code === 'fulfilled') {
           plotSpotFulfilment(requestMightHave);
@@ -426,10 +399,10 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
     http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_StateReason.html
   */
 
-  function plotInstanceDeath (instance, time) {
+  var plotInstanceDeath = (instance, time) => {
     // Let's track when the instance is shut down
-    that.reportInstanceTerminated({
-      provisionerId: that.provisionerId,
+    this.reportInstanceTerminated({
+      provisionerId: this.provisionerId,
       region: instance.Region,
       az: instance.Placement.AvailabilityZone,
       instanceType: instance.InstanceType,
@@ -449,20 +422,20 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
       // Let's figure out what we set the price to;
       var price;
 
-      deadState.requests.forEach(function (request) {
+      deadState.requests.forEach(request => {
         if (!price && request.SpotInstanceRequestId === instance.SpotInstanceRequestId) {
           price = parseFloat(request.SpotPrice, 10);
         }
       });
 
-      apiState.requests.forEach(function (request) {
+      apiState.requests.forEach(request => {
         if (!price && request.SpotInstanceRequestId === instance.SpotInstanceRequestId) {
           price = parseFloat(request.SpotPrice, 10);
         }
       });
 
       if (price) {
-        that.reportSpotPriceFloorFound({
+        this.reportSpotPriceFloorFound({
           region: instance.Region,
           az: instance.Placement.AvailabilityZone,
           instanceType: instance.InstanceType,
@@ -474,18 +447,18 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
         debug('Could not find a price for a spot-price killed instance');
       }
     }
-  }
+  };
 
   // Let's handle instance which already have a state reason, or
   // save them for a future iteration if not
-  differences.instances.forEach(function (instance) {
+  differences.instances.forEach(instance => {
     // Using StateReason instead of StateTransitionReason
     if (instance.StateReason && instance.StateReason.Code) {
       debug('found a terminated instance which has a termination reason');
       plotInstanceDeath(instance, new Date().toISOString());
     } else {
       debug('found a terminated instance which awaits a termination reason');
-      that.__awaitingStateReason.push({
+      this.__awaitingStateReason.push({
         id: instance.InstanceId,
         time: new Date().toISOString(),
         iterationCount: 0,
@@ -494,9 +467,9 @@ AwsManager.prototype._reconcileStateDifferences = function (differences, deadSta
   });
 
   // Now, let's try to account for those instance which are awaiting a state reason
-  this.__awaitingStateReason = this.__awaitingStateReason.filter(function (instanceAwaiting) {
+  this.__awaitingStateReason = this.__awaitingStateReason.filter(instanceAwaiting => {
     var keepItInTheList = true;
-    deadState.instances.forEach(function (instanceMightHave) {
+    deadState.instances.forEach(instanceMightHave => {
       if (instanceMightHave.InstanceId === instanceAwaiting.id) {
         if (instanceMightHave.StateReason && instanceMightHave.StateReason.Code) {
           keepItInTheList = false;
@@ -564,8 +537,6 @@ AwsManager.prototype.filters = {
  * feature right now.
  */
 AwsManager.prototype._classify = function (instanceState, spotReqs) {
-  var that = this;
-
   /* In the new world, we're just going to store a pair of lists.
      One list for all intances regardless of region or state and
      one list for all spot requests regardless of region or state.
@@ -576,11 +547,11 @@ AwsManager.prototype._classify = function (instanceState, spotReqs) {
     requests: [],
   };
 
-  that.ec2.regions.forEach(function (region) {
-    instanceState[region].Reservations.forEach(function (reservation) {
-      reservation.Instances.forEach(function (instance) {
-        var workerType = instance.KeyName.substr(that.keyPrefix.length);
-        // XXX var filtered = objFilter(instance, that.filters.instance);
+  this.ec2.regions.forEach(region => {
+    instanceState[region].Reservations.forEach(reservation => {
+      reservation.Instances.forEach(instance => {
+        var workerType = instance.KeyName.substr(this.keyPrefix.length);
+        // XXX var filtered = objFilter(instance, this.filters.instance);
         var filtered = instance;
         filtered.Region = region;
         filtered.WorkerType = workerType;
@@ -588,9 +559,9 @@ AwsManager.prototype._classify = function (instanceState, spotReqs) {
       });
     });
 
-    spotReqs[region].forEach(function (request) {
-      var workerType = request.LaunchSpecification.KeyName.substr(that.keyPrefix.length);
-      // XXX var filtered = objFilter(request, that.filters.spotReq);
+    spotReqs[region].forEach(request => {
+      var workerType = request.LaunchSpecification.KeyName.substr(this.keyPrefix.length);
+      // XXX var filtered = objFilter(request, this.filters.spotReq);
       var filtered = request;
       filtered.Region = region;
       filtered.WorkerType = workerType;
@@ -607,7 +578,7 @@ AwsManager.prototype.instancesInRegion = function (region) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.instances.filter(function (instance) {
+  return this.__apiState.instances.filter(instance => {
     return region.includes(instance.Region);
   });
 };
@@ -617,7 +588,7 @@ AwsManager.prototype.requestsInRegion = function (region) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.requests.filter(function (request) {
+  return this.__apiState.requests.filter(request => {
     return region.includes(request.Region);
   });
 };
@@ -627,7 +598,7 @@ AwsManager.prototype.instancesOfType = function (workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
-  return this.__apiState.instances.filter(function (instance) {
+  return this.__apiState.instances.filter(instance => {
     return workerType.includes(instance.WorkerType);
   });
 };
@@ -637,7 +608,7 @@ AwsManager.prototype.requestsOfType = function (workerType) {
   if (typeof workerType === 'string') {
     workerType = [workerType];
   }
-  return this.__apiState.requests.filter(function (request) {
+  return this.__apiState.requests.filter(request => {
     return workerType.includes(request.WorkerType);
   });
 };
@@ -649,7 +620,7 @@ AwsManager.prototype.instancesOfTypeInRegion = function (region, workerType) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.instances.filter(function (instance) {
+  return this.__apiState.instances.filter(instance => {
     return region.includes(instance.Region) && workerType.includes(instance.WorkerType);
   });
 
@@ -662,7 +633,7 @@ AwsManager.prototype.requestsOfTypeInRegion = function (region, workerType) {
   if (typeof region === 'string') {
     region = [region];
   }
-  return this.__apiState.requests.filter(function (request) {
+  return this.__apiState.requests.filter(request => {
     return region.includes(request.Region) && workerType.includes(request.WorkerType);
   });
 
@@ -674,19 +645,19 @@ AwsManager.prototype.requestsOfTypeInRegion = function (region, workerType) {
 AwsManager.prototype.knownWorkerTypes = function () {
   var workerTypes = [];
 
-  this.__apiState.instances.forEach(function (instance) {
+  this.__apiState.instances.forEach(instance => {
     if (!workerTypes.includes(instance.WorkerType)) {
       workerTypes.push(instance.WorkerType);
     }
   });
 
-  this.__apiState.requests.forEach(function (request) {
+  this.__apiState.requests.forEach(request => {
     if (!workerTypes.includes(request.WorkerType)) {
       workerTypes.push(request.WorkerType);
     }
   });
 
-  this.__internalState.forEach(function (sr) {
+  this.__internalState.forEach(sr => {
     if (!workerTypes.includes(sr.request.WorkerType)) {
       workerTypes.push(sr.request.WorkerType);
     }
@@ -712,7 +683,7 @@ AwsManager.prototype.capacityForType = function (workerType, states) {
   var instances = this.instancesOfType(workerType.workerType);
   var requests = this.requestsOfType(workerType.workerType);
 
-  instances.forEach(function (instance) {
+  instances.forEach(instance => {
     if (states.includes(instance.State.Name)) {
       try {
         capacity += workerType.capacityOfType(instance.InstanceType);
@@ -722,7 +693,7 @@ AwsManager.prototype.capacityForType = function (workerType, states) {
     }
   });
 
-  requests.forEach(function (request) {
+  requests.forEach(request => {
     if (states.includes('spotReq')) {
       try {
         capacity += workerType.capacityOfType(request.InstanceType);
@@ -732,7 +703,7 @@ AwsManager.prototype.capacityForType = function (workerType, states) {
     }
   });
 
-  this.__internalState.forEach(function (sr) {
+  this.__internalState.forEach(sr => {
     if (states.includes('spotReq')) {
       try {
         capacity += workerType.capacityOfType(sr.request.InstanceType);
@@ -753,26 +724,24 @@ AwsManager.prototype.capacityForType = function (workerType, states) {
  * the provisioner internally
  */
 AwsManager.prototype.ensureTags = function () {
-  var that = this;
-
-  function missingTags (obj) {
+  var missingTags = (obj) => {
     var hasTag = false;
     if (obj.Tags) {
-      obj.Tags.forEach(function (tag) {
-        if (tag.Key === 'Owner' && tag.Value === that.provisionerId) {
+      obj.Tags.forEach(tag => {
+        if (tag.Key === 'Owner' && tag.Value === this.provisionerId) {
           hasTag = true;
         }
       });
     }
     return !hasTag;
-  }
+  };
 
   var instanceWithoutTags = this.__apiState.instances.filter(missingTags);
   var requestsWithoutTags = this.__apiState.requests.filter(missingTags);
 
   var tags = {};
 
-  function x (y, id) {
+  var x = (y, id) => {
     if (!tags[y.Region]) {
       tags[y.Region] = {};
     }
@@ -781,39 +750,35 @@ AwsManager.prototype.ensureTags = function () {
       tags[y.Region][y.WorkerType] = {
         data: [
           {Key: 'Name', Value: y.WorkerType},
-          {Key: 'Owner', Value: that.provisionerId},
-          {Key: 'WorkerType', Value: that.provisionerId + '/' + y.WorkerType},
+          {Key: 'Owner', Value: this.provisionerId},
+          {Key: 'WorkerType', Value: this.provisionerId + '/' + y.WorkerType},
         ],
         ids: [id],
       };
     } else {
       tags[y.Region][y.WorkerType].ids.push(id);
     }
-  }
+  };
 
-  instanceWithoutTags.forEach(function (inst) {
-    x(inst, inst.InstanceId);
-  });
+  instanceWithoutTags.forEach(i => x(i, i.InstanceId));
 
-  requestsWithoutTags.forEach(function (req) {
-    x(req, req.SpotInstanceRequestId);
-  });
+  requestsWithoutTags.forEach(r => x(r, r.SpotInstanceRequestId));
 
   var createTags = [];
 
-  Object.keys(tags).forEach(function (region) {
-    Object.keys(tags[region]).forEach(function (workerType) {
-      var p = that.ec2.createTags.inRegion(region, {
+  Object.keys(tags).forEach(region => {
+    Object.keys(tags[region]).forEach(workerType => {
+      var p = this.ec2.createTags.inRegion(region, {
         Tags: tags[region][workerType].data,
         Resources: tags[region][workerType].ids,
       });
 
-      p = p.then(function () {
+      p = p.then(() => {
         debug('tagged %s/%s: %j', region, workerType, tags[region][workerType].ids);
       });
 
       // Creating a tag is on best effort basis
-      p = p.catch(function (err) {
+      p = p.catch(err => {
         debug('Failed to tag %s/%s: %j', region, workerType, tags[region][workerType].ids);
         debug(err);
         if (err.stack) {
@@ -835,13 +800,11 @@ AwsManager.prototype.ensureTags = function () {
 AwsManager.prototype.knownSpotInstanceRequestIds = function () {
   // We need to know all the SpotInstanceRequestIds which are known
   // to aws state.  This is mostly just the id from the requests
-  var allKnownSrIds = this.__apiState.requests.map(function (request) {
-    return request.SpotInstanceRequestId;
-  });
+  var allKnownSrIds = this.__apiState.requests.map(r => r.SpotInstanceRequestId);
 
   // We also want to make sure that the Spot Request isn't in any
   // instance's object
-  this.__apiState.instances.forEach(function (instance) {
+  this.__apiState.instances.forEach(instance => {
     var sird = instance.SpotInstanceRequestId;
     if (sird && !allKnownSrIds.includes(sird)) {
       allKnownSrIds.push(sird);
@@ -868,7 +831,7 @@ AwsManager.prototype._trackNewSpotRequest = function (sr) {
   var allKnownSrIds = this.knownSpotInstanceRequestIds();
 
   if (!allKnownSrIds.includes(sr.request.SpotInstanceRequestId)) {
-    // XXX var filtered = objFilter(sr.request, that.filters.spotReq);
+    // XXX var filtered = objFilter(sr.request, this.filters.spotReq);
     var filtered = sr.request;
     sr.request = filtered;
     sr.request.Region = sr.bid.region;
@@ -888,14 +851,13 @@ AwsManager.prototype._reconcileInternalState = function () {
   // Remove the SRs which AWS now tracks from internal state
 
   // TODO: This stuff is broken right now
-  var that = this;
   var now = new Date();
 
   // We need to know all the SpotInstanceRequestIds which are known
   // to aws state.  This is mostly just the id from the requests
   var allKnownSrIds = this.knownSpotInstanceRequestIds();
 
-  this.__internalState = this.__internalState.filter(function (request) {
+  this.__internalState = this.__internalState.filter(request => {
     // We want to print out some info!
     if (allKnownSrIds.includes(request.request.SpotInstanceRequestId)) {
       // Now that it's shown up, we'll remove it from the internal state
@@ -904,8 +866,8 @@ AwsManager.prototype._reconcileInternalState = function () {
             request.request.LaunchSpecification.Placement.AvailabilityZone,
             request.request.LaunchSpecification.InstanceType,
             (now - request.submitted) / 1000);
-      that.reportEc2ApiLag({
-        provisionerId: that.provisionerId,
+      this.reportEc2ApiLag({
+        provisionerId: this.provisionerId,
         region: request.request.Region,
         az: request.request.LaunchSpecification.Placement.AvailabilityZone,
         instanceType: request.request.LaunchSpecification.InstanceType,
@@ -926,8 +888,8 @@ AwsManager.prototype._reconcileInternalState = function () {
       // forever, which could bog down the system
 
       if (now - request.submitted >= 15 * 60 * 1000) {
-        that.reportEc2ApiLag({
-          provisionerId: that.provisionerId,
+        this.reportEc2ApiLag({
+          provisionerId: this.provisionerId,
           region: request.request.Region,
           az: request.request.LaunchSpecification.Placement.AvailabilityZone,
           instanceType: request.request.LaunchSpecification.InstanceType,
@@ -950,65 +912,54 @@ AwsManager.prototype._reconcileInternalState = function () {
  * in the EC2 API.  This makes sure that we don't ignroe spot requests
  * that we've made but not yet seen.  This avoids run-away provisioning
  */
-AwsManager.prototype.requestSpotInstance = function (launchInfo, bid) {
-  var that = this;
+AwsManager.prototype.requestSpotInstance = async function (launchInfo, bid) {
   assert(bid, 'Must specify a spot bid');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
 
   assert(this.ec2.regions.includes(bid.region));
 
-  var p = this.ec2.requestSpotInstances.inRegion(bid.region, {
+  var spotRequest = await this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
     Type: 'one-time',
     LaunchSpecification: launchInfo.launchSpec,
     SpotPrice: bid.price.toString(),
   });
 
-  p = p.then(function (spotRequest) {
-    // We only do InstanceCount == 1, so we'll hard code only caring about the first sir
-    return spotRequest.SpotInstanceRequests[0];
+  var spotReq = spotRequest.SpotInstanceRequests[0];
+
+  debug('submitted spot request %s for $%d for %s in %s/%s for %s',
+    spotReq.SpotInstanceRequestId, bid.price, launchInfo.workerType, bid.region, bid.zone, bid.type);
+  debug('Used this userdata: %j', launchInfo.userData);
+
+  var info = {
+    workerType: launchInfo.workerType,
+    request: spotReq,
+    bid: bid,
+    submitted: new Date(),
+  };
+
+  this.reportSpotRequestsSubmitted({
+    provisionerId: this.provisionerId,
+    region: info.bid.region,
+    az: info.bid.zone,
+    instanceType: info.bid.type,
+    workerType: info.workerType,
+    id: info.request.SpotInstanceRequestId,
+    bid: bid.price,
+    price: bid.truePrice,  // ugh, naming!
   });
 
-  p = p.then(function (spotReq) {
-    debug('submitted spot request %s for $%d for %s in %s/%s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, launchInfo.workerType, bid.region, bid.zone, bid.type);
-    debug('Used this userdata: %j', launchInfo.userData);
-
-    var info = {
-      workerType: launchInfo.workerType,
-      request: spotReq,
-      bid: bid,
-      submitted: new Date(),
-    };
-
-    return info;
+  this.reportAmiUsage({
+    provisionerId: this.provisionerId,
+    ami: launchInfo.launchSpec.ImageId,
+    region: info.bid.region,
+    az: info.bid.zone,
+    instanceType: info.bid.type,
+    workerType: info.workerType,
   });
 
-  p = p.then(function (info) {
-    that.reportSpotRequestsSubmitted({
-      provisionerId: that.provisionerId,
-      region: info.bid.region,
-      az: info.bid.zone,
-      instanceType: info.bid.type,
-      workerType: info.workerType,
-      id: info.request.SpotInstanceRequestId,
-      bid: bid.price,
-      price: bid.truePrice,  // ugh, naming!
-    });
-
-    that.reportAmiUsage({
-      provisionerId: that.provisionerId,
-      ami: launchInfo.launchSpec.ImageId,
-      region: info.bid.region,
-      az: info.bid.zone,
-      instanceType: info.bid.type,
-      workerType: info.workerType,
-    });
-
-    that._trackNewSpotRequest(info);
-  });
-
-  return p;
+  this._trackNewSpotRequest(info);
+  return info;
 };
 
 /**
@@ -1026,19 +977,18 @@ AwsManager.prototype.requestSpotInstance = function (launchInfo, bid) {
  * that we'll end up having to track which regions the workerName
  * is enabled in.
  */
-AwsManager.prototype.createKeyPair = function (workerName) {
+AwsManager.prototype.createKeyPair = async function (workerName) {
   assert(workerName);
-  var that = this;
   var keyName = this.keyPrefix + workerName;
 
   if (this.__knownKeyPairs.includes(workerName)) {
     // Short circuit checking for a key but return
     // a promise so this cache is invisible to the
     // calling function from a non-cached instance
-    return Promise.resolve();
+    return;
   }
 
-  var p = this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
+  var res = await this.ec2.describeKeyPairs.inRegions(this.ec2.regions, {
     Filters: [
       {
         Name: 'key-name',
@@ -1047,27 +997,21 @@ AwsManager.prototype.createKeyPair = function (workerName) {
     ],
   });
 
-  p = p.then(function (res) {
-    var toCreate = [];
+  var toCreate = [];
 
-    that.ec2.regions.forEach(function (region) {
-      var matchingKey = res[region].KeyPairs[0];
-      if (!matchingKey) {
-        debug('creating missing key %s in %s', keyName, region);
-        toCreate.push(that.ec2.importKeyPair.inRegion(region, {
-          KeyName: keyName,
-          PublicKeyMaterial: that.pubKey,
-        }));
-      }
-    });
-    return Promise.all(toCreate);
+  this.ec2.regions.forEach(region => {
+    var matchingKey = res[region].KeyPairs[0];
+    if (!matchingKey) {
+      debug('creating missing key %s in %s', keyName, region);
+      toCreate.push(this.ec2.importKeyPair.inRegion(region, {
+        KeyName: keyName,
+        PublicKeyMaterial: this.pubKey,
+      }));
+    }
   });
 
-  p = p.then(function () {
-    that.__knownKeyPairs.push(workerName);
-  });
-
-  return p;
+  await Promise.all(toCreate);
+  this.__knownKeyPairs.push(workerName);
 };
 
 /**
@@ -1075,13 +1019,11 @@ AwsManager.prototype.createKeyPair = function (workerName) {
  * does nothing more and you shouldn't run it until you've turned
  * everything off.
  */
-AwsManager.prototype.deleteKeyPair = function (workerName) {
+AwsManager.prototype.deleteKeyPair = async function (workerName) {
   assert(workerName);
-  var that = this;
-
   var keyName = this.keyPrefix + workerName;
 
-  var p = this.ec2.describeKeyPairs({
+  var res = await this.ec2.describeKeyPairs({
     Filters: [
       {
         Name: 'key-name',
@@ -1090,24 +1032,14 @@ AwsManager.prototype.deleteKeyPair = function (workerName) {
     ],
   });
 
-  p = p.then(function (res) {
-    return Promise.all(that.ec2.regions.filter(function (region) {
-      return !!res[region].KeyPairs[0];
-    }).map(function (region) {
-      debug('deleting key %s in %s', keyName, region);
-      return that.ec2.deleteKeyPair.inRegion(region, {
-        KeyName: keyName,
-      });
-    }));
-  });
-
-  p = p.then(function () {
-    that.__knownKeyPairs = that.__knownKeyPairs.filter(function (knownKeyPair) {
-      return knownKeyPair !== workerName;
+  await Promise.all(this.ec2.regions.filter(r => !!res[r].KeyPairs[0])).map(region => {
+    debug('deleting key %s in %s', keyName, region);
+    return this.ec2.deleteKeyPair.inRegion(region, {
+      KeyName: keyName,
     });
   });
 
-  return p;
+  this.__knownKeyPairs = this.__knownKeyPairs.filter(k => k !== workerName);
 };
 
 /**
@@ -1118,18 +1050,15 @@ AwsManager.prototype.deleteKeyPair = function (workerName) {
  * which will say to this function that all workerTypes are rouge.
  * Sneaky, huh?
  */
-AwsManager.prototype.rougeKiller = function (configuredWorkers) {
+AwsManager.prototype.rougeKiller = async function (configuredWorkers) {
   assert(configuredWorkers);
-  var that = this;
   var workersInState = this.knownWorkerTypes();
   var rouge = [];
 
-  workersInState.filter(function (name) {
-    return !configuredWorkers.includes(name);
-  }).forEach(function (name) {
+  workersInState.filter(n => !configuredWorkers.includes(n)).forEach(name => {
     debug('found a rouge workerType: %s, killing all instances and requests', name);
-    rouge.push(that.deleteKeyPair(name));
-    rouge.push(that.killByName(name));
+    rouge.push(this.deleteKeyPair(name));
+    rouge.push(this.killByName(name));
   });
 
   return Promise.all(rouge);
@@ -1140,45 +1069,44 @@ AwsManager.prototype.rougeKiller = function (configuredWorkers) {
  */
 AwsManager.prototype.killByName = function (name, states) {
   var deaths = [];
-  var that = this;
   if (!states) {
     states = ['running', 'pending', 'spotReq'];
   }
 
   var perRegionKills = {};
 
-  this.ec2.regions.forEach(function (region) {
+  this.ec2.regions.forEach(region => {
     perRegionKills[region] = {
       instances: [],
       requests: [],
     };
   });
 
-  this.__apiState.instances.forEach(function (instance) {
+  this.__apiState.instances.forEach(instance => {
     if (instance.WorkerType === name && states.includes(instance.State.Name)) {
       perRegionKills[instance.Region].instances.push(instance.InstanceId);
     }
   });
 
-  this.__apiState.requests.forEach(function (request) {
+  this.__apiState.requests.forEach(request => {
     if (request.WorkerType === name && states.includes('spotReq')) {
       perRegionKills[request.Region].requests.push(request.SpotInstanceRequestId);
     }
   });
 
-  this.__internalState.forEach(function (sr) {
+  this.__internalState.forEach(sr => {
     if (sr.request.WorkerType === name && states.includes('spotReq')) {
       perRegionKills[sr.request.Region].requests.push(sr.request.SpotInstanceRequestId);
     }
 
   });
 
-  Object.keys(perRegionKills).forEach(function (region) {
+  Object.keys(perRegionKills).forEach(region => {
     var i = perRegionKills[region].instances;
     var r = perRegionKills[region].requests;
     debug('killing all %s in states %j in %s\nInstances: %j\nRequests: %j',
         name, states, region, i, r);
-    deaths.push(that.killCancel(region, i, r));
+    deaths.push(this.killCancel(region, i, r));
   });
 
   return Promise.all(deaths);
@@ -1189,7 +1117,6 @@ AwsManager.prototype.killByName = function (name, states) {
  */
 AwsManager.prototype.killCancel = function (region, instances, requests) {
   assert(instances || requests);
-  var that = this;
 
   var promises = [];
   var i = instances || [];
@@ -1197,14 +1124,14 @@ AwsManager.prototype.killCancel = function (region, instances, requests) {
 
   if (i.length > 0) {
     debug('killing instances %s in %j', i, region);
-    promises.push(that.ec2.terminateInstances.inRegion(region, {
+    promises.push(this.ec2.terminateInstances.inRegion(region, {
       InstanceIds: i,
     }));
   }
 
   if (r.length > 0) {
     debug('cancelling spot requests %j in %s', r, region);
-    promises.push(that.ec2.cancelSpotInstanceRequests.inRegion(region, {
+    promises.push(this.ec2.cancelSpotInstanceRequests.inRegion(region, {
       SpotInstanceRequestIds: r,
     }));
   }
@@ -1244,7 +1171,7 @@ AwsManager.prototype.killCapacityOfWorkerType = async function (workerType, coun
     };
   });
 
-  function cont() {
+  function cont () {
     return count <= capToKill && capacity - capToKill >= workerType.minCapacity;
   }
 
@@ -1271,8 +1198,6 @@ AwsManager.prototype.killCapacityOfWorkerType = async function (workerType, coun
 
   var shuffledApiInstances = shuffle.knuthShuffle(this.instancesOfType(workerType.workerType));
   for (var instance of shuffledApiInstances) {
-    debug(instance);
-    debug(toKill);
     if (cont() && states.includes(instance.State.Name)) {
       capToKill += caps[instance.InstanceType] || 1;
       toKill[instance.Region].instances.push(instance.InstanceId);
@@ -1300,28 +1225,27 @@ AwsManager.prototype.killCapacityOfWorkerType = async function (workerType, coun
  * of 72 hours.
  */
 AwsManager.prototype.zombieKiller = function () {
-  var that = this;
   var zombies = {};
 
   var killIfOlderThan = taskcluster.fromNow(this.maxInstanceLife);
 
-  this.__apiState.instances.filter(function (instance) {
+  this.__apiState.instances.filter(instance => {
     if (instance.LaunchTime) {
       var launchedAt = new Date(instance.LaunchTime);
       return launchedAt < killIfOlderThan;
     } else {
       return false;  // Since we can't know when it started, ignore it
     }
-  }).forEach(function (instance) {
+  }).forEach(instance => {
     if (!zombies[instance.Region]) {
       zombies[instance.Region] = [];
     }
     zombies[instance.Region].push(instance.InstanceId);
   });
 
-  return Promise.all(Object.keys(zombies).map(function (region) {
+  return Promise.all(Object.keys(zombies).map(region => {
     debug('killing zombie instances in %s: %j', region, zombies[region]);
-    return that.killCancel(region, zombies[region]);
+    return this.killCancel(region, zombies[region]);
   }));
 
 };
@@ -1334,7 +1258,7 @@ AwsManager.prototype.zombieKiller = function () {
 AwsManager.prototype.emulateOldStateFormat = function () {
   var oldState = {};
 
-  function x (type) {
+  var x = (type) => {
     if (!oldState[type]) {
       oldState[type] = {
         running: [],
@@ -1342,14 +1266,14 @@ AwsManager.prototype.emulateOldStateFormat = function () {
         spotReq: [],
       };
     }
-  }
+  };
 
-  this.__apiState.instances.forEach(function (instance) {
+  this.__apiState.instances.forEach(instance => {
     x(instance.WorkerType);
     oldState[instance.WorkerType][instance.State.Name].push(instance);
   });
 
-  this.__apiState.requests.forEach(function (request) {
+  this.__apiState.requests.forEach(request => {
     x(request.WorkerType);
     oldState[request.WorkerType].spotReq.push(request);
   });
