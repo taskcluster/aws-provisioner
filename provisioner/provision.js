@@ -103,7 +103,7 @@ Provisioner.prototype.run = async function () {
 
   this.__watchDog.start();
 
-  var d = delayer(this.provisionIterationInterval);
+  const d = delayer(this.provisionIterationInterval);
 
   try {
     do {
@@ -216,8 +216,8 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
     }
   }
 
-  var d = delayer(500);
-  var longD = delayer(2000);
+  const d = delayer(500);
+  const longD = delayer(2000);
 
   // We want to have a maximum number of attempts
   var attemptsLeft = forSpawning.length * 2;
