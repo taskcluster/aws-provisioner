@@ -7,8 +7,6 @@ var Aws = require('multi-region-promised-aws');
 var data = require('../provisioner/data');
 var secret = require('../provisioner/secret');
 var AwsManager = require('../provisioner/aws-manager');
-var awsPricing = require('../provisioner/aws-pricing');
-var Cache = require('../lib/cache');
 var taskcluster = require('taskcluster-client');
 var _ = require('lodash');
 
@@ -90,7 +88,7 @@ var launch = function (profile) {
   try {
     provisioner.run();
   } catch (err) {
-    debug('[alert-operator] Error: %j %s', err, err.stack)
+    debug('[alert-operator] Error: %j %s', err, err.stack);
   }
 };
 

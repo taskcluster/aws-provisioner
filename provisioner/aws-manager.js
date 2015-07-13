@@ -776,12 +776,12 @@ AwsManager.prototype.ensureTags = function () {
         Resources: tags[region][workerType].ids,
       });
 
-      p = p.then(() => {
+      p = p.then(() => { //eslint-disable-line no-loop-func
         debug('tagged %s/%s: %j', region, workerType, tags[region][workerType].ids);
       });
 
       // Creating a tag is on best effort basis
-      p = p.catch(err => {
+      p = p.catch(err => { //eslint-disable-line no-loop-func
         debug('Failed to tag %s/%s: %j', region, workerType, tags[region][workerType].ids);
         debug(err);
         if (err.stack) {

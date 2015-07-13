@@ -349,6 +349,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       regionOverwriteObjects.userData = r.userData || {};
       regionOverwriteObjects.secrets = r.secrets || {};
       regionOverwriteObjects.scopes = r.scopes || [];
+      regionOverwriteObjects.region = r.region;
       // Remember that we need to have an ImageId
       assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
     }
@@ -368,6 +369,9 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       instanceTypeOverwriteObjects.userData = t.userData || {};
       instanceTypeOverwriteObjects.secrets = t.secrets || {};
       instanceTypeOverwriteObjects.scopes = t.scopes || [];
+      instanceTypeOverwriteObjects.capacity = t.capacity;
+      instanceTypeOverwriteObjects.utility = t.utility;
+      instanceTypeOverwriteObjects.instanceType = t.instanceType;
     }
   }
   assert(foundInstanceType, 'InstanceType for workertype not found');
@@ -386,6 +390,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   let regionSpecificKeys = [
     'ImageId', // AMI IDs (ImageId) are created and are different per-region
   ];
+
   // Check for type specific keys in the general keys and region keys
   for (let key of typeSpecificKeys) {
     if (worker.launchSpec[key]) {
@@ -442,7 +447,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   if (!config.launchSpec.Placement) {
     config.launchSpec.Placement = {
       AvailabilityZone: bid.zone,
-    }
+    };
   } else {
     config.launchSpec.Placement.AvailabilityZone = bid.zone;
   }
@@ -450,14 +455,9 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
-  let capacity;
-  for (let t of worker.instanceTypes) {
-    if (t.instanceType === bid.type) {
-      assert(!capacity, 'instanceTypes must be unique');
-      capacity = t.capacity;
-    }
-  }
-  assert(capacity, 'must have a capacity');
+  let capacity = instanceTypeOverwriteObjects.capacity;
+  debug(instanceTypeOverwriteObjects);
+  assert(capacity, 'workerType did not have a capacity');
 
   let securityToken = slugid.v4();
 
@@ -706,7 +706,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
             if (!cheapestPrice) {
               // If we don't already have a cheapest price, that means we
               // should just take the first one we see
-              priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s at price %d(%d)',
+              priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s: %d(%d)',
                     that.workerType, region, zone, type, potentialPrice, potentialBid));
               cheapestPrice = potentialPrice;
               cheapestRegion = region;
@@ -715,7 +715,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
               cheapestBid = potentialBid;
             } else if (potentialPrice < cheapestPrice) {
               // If we find that we have a cheaper option, let's switch to it
-              priceDebugLog.push(util.format('%s cheapest was %s/%s/%s at price %d(%d), now is %s/%s/%s at price %d(%d)',
+              priceDebugLog.push(util.format('%s cheapest was %s/%s/%s: %d(%d), now is %s/%s/%s: %d(%d)',
                     that.workerType,
                     cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
                     region, zone, type, potentialPrice, potentialBid));
@@ -727,7 +727,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
             } else {
               // If this option is not first and not cheapest, we'll
               // ignore it but tell the logs that we did
-              priceDebugLog.push(util.format('%s is not picking %s/%s/%s at price %d(%d)',
+              priceDebugLog.push(util.format('%s is not picking %s/%s/%s: %d(%d)',
                     that.workerType,
                     region, zone, type, potentialPrice, potentialBid));
             }

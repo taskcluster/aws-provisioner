@@ -69,7 +69,7 @@ function Provisioner (cfg) {
   this.__stats = {
     runs: 0,
     consecFail: 0,
-  }
+  };
 }
 
 module.exports.Provisioner = Provisioner;
@@ -78,14 +78,14 @@ module.exports.Provisioner = Provisioner;
  * For when you want to be really certain that the program will
  * exit
  */
-function exitTimer(time) {
+function exitTimer (time) {
   var t = time || 30000;
   setTimeout(() => {
     debug('hey, so you probably are trying to figure out');
     debug('why this process suddenly disappeared.  a major');
     debug('error occured and you only get %d ms to exit after', t);
     debug('before we process.exit(44). handle things faster!');
-    process.exit(44);
+    process.exit(44); // eslint-disable-line no-process-exit
   }, t);
 }
 
@@ -111,7 +111,7 @@ Provisioner.prototype.run = async function () {
             this.__stats.runs, this.__stats.consecFail);
 
       // If we don't do this, we'll have an uncaught exception
-      this.__watchDog.touch(); 
+      this.__watchDog.touch();
 
       // We should make sure that we're not just permanently failing
       // We also don't want to
@@ -197,7 +197,7 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
   var forSpawning = [];
 
   for (var worker of workerTypes) {
-    var change = await this.changeForType(worker, pricing);
+    var change = await this.changeForType(worker);
 
     if (change > 0) {
       debug('%s needs %d capacity created', worker.workerType, change);
@@ -237,7 +237,6 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
       forSpawning.push(toSpawn);
     }
   }
-  
 };
 
 /**
@@ -257,16 +256,14 @@ Provisioner.prototype.spawn = async function (workerType, bid) {
     scopes: launchInfo.scopes,
     expiration: taskcluster.fromNow('40 minutes'),
   });
-  
+
   return this.awsManager.requestSpotInstance(launchInfo, bid);
 };
 
 /**
  * Determine the change for a given worker type
  */
-Provisioner.prototype.changeForType = async function (workerType, pricing) {
-  var that = this;
-
+Provisioner.prototype.changeForType = async function (workerType) {
   var result = await this.queue.pendingTasks(
       this.provisionerId, workerType.workerType);
   var pendingTasks = result.pendingTasks;
@@ -288,14 +285,4 @@ Provisioner.prototype.changeForType = async function (workerType, pricing) {
   });
 
   return change;
-};
-
-Provisioner.prototype.destroyCapacity = function (capacityToKill, workerType) {
-  // We want to cancel spot requests when we no longer need them, but only
-  // down to the minimum capacity
-  var capacityToKill = -change;
-
-  debug('killing up to %d capacity of spot requests and pending instances', capacityToKill);
-
-  return this.awsManager.killCapacityOfWorkerType(workerType, capacityToKill, ['pending', 'spotReq']);
 };
