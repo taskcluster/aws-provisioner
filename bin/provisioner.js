@@ -2,11 +2,11 @@
 
 var debug = require('debug')('aws-provisioner:bin:provisioner');
 var base = require('taskcluster-base');
-var provision = require('../provisioner/provision');
+var provision = require('../lib/provision');
 var Aws = require('multi-region-promised-aws');
-var data = require('../provisioner/data');
-var secret = require('../provisioner/secret');
-var AwsManager = require('../provisioner/aws-manager');
+var data = require('../lib/data');
+var secret = require('../lib/secret');
+var AwsManager = require('../lib/aws-manager');
 var taskcluster = require('taskcluster-client');
 var _ = require('lodash');
 

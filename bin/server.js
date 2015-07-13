@@ -3,14 +3,14 @@
 var path = require('path');
 var debug = require('debug')('aws-provisioner:bin:server');
 var base = require('taskcluster-base');
-var data = require('../provisioner/data');
-var secret = require('../provisioner/secret');
-var exchanges = require('../provisioner/exchanges');
-var AwsManager = require('../provisioner/aws-manager');
-var v1 = require('../routes/v1');
+var data = require('../lib/data');
+var secret = require('../lib/secret');
+var exchanges = require('../lib/exchanges');
+var AwsManager = require('../lib/aws-manager');
+var v1 = require('../lib/routes/v1');
 var Aws = require('multi-region-promised-aws');
 var _ = require('lodash');
-var series = require('../provisioner/influx-series');
+var series = require('../lib/influx-series');
 
 /** Launch server */
 var launch = async function (profile) {

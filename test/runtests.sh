@@ -8,9 +8,8 @@ if [ "$NOLINT" != 1 ] ; then
     bin/provisioner.js \
     bin/manage.js \
     lib/*.js \
-    routes/*.js \
-    test/*.js \
-    provisioner/*.js
+    lib/routes/*.js \
+    test/*.js
 fi
 
 # Run tests

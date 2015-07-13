@@ -1,7 +1,7 @@
 'use strict';
 var base = require('taskcluster-base');
 var mocha = require('mocha');
-var v1 = require('../routes/v1');
+var v1 = require('../lib/routes/v1');
 var taskcluster = require('taskcluster-client');
 var bin = {
   server: require('../bin/server'),

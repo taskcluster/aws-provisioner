@@ -1,6 +1,6 @@
 'use strict';
 var base = require('taskcluster-base');
-var data = require('../provisioner/data.js');
+var data = require('../lib/data.js');
 var slugid = require('slugid');
 var mock = require('./mock-workers');
 
