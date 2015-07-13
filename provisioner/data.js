@@ -661,7 +661,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
 
   let spotBids = [];
 
-  let pricingData = pricing.maxPrices();
+  let pricingData = pricing;
 
   /* eslint-disable no-loop-func */
   while (change > 0) {

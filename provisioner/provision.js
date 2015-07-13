@@ -5,7 +5,6 @@ var debug = require('debug')('aws-provisioner:provision');
 var assert = require('assert');
 var WatchDog = require('../lib/watchdog');
 var taskcluster = require('taskcluster-client');
-var awsPricing = require('./aws-pricing');
 var delayer = require('../lib/delayer');
 var shuffle = require('knuth-shuffle');
 
@@ -171,12 +170,10 @@ Provisioner.prototype.stop = function () {
 Provisioner.prototype.runAllProvisionersOnce = async function () {
   var res = await Promise.all([
     this.WorkerType.loadAll(),
-    awsPricing(this.awsManager.ec2),
     this.awsManager.update(),
   ]);
 
   var workerTypes = res[0];
-  var pricing = res[1];
 
   var workerNames = workerTypes.map(x => {
     return x.workerType; // can't remember the nice es7 for this
@@ -201,7 +198,7 @@ Provisioner.prototype.runAllProvisionersOnce = async function () {
 
     if (change > 0) {
       debug('%s needs %d capacity created', worker.workerType, change);
-      var bids = worker.determineSpotBids(this.awsManager.ec2.regions, pricing, change);
+      var bids = worker.determineSpotBids(this.awsManager.ec2.regions, this.awsManager.__pricing, change);
       // This could probably be done cleaner
       for (let bid of bids) {
         forSpawning.push({workerType: worker, bid: bid});

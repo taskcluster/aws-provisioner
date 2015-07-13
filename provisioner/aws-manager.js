@@ -76,7 +76,12 @@ AwsManager.prototype.update = async function () {
   // The choice in which bucket each instance or request should belong in comes
   // down to whether or not the resource is awaiting or currently working or
   // needs to be tidied up after
-  let res = await Promise.all([
+
+  // We want to fetch the last 30 minutes of pricing data
+  let pricingStartDate = new Date();
+  pricingStartDate.setMinutes(pricingStartDate.getMinutes() - 30);
+
+  let statusPromises = [
     this.ec2.describeInstances({
       Filters: [
         {
@@ -123,7 +128,36 @@ AwsManager.prototype.update = async function () {
         },
       ],
     }),
-  ]);
+    this.ec2.describeSpotPriceHistory({
+      StartTime: pricingStartDate,
+      Filters: [
+        {
+          Name: 'product-description',
+          Values: ['Linux/UNIX'],
+        },
+      ],
+    }),
+    this.ec2.describeAvailabilityZones({
+      Filters: [
+        {
+          Name: 'state',
+          Values: ['available'],
+        },
+      ],
+    }),
+  ];
+
+  let res;
+  try {
+    res = await Promise.all(statusPromises);
+  } catch (err) {
+    debug('Error running status and pricing promises');
+    debug(err);
+    if (err.stack) {
+      debug(err.stack);
+    }
+    throw err;
+  }
 
   let livingInstances = res[0];
   let livingSpotRequests = res[1];
@@ -155,6 +189,8 @@ AwsManager.prototype.update = async function () {
   this.__previousApiState = this.__apiState;
   this.__apiState = this._classify(livingInstances, filteredSpotRequests.good);
   this.__deadState = this._classify(deadInstances, deadSpotRequests);
+  this.__availableAZ = this._filterAZ(res[5]);
+  this.__pricing = this._findMaxPrices(res[4], this.__availableAZ);
 
   // remove this try/catch once this has been live for a while
   let stateDifferences = this._compareStates(this.__apiState, this.__previousApiState, this.__deadState);
@@ -180,6 +216,53 @@ AwsManager.prototype.handleStalledRequests = async function (spotReqs) {
       return sr.SpotInstanceRequestId;
     }));
   }));
+};
+
+/**
+ * Find out which availability zones are available
+ */
+AwsManager.prototype._filterAZ = function (res) {
+  let zones = {};
+
+  for (let region of this.ec2.regions) {
+    // This check might be redundant, but being extra-cautious
+    if (!res[region]) {
+      zones[region] = [];
+    } else {
+      zones[region] = res[region].AvailabilityZones.map(x => x.ZoneName); // eslint-disable-line no-loop-func
+    }
+  }
+
+  return zones;
+};
+
+/**
+ * Get rid of the keys that I don't care about
+ */
+AwsManager.prototype._findMaxPrices = function (res, zones) {
+  // region -> type -> zone
+  let pricing = {};
+
+  for (let region of this.ec2.regions) {
+    pricing[region] = {};
+    for (let pricePoint of res[region].SpotPriceHistory) {
+      let type = pricePoint.InstanceType;
+      let price = pricePoint.SpotPrice;
+      let zone = pricePoint.AvailabilityZone;
+
+      // Remember that we only want to consider available zones
+      if (zones[region].includes(zone)) {
+        if (!pricing[region][type]) {
+          pricing[region][type] = {};
+        }
+        if (!pricing[region][type][zone] || pricing[region][type][zone] < price) {
+          pricing[region][type][zone] = price;
+        }
+      }
+    }
+  }
+
+  return pricing;
 };
 
 /**
@@ -919,7 +1002,11 @@ AwsManager.prototype.requestSpotInstance = async function (launchInfo, bid) {
   assert(bid, 'Must specify a spot bid');
   assert(typeof bid.price === 'number', 'Spot Price must be number');
 
-  assert(this.ec2.regions.includes(bid.region));
+  assert(this.ec2.regions.includes(bid.region),
+      'will not submit spot request in unconfigured region');
+
+  assert(this.__availableAZ[bid.region].includes(bid.zone),
+      'will not submit spot request in an unavailable az');
 
   let spotRequest = await this.ec2.requestSpotInstances.inRegion(bid.region, {
     InstanceCount: 1,
@@ -1035,12 +1122,13 @@ AwsManager.prototype.deleteKeyPair = async function (workerName) {
     ],
   });
 
-  await Promise.all(this.ec2.regions.filter(r => !!res[r].KeyPairs[0])).map(region => {
+  let regions = this.ec2.regions.filter(r => res[r].KeyPairs[0]) || [];
+  await Promise.all(regions.map(region => {
     debug('deleting key %s in %s', keyName, region);
     return this.ec2.deleteKeyPair.inRegion(region, {
       KeyName: keyName,
     });
-  });
+  }));
 
   this.__knownKeyPairs = this.__knownKeyPairs.filter(k => k !== workerName);
 };
