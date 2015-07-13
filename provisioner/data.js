@@ -336,7 +336,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   assert(provisionerBaseUrl, 'must provide provisioner base url');
 
   // Find the region objects, assert if region is not found
-  let regionOverwriteObjects = {};
+  let selectedRegion = {};
   let foundRegion = false;
   for (let r of worker.regions) {
     if (r.region === bid.region) {
@@ -345,11 +345,11 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
         throw new Error('Region must be unique');
       }
       foundRegion = true;
-      regionOverwriteObjects.launchSpec = r.launchSpec || {};
-      regionOverwriteObjects.userData = r.userData || {};
-      regionOverwriteObjects.secrets = r.secrets || {};
-      regionOverwriteObjects.scopes = r.scopes || [];
-      regionOverwriteObjects.region = r.region;
+      selectedRegion.launchSpec = r.launchSpec || {};
+      selectedRegion.userData = r.userData || {};
+      selectedRegion.secrets = r.secrets || {};
+      selectedRegion.scopes = r.scopes || [];
+      selectedRegion.region = r.region;
       // Remember that we need to have an ImageId
       assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
     }
@@ -357,7 +357,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   assert(foundRegion, 'Region for workertype not found');
 
   // Find the instanceType overwrites object, assert if type is not found
-  let instanceTypeOverwriteObjects = {};
+  let selectedInstanceType = {};
   let foundInstanceType = false;
   for (let t of worker.instanceTypes) {
     if (t.instanceType === bid.type) {
@@ -365,13 +365,13 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
         throw new Error('InstanceType must be unique');
       }
       foundInstanceType = true;
-      instanceTypeOverwriteObjects.launchSpec = t.launchSpec || {};
-      instanceTypeOverwriteObjects.userData = t.userData || {};
-      instanceTypeOverwriteObjects.secrets = t.secrets || {};
-      instanceTypeOverwriteObjects.scopes = t.scopes || [];
-      instanceTypeOverwriteObjects.capacity = t.capacity;
-      instanceTypeOverwriteObjects.utility = t.utility;
-      instanceTypeOverwriteObjects.instanceType = t.instanceType;
+      selectedInstanceType.launchSpec = t.launchSpec || {};
+      selectedInstanceType.userData = t.userData || {};
+      selectedInstanceType.secrets = t.secrets || {};
+      selectedInstanceType.scopes = t.scopes || [];
+      selectedInstanceType.capacity = t.capacity;
+      selectedInstanceType.utility = t.utility;
+      selectedInstanceType.instanceType = t.instanceType;
     }
   }
   assert(foundInstanceType, 'InstanceType for workertype not found');
@@ -396,7 +396,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
     if (worker.launchSpec[key]) {
       throw new Error(key + ' is type specific, not general');
     }
-    if (regionOverwriteObjects.launchSpec[key]) {
+    if (selectedRegion.launchSpec[key]) {
       throw new Error(key + ' is type specific, not region');
     }
   }
@@ -406,7 +406,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
     if (worker.launchSpec[key]) {
       throw new Error(key + ' is region specific, not general');
     }
-    if (instanceTypeOverwriteObjects.launchSpec[key]) {
+    if (selectedInstanceType.launchSpec[key]) {
       throw new Error(key + ' is region specific, not type');
     }
   }
@@ -416,22 +416,22 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // Do the cascading overwrites of the object things
   for (let x of ['launchSpec', 'userData', 'secrets']) {
     config[x] = lodash.cloneDeep(worker[x] || {});
-    lodash.assign(config[x], regionOverwriteObjects[x]);
-    lodash.assign(config[x], instanceTypeOverwriteObjects[x]);
+    lodash.assign(config[x], selectedRegion[x]);
+    lodash.assign(config[x], selectedInstanceType[x]);
   }
 
   // Generate the complete list of scopes;
   config.scopes = lodash.cloneDeep(worker.scopes);
 
   // Region specific scopes
-  for (let scope of regionOverwriteObjects.scopes) {
+  for (let scope of selectedRegion.scopes) {
     if (!config.scopes.includes(scope)) {
       config.scopes.push(scope);
     }
   }
 
   // Instance Type specific scopes
-  for (let scope of instanceTypeOverwriteObjects.scopes) {
+  for (let scope of selectedInstanceType.scopes) {
     if (!config.scopes.includes(scope)) {
       config.scopes.push(scope);
     }
@@ -455,8 +455,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   // Here are the minimum number of things which must be stored in UserData.
   // We will overwrite anything in the definition's UserData with these values
   // because they so tightly coupled to how we do provisioning
-  let capacity = instanceTypeOverwriteObjects.capacity;
-  debug(instanceTypeOverwriteObjects);
+  let capacity = selectedInstanceType.capacity;
   assert(capacity, 'workerType did not have a capacity');
 
   let securityToken = slugid.v4();
