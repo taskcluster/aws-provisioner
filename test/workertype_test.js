@@ -162,8 +162,11 @@ describe('worker type', function () {
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
-      var launchSpec = subject.createLaunchSpec('us-west-1', 'c3.small', wType,
-                          'keyPrefix', 'provisionerId', 'url').launchSpec;
+      var launchSpec = subject.createLaunchSpec({
+        region: 'us-west-1',
+        type: 'c3.small',
+        zone: 'fakezone',
+      }, wType, 'keyPrefix', 'provisionerId', 'url').launchSpec;
       var userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
 
       userData.capacity.should.equal(1);
@@ -352,11 +355,7 @@ describe('worker type', function () {
         },
       };
     }
-    return {
-      maxPrices: function () {
-        return d;
-      },
-    };
+    return d;
   }
 
   describe('determining spot bids', function () {
