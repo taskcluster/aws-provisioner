@@ -5,6 +5,7 @@ var debug = require('debug')('aws-provisioner:bin:server');
 var base = require('taskcluster-base');
 var data = require('../lib/data');
 var secret = require('../lib/secret');
+var workerState = require('../lib/worker-state');
 var exchanges = require('../lib/exchanges');
 var AwsManager = require('../lib/aws-manager');
 var v1 = require('../lib/routes/v1');
@@ -106,6 +107,12 @@ var launch = async function (profile) {
     //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
   });
 
+  // Configure WorkerState entities
+  var WorkerState = workerState.setup({
+    table: cfg.get('provisioner:workerStateTableName'),
+    credentials: cfg.get('azure'),
+  });
+
   // Configure WorkerType entities
   var Secret = secret.setup({
     table: cfg.get('provisioner:secretTableName'),
@@ -115,6 +122,7 @@ var launch = async function (profile) {
   // Get promise for workerType table created (we'll await it later)
   let tablesCreated = Promise.all([
       WorkerType.ensureTable(),
+      WorkerState.ensureTable(),
       Secret.ensureTable(),
   ]);
 
@@ -150,6 +158,7 @@ var launch = async function (profile) {
   let router = await v1.setup({
     context: {
       WorkerType: WorkerType,
+      WorkerState: WorkerState,
       Secret: Secret,
       publisher: publisher,
       awsManager: awsManager,

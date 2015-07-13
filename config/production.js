@@ -3,6 +3,7 @@ module.exports = {
     id:                   'aws-provisioner-v1',
     workerTypeTableName:  'AWSWorkerTypesV2',
     secretTableName:      'ProvisionerSecrets',
+    workerStateTableName: 'ProvisionerWorkerState',
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner-v1',
     awsKeyPrefix:         'aws-provisioner-v1-managed:',

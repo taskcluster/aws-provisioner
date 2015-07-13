@@ -6,6 +6,7 @@ var provision = require('../lib/provision');
 var Aws = require('multi-region-promised-aws');
 var data = require('../lib/data');
 var secret = require('../lib/secret');
+var workerState = require('../lib/worker-state');
 var AwsManager = require('../lib/aws-manager');
 var taskcluster = require('taskcluster-client');
 var _ = require('lodash');
@@ -61,6 +62,11 @@ var launch = function (profile) {
     },
   });
 
+  var WorkerState = workerState.setup({
+    table: cfg.get('provisioner:workerStateTableName'),
+    credentials: cfg.get('azure'),
+  });
+
   // Create all the things which need to be injected into the
   // provisioner
   var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
@@ -76,6 +82,7 @@ var launch = function (profile) {
   var config = {
     WorkerType: WorkerType,
     Secret: Secret,
+    WorkerState: WorkerState,
     queue: queue,
     provisionerId: provisionerId,
     taskcluster: cfg.get('taskcluster'),
