@@ -4,7 +4,7 @@ var debug = require('debug')('aws-provisioner:bin:provisioner');
 var base = require('taskcluster-base');
 var provision = require('../lib/provision');
 var Aws = require('multi-region-promised-aws');
-var data = require('../lib/data');
+var workerType = require('../lib/worker-type');
 var secret = require('../lib/secret');
 var workerState = require('../lib/worker-state');
 var AwsManager = require('../lib/aws-manager');
@@ -52,7 +52,7 @@ var launch = function (profile) {
     credentials: cfg.get('azure'),
   });
 
-  var WorkerType = data.WorkerType.setup({
+  var WorkerType = workerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
     context: {

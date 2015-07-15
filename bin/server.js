@@ -3,7 +3,7 @@
 var path = require('path');
 var debug = require('debug')('aws-provisioner:bin:server');
 var base = require('taskcluster-base');
-var data = require('../lib/data');
+var workerType = require('../lib/worker-type');
 var secret = require('../lib/secret');
 var workerState = require('../lib/worker-state');
 var exchanges = require('../lib/exchanges');
@@ -94,7 +94,7 @@ var launch = async function (profile) {
   });
 
   // Configure WorkerType entities
-  var WorkerType = data.WorkerType.setup({
+  var WorkerType = workerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
     context: {

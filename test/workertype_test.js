@@ -1,6 +1,6 @@
 'use strict';
 var base = require('taskcluster-base');
-var data = require('../lib/data.js');
+var workerType = require('../lib/worker-type');
 var slugid = require('slugid');
 var mock = require('./mock-workers');
 
@@ -34,7 +34,7 @@ var provisionerId = cfg.get('provisioner:id');
   maxPendingPoints: cfg.get('influx:maxPendingPoints'),
 });*/
 
-var subject = data.WorkerType.setup({
+var subject = workerType.setup({
   table: cfg.get('provisioner:workerTypeTableName'),
   credentials: cfg.get('azure'),
   context: {
