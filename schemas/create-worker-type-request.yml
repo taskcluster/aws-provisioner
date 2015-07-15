@@ -1,6 +1,6 @@
 id:       http://schemas.taskcluster.net/aws-provisioner/v1/create-worker-type-request.json#
 $schema:  http://json-schema.org/draft-04/schema#
-title:                      "Get Worker Type Request"
+title:                      "Create Worker Type Request"
 description: |
   A worker launchSpecification and required metadata
 type:                       object
