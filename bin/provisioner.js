@@ -1,18 +1,18 @@
 'use strict';
 
-var debug = require('debug')('aws-provisioner:bin:provisioner');
-var base = require('taskcluster-base');
-var provision = require('../lib/provision');
-var Aws = require('multi-region-promised-aws');
-var workerType = require('../lib/worker-type');
-var secret = require('../lib/secret');
-var workerState = require('../lib/worker-state');
-var AwsManager = require('../lib/aws-manager');
-var taskcluster = require('taskcluster-client');
-var _ = require('lodash');
+let debug = require('debug')('aws-provisioner:bin:provisioner');
+let base = require('taskcluster-base');
+let provision = require('../lib/provision');
+let Aws = require('multi-region-promised-aws');
+let workerType = require('../lib/worker-type');
+let secret = require('../lib/secret');
+let workerState = require('../lib/worker-state');
+let AwsManager = require('../lib/aws-manager');
+let taskcluster = require('taskcluster-client');
+let _ = require('lodash');
 
-var launch = function (profile) {
-  var cfg = base.config({
+let launch = function (profile) {
+  let cfg = base.config({
     defaults: require('../config/defaults.js'),
     profile: require('../config/' + profile),
     filename: 'taskcluster-aws-provisioner',
@@ -34,25 +34,25 @@ var launch = function (profile) {
     ],
   });
 
-  var allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
-  var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  var pubKey = cfg.get('provisioner:awsInstancePubkey');
-  var provisionerId = cfg.get('provisioner:id');
-  var provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
-  var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
+  let allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
+  let keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  let pubKey = cfg.get('provisioner:awsInstancePubkey');
+  let provisionerId = cfg.get('provisioner:id');
+  let provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
+  let maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
-  var influx = new base.stats.Influx({
+  let influx = new base.stats.Influx({
     connectionString: cfg.get('influx:connectionString'),
     maxDelay: cfg.get('influx:maxDelay'),
     maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
-  var Secret = secret.setup({
+  let Secret = secret.setup({
     table: cfg.get('provisioner:secretTableName'),
     credentials: cfg.get('azure'),
   });
 
-  var WorkerType = workerType.setup({
+  let WorkerType = workerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
     context: {
@@ -62,24 +62,24 @@ var launch = function (profile) {
     },
   });
 
-  var WorkerState = workerState.setup({
+  let WorkerState = workerState.setup({
     table: cfg.get('provisioner:workerStateTableName'),
     credentials: cfg.get('azure'),
   });
 
   // Create all the things which need to be injected into the
   // provisioner
-  var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
-  var awsManager = new AwsManager(
+  let ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), allowedRegions);
+  let awsManager = new AwsManager(
       ec2,
       provisionerId,
       keyPrefix,
       pubKey,
       maxInstanceLife,
       influx);
-  var queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
+  let queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
 
-  var config = {
+  let config = {
     WorkerType: WorkerType,
     Secret: Secret,
     WorkerState: WorkerState,
@@ -91,7 +91,7 @@ var launch = function (profile) {
     provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
   };
 
-  var provisioner = new provision.Provisioner(config);
+  let provisioner = new provision.Provisioner(config);
   try {
     provisioner.run();
   } catch (err) {
@@ -102,7 +102,7 @@ var launch = function (profile) {
 // Only start up the server if we are running as a script
 if (!module.parent) {
   // Find configuration profile
-  var profile_ = process.argv[2] || process.env.NODE_ENV;
+  let profile_ = process.argv[2] || process.env.NODE_ENV;
   if (!profile_) {
     console.log('Usage: server.js [profile]');
     console.error('ERROR: No configuration profile is provided');

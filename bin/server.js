@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 'use strict';
-var path = require('path');
-var debug = require('debug')('aws-provisioner:bin:server');
-var base = require('taskcluster-base');
-var workerType = require('../lib/worker-type');
-var secret = require('../lib/secret');
-var workerState = require('../lib/worker-state');
-var exchanges = require('../lib/exchanges');
-var v1 = require('../lib/routes/v1');
-var Aws = require('multi-region-promised-aws');
-var _ = require('lodash');
-var series = require('../lib/influx-series');
+let path = require('path');
+let debug = require('debug')('aws-provisioner:bin:server');
+let base = require('taskcluster-base');
+let workerType = require('../lib/worker-type');
+let secret = require('../lib/secret');
+let workerState = require('../lib/worker-state');
+let exchanges = require('../lib/exchanges');
+let v1 = require('../lib/routes/v1');
+let Aws = require('multi-region-promised-aws');
+let _ = require('lodash');
+let series = require('../lib/influx-series');
 
 /** Launch server */
-var launch = async function (profile) {
+let launch = async function (profile) {
   // Load configuration
-  var cfg = base.config({
+  let cfg = base.config({
     defaults: require('../config/defaults'),
     profile: require('../config/' + profile),
     envs: [
@@ -37,12 +37,12 @@ var launch = async function (profile) {
     filename: 'taskcluster-aws-provisioner',
   });
 
-  var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  var provisionerId = cfg.get('provisioner:id');
-  var provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
+  let keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  let provisionerId = cfg.get('provisioner:id');
+  let provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
 
   // Create InfluxDB connection for submitting statistics
-  var influx = new base.stats.Influx({
+  let influx = new base.stats.Influx({
     connectionString: cfg.get('influx:connectionString'),
     maxDelay: cfg.get('influx:maxDelay'),
     maxPendingPoints: cfg.get('influx:maxPendingPoints'),
@@ -52,7 +52,7 @@ var launch = async function (profile) {
   // to run in any region, which we'll limit by the ones
   // store in the worker definition
   // NOTE: Should we use ec2.describeRegions? meh
-  var ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), [
+  let ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), [
     'us-east-1', 'us-west-1', 'us-west-2',
     'eu-west-1', 'eu-central-1',
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
@@ -67,7 +67,7 @@ var launch = async function (profile) {
   });
 
   // Configure WorkerType entities
-  var WorkerType = workerType.setup({
+  let WorkerType = workerType.setup({
     table: cfg.get('provisioner:workerTypeTableName'),
     credentials: cfg.get('azure'),
     context: {
@@ -81,13 +81,13 @@ var launch = async function (profile) {
   });
 
   // Configure WorkerState entities
-  var WorkerState = workerState.setup({
+  let WorkerState = workerState.setup({
     table: cfg.get('provisioner:workerStateTableName'),
     credentials: cfg.get('azure'),
   });
 
   // Configure WorkerType entities
-  var Secret = secret.setup({
+  let Secret = secret.setup({
     table: cfg.get('provisioner:secretTableName'),
     credentials: cfg.get('azure'),
   });
@@ -170,7 +170,7 @@ var launch = async function (profile) {
 // If server.js is executed start the server
 if (!module.parent) {
   // Find configuration profile
-  var profile_ = process.argv[2] || process.env.NODE_ENV;
+  let profile_ = process.argv[2] || process.env.NODE_ENV;
   if (!profile_) {
     console.log('Usage: server.js [profile]');
     console.error('ERROR: No configuration profile is provided');
