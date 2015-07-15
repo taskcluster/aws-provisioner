@@ -7,7 +7,6 @@ var workerType = require('../lib/worker-type');
 var secret = require('../lib/secret');
 var workerState = require('../lib/worker-state');
 var exchanges = require('../lib/exchanges');
-var AwsManager = require('../lib/aws-manager');
 var v1 = require('../lib/routes/v1');
 var Aws = require('multi-region-promised-aws');
 var _ = require('lodash');
@@ -39,10 +38,8 @@ var launch = async function (profile) {
   });
 
   var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  var pubKey = cfg.get('provisioner:awsInstancePubkey');
   var provisionerId = cfg.get('provisioner:id');
   var provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
-  var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
   // Create InfluxDB connection for submitting statistics
   var influx = new base.stats.Influx({
@@ -61,30 +58,6 @@ var launch = async function (profile) {
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
     'sa-east-1',
   ]);
-
-  // We want an AwsManger here as well since we want to be
-  // able to inspect what goes on there from here
-  var awsManager = new AwsManager(
-      ec2,
-      provisionerId,
-      keyPrefix,
-      pubKey,
-      maxInstanceLife,
-      influx);
-
-  // We want to be updating the Aws State so that api clients can easily
-  // access the information with the minimum overhead possible
-  let updateAwsState = async () => {
-    try {
-      await awsManager.update();
-    } catch (err) {
-      debug('Failed to update awsManager: %s, %j', err. err, err.stack);
-    }
-    setTimeout(updateAwsState, 2 * 60 * 1000);
-  };
-  // Start the update loop in 15 seconds so the rest of the server has a chance
-  // to start-up...
-  setTimeout(updateAwsState, 15 * 1000);
 
   // Start monitoring the process
   base.stats.startProcessUsageReporting({
@@ -160,8 +133,8 @@ var launch = async function (profile) {
       WorkerType: WorkerType,
       WorkerState: WorkerState,
       Secret: Secret,
+      ec2: ec2,
       publisher: publisher,
-      awsManager: awsManager,
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,

@@ -44,8 +44,9 @@ describe('provisioner worker type api', () => {
     assume(wType.maxCapacity).equals(15);
   });
 
-  it('should be able to remove a worker', async () => {
+  it('should be able to remove a worker (idempotent)', async () => {
     debug('### Remove workerType');
+    await helper.awsProvisioner.removeWorkerType(id);
     await helper.awsProvisioner.removeWorkerType(id);
 
     debug('### Try to load workerType');
