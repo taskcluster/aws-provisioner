@@ -1,6 +1,7 @@
 let debug = require('debug')('routes:v1');
 let base = require('taskcluster-base');
 let taskcluster = require('taskcluster-client');
+let amiExists = require('../check-for-ami');
 let _ = require('lodash');
 let rp = require('request-promise');
 let url = require('url');
@@ -202,6 +203,22 @@ api.declare({
   // TODO: If workerType launchSpecification specifies scopes that should be given
   //       to the workers using temporary credentials, then you should validate
   //       that the caller has this scopes to avoid scope elevation.
+
+  // We want to make sure that all AMIs that we are submitting are valid
+  for (let region of input.regions) {
+    let validAmi = await amiExists(this.ec2, region.launchSpec.ImageId, region.region);
+    if (!validAmi) {
+      res.status(400).json({
+        message: 'ami does not exist',
+        ami: region.launchSpec.ImageId,
+        region: region.region,
+      });
+      return;
+    }
+  }
+
+  // We want to make sure that every single possible generated LaunchSpec
+  // would be valid before we even try to store it
   try {
     await validateWorkerType(this, workerType, input);
   } catch (err) {
@@ -298,6 +315,18 @@ api.declare({
   let workerType = req.params.workerType;
 
   let modDate = new Date();
+
+  // We want to make sure that all AMIs that we are submitting are valid
+  for (let region of input.regions) {
+    let validAmi = await amiExists(this.ec2, region.launchSpec.ImageId, region.region);
+    if (!validAmi) {
+      return res.status(400).json({
+        message: 'ami does not exist',
+        ami: region.launchSpec.ImageId,
+        region: region.region,
+      });
+    }
+  }
 
   input.lastModified = modDate;
 
