@@ -12,6 +12,7 @@
   "dependencies": {
     "assume": "^1.2.4",
     "babel": "^5.1.11",
+    "bluebird": "^2.9.34",
     "commander": "^2.6.0",
     "debug": "2.1.0",
     "joi": "^5.1.0",
