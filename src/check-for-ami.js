@@ -41,6 +41,6 @@ module.exports = async function (ec2, ami, region) {
   if (result.Images[0].ImageId === ami) {
     return true;
   } else {
-    throw new Error('something wacky happened');
+    throw new Error('api returned incorrect ami for search parameters');
   }
 };
