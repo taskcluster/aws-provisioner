@@ -3,7 +3,7 @@
 
 # Run linter
 if [ "$NOLINT" != 1 ] ; then
-  eslint \
+  eslint --rulesdir eslint-rules \
     bin/server.js \
     bin/provisioner.js \
     bin/manage.js \
