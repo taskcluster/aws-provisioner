@@ -16,6 +16,7 @@
     "commander": "^2.6.0",
     "debug": "2.1.0",
     "joi": "^5.1.0",
+    "kexec": "^1.2.0",
     "knuth-shuffle": "^1.0.1",
     "lodash": "^3.7.0",
     "multi-region-promised-aws": "0.0.5",
