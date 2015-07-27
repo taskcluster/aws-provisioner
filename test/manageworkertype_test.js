@@ -40,7 +40,7 @@ describe('provisioner worker type api', () => {
     }
 
     debug('### Load workerType (again)');
-    var wType = await helper.awsProvisioner.workerType(id);
+    wType = await helper.awsProvisioner.workerType(id);
     assume(wType.maxCapacity).equals(15);
   });
 
