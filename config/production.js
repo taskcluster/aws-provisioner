@@ -12,7 +12,7 @@ module.exports = {
     maxInstanceLife:      '- 96 hours', // Soft-kill at 72h will happen when bug 1148097 lands
   },
   server: {
-    publicUrl:  'https://taskcluster-aws-provisioner2.herokuapp.com',
+    publicUrl:  'https://aws-provisioner.taskcluster.net',
     port:       5557,
     env:        'production',
     forceSSL:   true,

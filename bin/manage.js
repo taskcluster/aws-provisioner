@@ -12,7 +12,7 @@ var program = require('commander');
 var pkgData = require('../package.json');
 
 var localhostAddress = 'http://localhost:5557/v1';
-var realBaseAddress = 'https://taskcluster-aws-provisioner2.herokuapp.com/v1';
+var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
 
 function errorHandler (err) {
   console.log(JSON.stringify({
