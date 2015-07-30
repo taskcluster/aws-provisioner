@@ -1,5 +1,4 @@
 ---
-  id: "http://schemas.taskcluster.net/aws-provisioner/v1/list-worker-types-response.json#"
   title: "List Worker Types"
   type: "array"
   items: 
