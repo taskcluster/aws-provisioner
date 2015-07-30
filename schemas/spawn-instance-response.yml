@@ -1,9 +1,0 @@
-id:       http://schemas.taskcluster.net/aws-provisioner/v1/spawn-instance-response.json#
-$schema:  http://json-schema.org/draft-04/schema#
-title:                      "Spawn Instance Response"
-description: |
-  All of the launch specifications for a worker type
-type:  object
-properties:
-  SpotInstanceRequestId:
-    type: string
