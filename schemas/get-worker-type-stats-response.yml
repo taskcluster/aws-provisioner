@@ -1,5 +1,0 @@
-$schema:  http://json-schema.org/draft-04/schema#
-title:                      "Get Stats for a Worker Type"
-description: |
-  All of the launch specifications for a worker type
-type:                       object
