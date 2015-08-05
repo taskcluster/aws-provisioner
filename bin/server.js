@@ -94,9 +94,9 @@ let launch = async function (profile) {
 
   // Get promise for workerType table created (we'll await it later)
   let tablesCreated = Promise.all([
-      WorkerType.ensureTable(),
-      WorkerState.ensureTable(),
-      Secret.ensureTable(),
+    WorkerType.ensureTable(),
+    WorkerState.ensureTable(),
+    Secret.ensureTable(),
   ]);
 
   // Setup Pulse exchanges and create a publisher

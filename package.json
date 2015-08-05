@@ -10,16 +10,16 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "babel": "^5.8.3",
+    "babel": "^5.8.20",
     "bluebird": "^2.9.34",
     "commander": "^2.6.0",
     "debug": "^2.2.0",
     "kexec": "^1.2.0",
     "knuth-shuffle": "^1.0.1",
-    "lodash": "^3.10.0",
+    "lodash": "^3.10.1",
     "multi-region-promised-aws": "0.0.5",
     "node-uuid": "^1.4.2",
-    "promise": "^7.0.3",
+    "promise": "^7.0.4",
     "sinon": "^1.15.4",
     "slugid": "1.0.3",
     "taskcluster-base": "0.8.1",
@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "assume": "^1.2.5",
-    "babel-eslint": "^3.1.26",
-    "eslint": "^0.24.1",
+    "babel-eslint": "^4.0.5",
+    "eslint": "^1.0.0",
     "mocha": "^2.2.5",
     "should": "^7.0.2"
   },
