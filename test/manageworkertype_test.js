@@ -26,6 +26,21 @@ describe('provisioner worker type api', () => {
     await helper.awsProvisioner.createWorkerType(id, workerTypeDefinition);
   });
 
+  it('should reject creates with scope elevation', async () => {
+    let wType = _.cloneDeep(workerTypeDefinition);
+    wType.scopes = ['root'];
+    let created = false;
+    try {
+      await helper.awsProvisioner.createWorkerType(id, wType);
+      created = true;
+    } catch (err) {
+      return true;
+    }
+    if (created) {
+      throw new Error('should not create with scope elevation');
+    }
+  });
+
   it('should be able to update a worker', async () => {
     debug('### Load workerType');
     var wType = await helper.awsProvisioner.workerType(id);
@@ -43,6 +58,22 @@ describe('provisioner worker type api', () => {
     wType = await helper.awsProvisioner.workerType(id);
     assume(wType.maxCapacity).equals(15);
   });
+
+  it('should reject updates with scope elevation', async () => {
+    let wType = _.cloneDeep(workerTypeDefinition);
+    wType.scopes = ['root'];
+    let created = false;
+    try {
+      await helper.awsProvisioner.createWorkerType(id, wType);
+      created = true;
+    } catch (err) {
+      return true;
+    }
+    if (created) {
+      throw new Error('should not create with scope elevation');
+    }
+  });
+
 
   it('should be able to remove a worker (idempotent)', async () => {
     debug('### Remove workerType');

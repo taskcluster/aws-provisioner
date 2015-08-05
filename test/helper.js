@@ -17,7 +17,7 @@ var defaultClients = [
   }, {
     clientId: 'test-client',  // Used in default AwsProvisioner creation
     accessToken: 'none',
-    scopes: ['*'],
+    scopes: ['aws-provisioner:*'],
     expires: new Date(3000, 0, 0, 0, 0, 0, 0),
   },
 ];

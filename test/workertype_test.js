@@ -74,6 +74,54 @@ describe('worker type', function () {
     return await asModified.remove();
   });
 
+  describe('listing scopes', function() {
+    it('should list all possible scopes', function () {
+      var wType = makeWorkerType({
+        scopes: ['gScope'],
+        instanceTypes: [
+          makeInstanceType({scopes: ['tScope1'], instanceType: 'c3.small'}),
+          makeInstanceType({scopes: ['tScope2'], instanceType: 'c3.medium'}),
+        ],
+        regions: [
+          makeRegion({region: 'us-west-1', scopes: ['rScope1']}),
+          makeRegion({region: 'us-west-2', scopes: ['rScope2']}),
+        ],
+      });
+
+      subject.scopes(wType).should.eql([
+        ['gScope'],
+        ['rScope1'],
+        ['rScope2'],
+        ['tScope1'],
+        ['tScope2'],
+      ]);
+    });
+
+    it('should list all possible scopes that are lists of scopes', function () {
+      var wType = makeWorkerType({
+        scopes: [['gScope', 'g']],
+        instanceTypes: [
+          makeInstanceType({scopes: [['tScope1', 't']], instanceType: 'c3.small'}),
+          makeInstanceType({scopes: [['tScope2'], 't'], instanceType: 'c3.medium'}),
+        ],
+        regions: [
+          makeRegion({region: 'us-west-1', scopes: [['rScope1', 'r']]}),
+          makeRegion({region: 'us-west-2', scopes: [['rScope2'], 'r']}),
+        ],
+      });
+
+      subject.scopes(wType).should.eql([
+        ['gScope', 'g'],
+        ['rScope1', 'r'],
+        ['rScope2'],
+        ['r'],
+        ['tScope1', 't'],
+        ['tScope2'],
+        ['t'],
+      ]);
+    });
+  });
+
   describe('generating launch specifications', function () {
     it('should create a launch spec with valid data', async function () {
       var wType = makeWorkerType({
