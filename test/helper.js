@@ -22,16 +22,11 @@ var defaultClients = [
   },
 ];
 
-// This is a hack to make it possible to use the same config
-// for unit testing as for development
-var configFile = require('../taskcluster-aws-provisioner.conf.json');
-delete configFile.taskcluster.credentials;
-
 // Load configuration
 var cfg = base.config({
   defaults: require('../config/defaults'),
   profile: require('../config/test'),
-  configFile: configFile,
+  filename: 'taskcluster-aws-provisioner',
 });
 exports.cfg = cfg;
 
