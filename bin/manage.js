@@ -4,12 +4,17 @@ process.env.DEBUG = '';
 
 var fs = require('fs');
 var path = require('path');
-var base = require('taskcluster-base');
 var tc = require('taskcluster-client');
-var api = require('../lib/routes/v1');
 var Promise = require('promise');
 var program = require('commander');
 var pkgData = require('../package.json');
+
+var canGenerateReference = false;
+try {
+  var api = require('../lib/routes/v1');
+  var base = require('taskcluster-base');
+  canGenerateReference = true;
+} catch (err) { }
 
 var localhostAddress = 'http://localhost:5557/v1';
 var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
@@ -54,8 +59,6 @@ function slurp (filenames) {
 function writeWorkerTypes (client, workerTypes) {
   if (!fs.existsSync('workers')) {
     fs.mkdirSync('workers');
-  } else {
-    throw new Error('Worker type output already exists');
   }
 
   var p = Promise.all(workerTypes.map(function (name) {
@@ -67,7 +70,11 @@ function writeWorkerTypes (client, workerTypes) {
     res.forEach(function (worker) {
       var filename = path.join('workers', worker.workerType + '.json');
       filenames.push(filename);
-      fs.writeFileSync(filename.replace(' ', '_'), JSON.stringify(worker, null, 2));
+      if (!fs.existsSync(filename)) {
+        fs.writeFileSync(filename.replace(' ', '_'), JSON.stringify(worker, null, 2));
+      } else {
+        throw new Error('refusing to overwrite ' + filename);
+      }
     });
 
     return filenames;
@@ -79,6 +86,11 @@ function writeWorkerTypes (client, workerTypes) {
 function createClient () {
   var url = program.url;
 
+  var shouldGenerateReference = false;
+  if (canGenerateReference && !program.forceReleasedApi) {
+    shouldGenerateReference = true;
+  }
+
   if (program.localhost && program.production) {
     console.log('--localhost and --production are mutually exclusive');
   } else if (program.localhost) {
@@ -87,9 +99,13 @@ function createClient () {
     url = realBaseAddress;
   }
 
-  var references = api.reference({baseUrl: url});
-  var AwsProvisioner = tc.createClient(references);
-  return new AwsProvisioner();
+  if (shouldGenerateReference) {
+    var references = api.reference({baseUrl: url});
+    var AwsProvisioner = tc.createClient(references);
+    return new AwsProvisioner();
+  } else {
+    return new tc.AwsProvisioner({baseUrl: url});
+  }
 }
 
 program
@@ -97,7 +113,8 @@ program
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
   .option('-u, --url [url]', 'Use arbitrary URL', 'http://localhost:5557/v1')
   .option('--localhost', 'Force URL' + localhostAddress)
-  .option('--production', 'Force URL' + realBaseAddress);
+  .option('--production', 'Force URL' + realBaseAddress)
+  .option('--force-released-api', 'Force usage of the API reference in taskcluster-client');
 
 program
   .command('help')
@@ -357,21 +374,6 @@ program
   });
 
 program
-  .command('all-stop')
-  .description('Kill everything managed by this provisioner on aws')
-  .action(function () {
-    var client = createClient();
-
-    var p = client.shutdownEverySingleEc2InstanceManagedByThisProvisioner();
-
-    p = p.then(function () {
-      console.log('{"outcome": "success"}');
-    });
-
-    p = p.catch(errorHandler);
-  });
-
-program
   .command('setup-table')
   .option('--config <config>', 'Configuration file to use', 'development')
   .description('Assert that this provisioner has a table')
@@ -381,6 +383,8 @@ program
       profile: require('../config/' + conf.config),
       envs: [
         'provisioner_workerTypeTableName',
+        'provisioner_workerStateTableName',
+        'provisioner_secretTableName',
         'azure_accountName',
       ],
       filename: 'taskcluster-aws-provisioner',
@@ -388,21 +392,23 @@ program
 
     var accountName = cfg.get('azure:accountName');
     var tableName = cfg.get('provisioner:workerTypeTableName');
-    var secretTable = cfg.get('provisioner:secretTable');
+    var secretTable = cfg.get('provisioner:secretTableName');
+    var workerStateTable = cfg.get('provisioner:workerStateTableName');
 
     var auth = new tc.Auth();
 
-    var p = auth.azureTableSAS(accountName, tableName);
-
-    p = p.then(function () {
-      return auth.azureTableSAS(accountName, secretTable);
-    });
+    var p = Promise.all([
+      auth.azureTableSAS(accountName, tableName),
+      auth.azureTableSAS(accountName, secretTable),
+      auth.azureTableSAS(accountName, workerStateTable),
+    ]);
 
     p = p.then(function () {
       console.log(JSON.stringify({
         outcome: 'success',
         tableName: tableName,
         secretTable: secretTable,
+        workerStateTable: workerStateTable,
       }, null, 2));
     });
 
@@ -412,6 +418,6 @@ program
 
 program.parse(process.argv);
 
-if (!program.args.length) {
-  program.help();
+if (!process.argv.slice(2).length) {
+  program.outputHelp();
 }
