@@ -40,7 +40,7 @@ suite('Bad WorkerType definitions', () => {
         bad: 'input',
       });
       throw new Error('Expected and error');
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -51,7 +51,7 @@ suite('Bad WorkerType definitions', () => {
         bad: 'input',
       });
       throw new Error('Expected and error');
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -62,7 +62,7 @@ suite('Bad WorkerType definitions', () => {
         'invalid', invalidLaunchSpecWorkerType
       );
       throw new Error('Expected and error');
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });
@@ -71,7 +71,7 @@ suite('Bad WorkerType definitions', () => {
     try {
       await helper.awsProvisioner.workerType(slugid.v4());
       throw new Error('Expected and error');
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).is.between(400, 499);
     }
   });

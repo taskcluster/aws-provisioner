@@ -53,7 +53,7 @@ describe('provisioner worker type api', () => {
     try {
       await helper.awsProvisioner.workerType(id);
       throw new Error('Expected and error');
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).equals(404);
     }
   });

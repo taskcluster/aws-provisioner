@@ -36,7 +36,7 @@ describe('secrets api', () => {
 
     try {
       await helper.awsProvisioner.getSecret(token);
-    } catch(err) {
+    } catch (err) {
       assume(err.statusCode).equals(404);
     }
   });

@@ -34,6 +34,14 @@ var provisionerId = cfg.get('provisioner:id');
   maxPendingPoints: cfg.get('influx:maxPendingPoints'),
 });*/
 
+function createMockBiaser (bias) {
+  return {
+    getBias: function () {
+      return bias;
+    },
+  };
+}
+
 var subject = workerType.setup({
   table: cfg.get('provisioner:workerTypeTableName'),
   credentials: cfg.get('azure'),
@@ -387,7 +395,7 @@ describe('worker type', function () {
     });
 
     it('should pick the cheapest region, zone and type in one region', function () {
-      var actual = wType.determineSpotBids(['region1'], fakePricing(), 1);
+      var actual = wType.determineSpotBids(['region1'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
           region: 'region1',
@@ -401,7 +409,7 @@ describe('worker type', function () {
     });
 
     it('should pick the cheapest region, zone and type in two regions', function () {
-      var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
+      var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
           region: 'region2',
@@ -415,7 +423,7 @@ describe('worker type', function () {
     });
 
     it('should work with an empty region', function () {
-      var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1);
+      var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
           region: 'region1',
@@ -433,7 +441,7 @@ describe('worker type', function () {
         w.maxPrice = 10;
         w.minPrice = 8;
       });
-      var actual = wt.determineSpotBids(['region2'], fakePricing(), 1);
+      var actual = wt.determineSpotBids(['region2'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
           region: 'region2',
