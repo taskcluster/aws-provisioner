@@ -1,4 +1,3 @@
-'use strict';
 var helper = require('./helper');
 var slugid = require('slugid');
 var assume = require('assume');

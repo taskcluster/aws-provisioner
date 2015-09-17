@@ -1,4 +1,3 @@
-'use strict';
 var base = require('taskcluster-base');
 var workerType = require('../lib/worker-type');
 var slugid = require('slugid');

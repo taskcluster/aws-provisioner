@@ -1,4 +1,3 @@
-'use strict';
 var subject = require('../lib/watchdog');
 var sinon = require('sinon');
 var assume = require('assume');

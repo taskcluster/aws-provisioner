@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 let path = require('path');
 let debug = require('debug')('aws-provisioner:bin:server');
 let base = require('taskcluster-base');

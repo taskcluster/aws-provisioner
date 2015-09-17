@@ -1,5 +1,3 @@
-'use strict';
-
 let base = require('taskcluster-base');
 let debug = require('debug')('aws-provisioner:bin:provisioner');
 let workerType = require('./lib/worker-type');

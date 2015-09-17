@@ -1,4 +1,3 @@
-'use strict';
 suite('Bad WorkerType definitions', () => {
   var helper = require('./helper');
   var slugid = require('slugid');

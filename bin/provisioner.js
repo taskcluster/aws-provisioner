@@ -1,5 +1,3 @@
-'use strict';
-
 let debug = require('debug')('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
 let provision = require('../lib/provision');

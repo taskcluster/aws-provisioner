@@ -1,5 +1,3 @@
-'use strict';
-
 /* Take a taskcluster.base.config config file and generate a command that will
    upload all values to heroku */
 

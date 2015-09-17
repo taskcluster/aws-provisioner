@@ -1,5 +1,4 @@
 #!/usr/bin/env babel-node
-'use strict';
 process.env.DEBUG = '';
 
 var fs = require('fs');

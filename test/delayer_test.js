@@ -1,5 +1,3 @@
-'use strict';
-
 var subject = require('../lib/delayer');
 var assume = require('assume');
 
