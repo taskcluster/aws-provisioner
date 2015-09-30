@@ -3,11 +3,11 @@
 # Run linter
 if [ "$NOLINT" != 1 ] ; then
   eslint --rulesdir eslint-rules \
-    bin/server.js \
-    bin/provisioner.js \
-    bin/manage.js \
-    lib/*.js \
-    lib/routes/*.js \
+    src/bin/server.js \
+    src/bin/provisioner.js \
+    src/bin/manage.js \
+    src/lib/*.js \
+    src/lib/routes/*.js \
     test/*.js
 fi
 

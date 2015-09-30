@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "compile": "rm -rf bin lib && babel -s -d lib src/lib && babel -s -d bin src/bin",
+    "preinstall": "npm run compile",
+    "pretest": "npm run compile",
     "test": "test/runtests.sh"
   },
   "repository": {
