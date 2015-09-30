@@ -688,6 +688,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
     let cheapestZone;
     let cheapestPrice;
     let cheapestBid;
+    let cheapestBias;
 
     // Utility Factors, by instance type
     let uf = {};
@@ -735,6 +736,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
               cheapestType = type;
               cheapestZone = zone;
               cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+              cheapestBias = bias;
             } else if (potentialPrice < cheapestPrice) {
               // If we find that we have a cheaper option, let's switch to it
               priceDebugLog.push(util.format('%s cheapest was %s/%s/%s: %d(%d), now is %s/%s/%s: %d(%d)',
@@ -746,6 +748,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
               cheapestType = type;
               cheapestZone = zone;
               cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+              cheapestBias = bias;
             } else {
               // If this option is not first and not cheapest, we'll
               // ignore it but tell the logs that we did
@@ -790,6 +793,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
         region: cheapestRegion,
         type: cheapestType,
         zone: cheapestZone,
+        bias: cheapestBias,
       });
     } else {
       debug('WorkerType %s is exceeding its max price of %d with %d',

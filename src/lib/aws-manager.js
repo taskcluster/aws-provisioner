@@ -1065,6 +1065,7 @@ class AwsManager {
       id: info.request.SpotInstanceRequestId,
       bid: bid.price,
       price: bid.truePrice,  // ugh, naming!
+      bias: bid.bias,
     });
 
     this.reportAmiUsage({

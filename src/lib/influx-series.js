@@ -34,6 +34,7 @@ module.exports.spotRequestsSubmitted = new base.stats.Series({
     // Both the bid and price will be the pre-safety factor number
     bid: base.stats.types.Number,
     price: base.stats.types.Number,
+    bias: base.stats.types.Number,
   },
 });
 

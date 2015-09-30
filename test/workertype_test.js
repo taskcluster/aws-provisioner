@@ -290,13 +290,13 @@ describe('worker type', function () {
     function testChange (expected, rCap, pCap, pend, min, max, sr) {
       it(rCap + ' runningCap ' + pCap + ' pendingCap ' + pend + ' pending ==> ' +
          expected + ' ratio ' + (sr || 0) + ' min/max ' + (min || 0) + '/' + (max || 20), async function () {
-        var wt = await wType.modify(w => {
-          w.minCapacity = min || 0;
-          w.maxCapacity = max || 20;
-          w.scalingRatio = sr || 0;
-        });
-        wt.determineCapacityChange(rCap, pCap, pend).should.equal(expected);
-      });
+           var wt = await wType.modify(w => {
+             w.minCapacity = min || 0;
+             w.maxCapacity = max || 20;
+             w.scalingRatio = sr || 0;
+           });
+           wt.determineCapacityChange(rCap, pCap, pend).should.equal(expected);
+         });
     }
 
     describe('no scaling ratio', function () {

@@ -3,14 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "compile": "rm -rf bin lib && ./node_modules/.bin/babel -s -d lib src/lib && ./node_modules/.bin/babel -s -d bin src/bin",
+    "install": "npm run compile",
+    "pretest": "npm run compile",
     "test": "test/runtests.sh"
+  },
+  "babel": {
+    "sourceMaps": true,
+    "optional": [
+      "runtime"
+    ],
+    "stage": 1
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "babel": "^5.8.20",
     "bluebird": "^2.9.34",
     "commander": "^2.6.0",
     "debug": "^2.2.0",
@@ -27,7 +36,9 @@
   },
   "devDependencies": {
     "assume": "^1.2.5",
+    "babel": "^5.8.23",
     "babel-eslint": "^4.0.5",
+    "babel-runtime": "^5.8.25",
     "eslint": "^1.0.0",
     "mocha": "^2.2.5",
     "should": "^7.0.2"
