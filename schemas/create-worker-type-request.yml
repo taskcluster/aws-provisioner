@@ -20,8 +20,10 @@ properties:
     type: array
     items:
       type: string
+      pattern: "^[\x20-\x7e]*"
     description: |
-      Scopes to issue credentials to for all regions
+      Scopes to issue credentials to for all regions Scopes must be composed of
+      printable ASCII characters and spaces.
   minCapacity:
     type: number
     description: |
@@ -108,8 +110,10 @@ properties:
           type: array
           items:
             type: string
+            pattern: "^[\x20-\x7e]*"
           description: |
-            Scopes which should be included for this InstanceType
+            Scopes which should be included for this InstanceType.  Scopes must
+            be composed of printable ASCII characters and spaces.
       required:
         - instanceType
         - capacity
@@ -151,8 +155,10 @@ properties:
           type: array
           items:
             type: string
+            pattern: "^[\x20-\x7e]*"
           description: |
-            Scopes which should be included for this Region
+            Scopes which should be included for this Region.  Scopes must be
+            composed of printable ASCII characters and spaces.
       additionalProperties: false
       required:
         - launchSpec
