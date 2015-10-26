@@ -20,7 +20,7 @@ properties:
     type: array
     items:
       type: string
-      pattern: "^[\x20-\x7e]*"
+      pattern: "^[\x20-\x7e]*$"
     description: |
       Scopes to issue credentials to for all regions Scopes must be composed of
       printable ASCII characters and spaces.
@@ -110,7 +110,7 @@ properties:
           type: array
           items:
             type: string
-            pattern: "^[\x20-\x7e]*"
+            pattern: "^[\x20-\x7e]*$"
           description: |
             Scopes which should be included for this InstanceType.  Scopes must
             be composed of printable ASCII characters and spaces.
@@ -155,7 +155,7 @@ properties:
           type: array
           items:
             type: string
-            pattern: "^[\x20-\x7e]*"
+            pattern: "^[\x20-\x7e]*$"
           description: |
             Scopes which should be included for this Region.  Scopes must be
             composed of printable ASCII characters and spaces.
