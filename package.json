@@ -22,8 +22,9 @@
     "promise": "^7.0.4",
     "sinon": "^1.15.4",
     "slugid": "^1.1.0",
-    "taskcluster-base": "^0.8.6",
-    "taskcluster-client": "^0.22.6"
+    "taskcluster-base": "0.8.12",
+    "taskcluster-client": "^0.22.6",
+    "typed-env-config": "^0.10.0"
   },
   "devDependencies": {
     "assume": "^1.2.5",
