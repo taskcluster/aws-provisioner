@@ -22,6 +22,8 @@ let launch = function (profile) {
       'taskcluster_authBaseUrl',
       'taskcluster_credentials_clientId',
       'taskcluster_credentials_accessToken',
+      'deadmanssnitch_api_key',
+      'deadmandssnitch_iterationSnitch',
       'pulse_username',
       'pulse_password',
       'aws_accessKeyId',
