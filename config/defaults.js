@@ -1,4 +1,10 @@
 module.exports = {
+  deadmanssnitch: {
+    api: {
+      key: undefined,
+    },
+    iterationSnitch: undefined
+  },
   taskcluster: {
     queueBaseUrl: undefined,
     authBaseUrl: undefined,

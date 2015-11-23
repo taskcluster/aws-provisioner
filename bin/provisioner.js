@@ -87,6 +87,8 @@ let launch = function (profile) {
     influx: influx,
     awsManager: awsManager,
     provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
+    dmsApiKey: cfg.get('deadmanssnitch:api:key'),
+    iterationSnitch: cfg.get('deadmanssnitch:iterationSnitch'),
   };
 
   let provisioner = new provision.Provisioner(config);
