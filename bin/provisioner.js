@@ -59,6 +59,7 @@ let launch = function (profile) {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
+      pubKey: pubKey,
     },
   });
 

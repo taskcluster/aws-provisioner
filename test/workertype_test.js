@@ -22,7 +22,7 @@ var cfg = base.config({
 });
 
 var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-//var pubKey = cfg.get('provisioner:awsInstancePubkey');
+var pubKey = cfg.get('provisioner:awsInstancePubkey');
 var provisionerId = cfg.get('provisioner:id');
 //var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
 
@@ -48,6 +48,7 @@ var subject = workerType.setup({
     keyPrefix: keyPrefix,
     provisionerId: provisionerId,
     provisionerBaseUrl: cfg.get('server:publicUrl'),
+    pubKey: pubKey,
   },
   //account: cfg.get('azure:accountName'),
   //credentials: cfg.get('taskcluster:credentials'),
@@ -88,7 +89,7 @@ describe('worker type', function () {
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
       });
-      subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId', 'url');
+      subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId', 'url', 'ssh-rsa fakepubkey comment', 'workerName');
     });
 
     function shouldThrow (wType) {
@@ -173,7 +174,7 @@ describe('worker type', function () {
         region: 'us-west-1',
         type: 'c3.small',
         zone: 'fakezone',
-      }, wType, 'keyPrefix', 'provisionerId', 'url').launchSpec;
+      }, wType, 'keyPrefix', 'provisionerId', 'url', 'ssh-rsa fakepubkey comment', 'name').launchSpec;
       var userData = JSON.parse(new Buffer(launchSpec.UserData, 'base64').toString());
 
       userData.capacity.should.equal(1);

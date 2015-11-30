@@ -37,6 +37,7 @@ let launch = async function (profile) {
   });
 
   let keyPrefix = cfg.get('provisioner:awsKeyPrefix');
+  let pubKey = cfg.get('provisioner:awsInstancePubkey');
   let provisionerId = cfg.get('provisioner:id');
   let provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
 
@@ -73,6 +74,7 @@ let launch = async function (profile) {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
+      pubKey: pubKey,
     },
     //account: cfg.get('azure:accountName'),
     //credentials: cfg.get('taskcluster:credentials'),
@@ -135,6 +137,7 @@ let launch = async function (profile) {
       ec2: ec2,
       publisher: publisher,
       keyPrefix: keyPrefix,
+      pubKey: pubKey,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
       reportInstanceStarted: reportInstanceStarted,
