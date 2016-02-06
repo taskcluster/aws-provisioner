@@ -18,7 +18,7 @@
     "kexec": "^1.2.0",
     "knuth-shuffle": "^1.0.1",
     "lodash": "^3.10.1",
-    "multi-region-promised-aws": "0.0.5",
+    "multi-region-promised-aws": "0.0.6",
     "node-uuid": "^1.4.2",
     "nodemailer": "^0.7.1",
     "postmark": "^1.2.1",
