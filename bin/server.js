@@ -7,7 +7,6 @@ let secret = require('../lib/secret');
 let workerState = require('../lib/worker-state');
 let exchanges = require('../lib/exchanges');
 let v1 = require('../lib/routes/v1');
-let Aws = require('multi-region-promised-aws');
 let _ = require('lodash');
 let series = require('../lib/influx-series');
 let aws = require('aws-sdk-promise');
@@ -51,7 +50,7 @@ let launch = async function (profile) {
     maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
-    // Start monitoring the process
+  // Start monitoring the process
   base.stats.startProcessUsageReporting({
     drain: influx,
     component: cfg.get('provisioner:statsComponent'),
