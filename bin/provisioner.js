@@ -1,7 +1,7 @@
 let debug = require('debug')('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
 let provision = require('../lib/provision');
-let awsSdk = require('aws-sdk-promise');
+let aws = require('aws-sdk-promise');
 let workerType = require('../lib/worker-type');
 let secret = require('../lib/secret');
 let workerState = require('../lib/worker-state');
@@ -74,7 +74,7 @@ let launch = function (profile) {
   for (let region of allowedRegions) {
     let ec2conf = cfg.get('aws');
     ec2conf.region = region;
-    ec2[region] = new awsSdk.EC2(ec2conf);
+    ec2[region] = new aws.EC2(ec2conf);
   }
 
   let awsManager = new AwsManager(
