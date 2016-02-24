@@ -51,18 +51,7 @@ let launch = async function (profile) {
     maxPendingPoints: cfg.get('influx:maxPendingPoints'),
   });
 
-  // Configure me an EC2 API instance.  This one should be able
-  // to run in any region, which we'll limit by the ones
-  // store in the worker definition
-  // NOTE: Should we use ec2.describeRegions? meh
-  let ec2 = new Aws('EC2', _.omit(cfg.get('aws'), 'region'), [
-    'us-east-1', 'us-west-1', 'us-west-2',
-    'eu-west-1', 'eu-central-1',
-    'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
-    'sa-east-1',
-  ]);
-
-  // Start monitoring the process
+    // Start monitoring the process
   base.stats.startProcessUsageReporting({
     drain: influx,
     component: cfg.get('provisioner:statsComponent'),
@@ -145,7 +134,6 @@ let launch = async function (profile) {
       WorkerType: WorkerType,
       WorkerState: WorkerState,
       Secret: Secret,
-      ec2: ec2,
       publisher: publisher,
       keyPrefix: keyPrefix,
       pubKey: pubKey,

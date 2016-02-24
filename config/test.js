@@ -6,6 +6,7 @@ module.exports = {
     secretTableName:      'ProvisionerSecretTest',
     publishMetaData:      'false',
     statsComponent:       'aws-provisioner2-test',
+    allowedRegions:       'us-west-2',
     awsKeyPrefix:         'aws-provisioner2-test-managed:',
   },
   server: {
