@@ -10,6 +10,7 @@ let v1 = require('../lib/routes/v1');
 let Aws = require('multi-region-promised-aws');
 let _ = require('lodash');
 let series = require('../lib/influx-series');
+let aws = require('aws-sdk-promise');
 
 /** Launch server */
 let launch = async function (profile) {
@@ -125,6 +126,14 @@ let launch = async function (profile) {
     process: 'server',
   });
 
+  let allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
+  let ec2 = {};
+  for (let region of allowedRegions) {
+    let ec2conf = cfg.get('aws');
+    ec2conf.region = region;
+    ec2[region] = new aws.EC2(ec2conf);
+  }
+
   // We also want to make sure that the table is created.
   await tablesCreated;
 
@@ -146,6 +155,7 @@ let launch = async function (profile) {
       credentials: cfg.get('taskcluster:credentials'),
       dmsApiKey: cfg.get('deadmanssnitch:api:key'),
       iterationSnitch: cfg.get('deadmanssnitch:iterationSnitch'),
+      ec2: ec2,
     },
     validator: validator,
     authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
