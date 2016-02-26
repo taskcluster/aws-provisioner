@@ -10,7 +10,7 @@ var pkgData = require('../package.json');
 
 var canGenerateReference = false;
 try {
-  var api = require('../lib/routes/v1');
+  var api = require('../lib/api-v1');
   var base = require('taskcluster-base');
   canGenerateReference = true;
 } catch (err) { }
