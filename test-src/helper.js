@@ -4,7 +4,7 @@ var mocha = require('mocha');
 var v1 = require('../lib/api-v1');
 var taskcluster = require('taskcluster-client');
 var bin = {
-  server: require('../bin/server'),
+  server: require('../lib/server'),
 };
 
 // Some default clients for the mockAuthServer

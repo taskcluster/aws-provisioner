@@ -1,5 +1,0 @@
---require should
---compilers js:babel/register
---ui tdd
---timeout 30s
---reporter spec
