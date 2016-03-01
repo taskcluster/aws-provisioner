@@ -4,7 +4,6 @@ process.env.DEBUG = '';
 var fs = require('fs');
 var path = require('path');
 var tc = require('taskcluster-client');
-var Promise = require('promise');
 var program = require('commander');
 var pkgData = require('../package.json');
 
