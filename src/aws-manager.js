@@ -281,7 +281,7 @@ class AwsManager {
       let zone = pricePoint.AvailabilityZone;
 
       // Remember that we only want to consider available zones
-      if (zones.includes(zone)) {
+      if (_.includes(zones, zone)) {
         if (!pricing[type]) {
           pricing[type] = {};
         }
@@ -339,7 +339,7 @@ class AwsManager {
       });
     }
 
-    if (stalledStates.includes(sr.Status.Code)) {
+    if (_.includes(stalledStates, sr.Status.Code)) {
       debug('spot request %s stalled, bad state %s', sr.SpotInstanceRequestId, sr.Status.Code);
       return true;
     } else {
@@ -375,10 +375,10 @@ class AwsManager {
     // find all the instances and request ids which were in the previous state
     // but not in the new state
     missingIds.instances = allInstancesInPreviousState.filter(id => {
-      return !allInstancesInNewState.includes(id);
+      return !_.includes(allInstancesInNewState, id);
     });
     missingIds.requests = allRequestsInPreviousState.filter(id => {
-      return !allRequestsInNewState.includes(id);
+      return !_.includes(allRequestsInNewState, id);
     });
 
     // Now let's grab those instances and requests which are absent, but instead
@@ -387,10 +387,10 @@ class AwsManager {
     // need information about why the state change occured
     return {
       instances: deadState.instances.filter(instance => {
-        return missingIds.instances.includes(instance.InstanceId);
+        return _.includes(missingIds.instances, instance.InstanceId);
       }),
       requests: deadState.requests.filter(request => {
-        return missingIds.requests.includes(request.SpotInstanceRequestId);
+        return _.includes(missingIds.requests, request.SpotInstanceRequestId);
       }),
     };
   }
@@ -624,7 +624,7 @@ class AwsManager {
       region = [region];
     }
     return this.__apiState.instances.filter(instance => {
-      return region.includes(instance.Region);
+      return _.includes(region, instance.Region);
     });
   }
 
@@ -634,7 +634,7 @@ class AwsManager {
       region = [region];
     }
     return this.__apiState.requests.filter(request => {
-      return region.includes(request.Region);
+      return _.includes(region, request.Region);
     });
   }
 
@@ -644,7 +644,7 @@ class AwsManager {
       workerType = [workerType];
     }
     return this.__apiState.instances.filter(instance => {
-      return workerType.includes(instance.WorkerType);
+      return _.includes(workerType, instance.WorkerType);
     });
   }
 
@@ -654,7 +654,7 @@ class AwsManager {
       workerType = [workerType];
     }
     return this.__apiState.requests.filter(request => {
-      return workerType.includes(request.WorkerType);
+      return _.includes(workerType, request.WorkerType);
     });
   }
 
@@ -666,7 +666,7 @@ class AwsManager {
       region = [region];
     }
     return this.__apiState.instances.filter(instance => {
-      return region.includes(instance.Region) && workerType.includes(instance.WorkerType);
+      return _.includes(region, instance.Region) && _.includes(workerType, instance.WorkerType);
     });
 
   }
@@ -679,7 +679,7 @@ class AwsManager {
       region = [region];
     }
     return this.__apiState.requests.filter(request => {
-      return region.includes(request.Region) && workerType.includes(request.WorkerType);
+      return _.includes(region, request.Region) && _.includes(workerType, request.WorkerType);
     });
 
   }
@@ -691,19 +691,19 @@ class AwsManager {
     let workerTypes = [];
 
     for (let instance of this.__apiState.instances) {
-      if (!workerTypes.includes(instance.WorkerType)) {
+      if (!_.includes(workerTypes, instance.WorkerType)) {
         workerTypes.push(instance.WorkerType);
       }
     }
 
     for (let request of this.__apiState.requests) {
-      if (!workerTypes.includes(request.WorkerType)) {
+      if (!_.includes(workerTypes, request.WorkerType)) {
         workerTypes.push(request.WorkerType);
       }
     }
 
     for (let sr of this.__internalState) {
-      if (!workerTypes.includes(sr.request.WorkerType)) {
+      if (!_.includes(workerTypes, sr.request.WorkerType)) {
         workerTypes.push(sr.request.WorkerType);
       }
     }
@@ -729,7 +729,7 @@ class AwsManager {
     let requests = this.requestsOfType(workerType.workerType);
 
     for (let instance of instances) {
-      if (states.includes(instance.State.Name)) {
+      if (_.includes(states, instance.State.Name)) {
         try {
           capacity += workerType.capacityOfType(instance.InstanceType);
         } catch (err) {
@@ -739,7 +739,7 @@ class AwsManager {
     }
 
     for (let request of requests) {
-      if (states.includes('spotReq')) {
+      if (_.includes(states, 'spotReq')) {
         try {
           capacity += workerType.capacityOfType(request.InstanceType);
         } catch (err) {
@@ -749,7 +749,7 @@ class AwsManager {
     }
 
     for (let sr of this.__internalState) {
-      if (states.includes('spotReq')) {
+      if (_.includes(states, 'spotReq')) {
         try {
           capacity += workerType.capacityOfType(sr.request.InstanceType);
         } catch (err) {
@@ -839,7 +839,7 @@ class AwsManager {
     // instance's object
     for (let instance of this.__apiState.instances) {
       let sird = instance.SpotInstanceRequestId;
-      if (sird && !allKnownSrIds.includes(sird)) {
+      if (sird && !_.includes(allKnownSrIds, sird)) {
         allKnownSrIds.push(sird);
       }
     }
@@ -863,7 +863,7 @@ class AwsManager {
 
     let allKnownSrIds = this.knownSpotInstanceRequestIds();
 
-    if (!allKnownSrIds.includes(sr.request.SpotInstanceRequestId)) {
+    if (!_.includes(allKnownSrIds, sr.request.SpotInstanceRequestId)) {
       // XXX let filtered = objFilter(sr.request, this.filters.spotReq);
       let filtered = sr.request;
       sr.request = filtered;
@@ -892,7 +892,7 @@ class AwsManager {
 
     this.__internalState = this.__internalState.filter(request => {
       // We want to print out some info!
-      if (allKnownSrIds.includes(request.request.SpotInstanceRequestId)) {
+      if (_.includes(allKnownSrIds, request.request.SpotInstanceRequestId)) {
         // Now that it's shown up, we'll remove it from the internal state
         debug('Spot request %s for %s/%s/%s took %d seconds to show up in API',
               request.request.SpotInstanceRequestId, request.request.Region,
@@ -1131,7 +1131,7 @@ class AwsManager {
     assert(configuredWorkers);
     let workersKnowByAws = this.knownWorkerTypes();
 
-    let unconfiguredWorkerNames = workersKnowByAws.filter(n => !configuredWorkers.includes(n));
+    let unconfiguredWorkerNames = workersKnowByAws.filter(n => !_.includes(configuredWorkers, n));
 
     for (let name of unconfiguredWorkerNames) {
       debug('killing rouge %s', name);

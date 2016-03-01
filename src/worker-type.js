@@ -6,6 +6,7 @@ let debugMigrate = require('debug')('aws-provisioner:migrate:WorkerType');
 let util = require('util');
 let slugid = require('slugid');
 let keyPairs = require('./key-pairs');
+let _ = require('lodash');
 
 const KEY_CONST = 'worker-type';
 
@@ -453,14 +454,14 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
 
   // Region specific scopes
   for (let scope of selectedRegion.scopes) {
-    if (!config.scopes.includes(scope)) {
+    if (!_.includes(config.scopes, scope)) {
       config.scopes.push(scope);
     }
   }
 
   // Instance Type specific scopes
   for (let scope of selectedInstanceType.scopes) {
-    if (!config.scopes.includes(scope)) {
+    if (!_.includes(config.scopes, scope)) {
       config.scopes.push(scope);
     }
   }
@@ -540,7 +541,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
 
   // Now check that there are no unknown keys
   for (let key of Object.keys(config.launchSpec)) {
-    assert(allowedKeys.includes(key), 'Your launch spec has invalid key ' + key);
+    assert(_.includes(allowedKeys, key), 'Your launch spec has invalid key ' + key);
   }
 
   // These are keys which we do not allow in the generated launch spec
@@ -722,7 +723,7 @@ WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, chan
     // which this worker type is configured for and that the
     // provisioner is configured for
     let regions = this.regions
-        .filter(r => managedRegions.includes(r.region))
+        .filter(r => _.includes(managedRegions, r.region))
         .map(r => r.region);
 
     // Instead of interleaving debug() calls, let's instead join all of these

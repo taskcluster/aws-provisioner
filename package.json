@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "compile": "babel-compile -c tc-rules/babel src:lib test-src:test",
+    "compile": "rm -rf lib/ test/ && babel-compile -c tc-rules/babel src:lib test-src:test",
     "pretest": "npm run compile",
     "test": "chmod +x test/runtests.sh && test/runtests.sh"
   },
