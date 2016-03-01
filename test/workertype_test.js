@@ -1,4 +1,5 @@
 var base = require('taskcluster-base');
+var libConfig = require('taskcluster-lib-config');
 var workerType = require('../lib/worker-type');
 var slugid = require('slugid');
 var mock = require('./mock-workers');
@@ -8,7 +9,7 @@ var makeRegion = mock.makeRegion;
 var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
 
-var cfg = base.config({
+var cfg = libConfig({
   defaults: require('../config/defaults'),
   profile: require('../config/test'),
   envs: [

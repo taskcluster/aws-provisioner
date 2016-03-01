@@ -1,4 +1,5 @@
 var base = require('taskcluster-base');
+var libConfig = require('taskcluster-lib-config');
 var mocha = require('mocha');
 var v1 = require('../lib/api-v1');
 var taskcluster = require('taskcluster-client');
@@ -22,7 +23,7 @@ var defaultClients = [
 ];
 
 // Load configuration
-var cfg = base.config({
+var cfg = libConfig({
   defaults: require('../config/defaults'),
   profile: require('../config/test'),
   filename: 'taskcluster-aws-provisioner',

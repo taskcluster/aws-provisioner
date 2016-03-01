@@ -1,5 +1,6 @@
 let debug = require('debug')('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
+let libConfig = require('taskcluster-lib-config');
 let provision = require('../lib/provision');
 let aws = require('aws-sdk-promise');
 let workerType = require('../lib/worker-type');
@@ -14,7 +15,7 @@ process.on('unhandledRejection', err => {
 });
 
 let launch = function (profile) {
-  let cfg = base.config({
+  let cfg = libConfig({
     defaults: require('../config/defaults.js'),
     profile: require('../config/' + profile),
     filename: 'taskcluster-aws-provisioner',

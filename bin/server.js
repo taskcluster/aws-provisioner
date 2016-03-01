@@ -2,6 +2,7 @@
 let path = require('path');
 let debug = require('debug')('aws-provisioner:bin:server');
 let base = require('taskcluster-base');
+let libConfig = require('taskcluster-lib-config');
 let workerType = require('../lib/worker-type');
 let secret = require('../lib/secret');
 let workerState = require('../lib/worker-state');
@@ -18,7 +19,7 @@ process.on('unhandledRejection', err => {
 /** Launch server */
 let launch = async function (profile) {
   // Load configuration
-  let cfg = base.config({
+  let cfg = libConfig({
     defaults: require('../config/defaults'),
     profile: require('../config/' + profile),
     envs: [

@@ -11,7 +11,7 @@ var pkgData = require('../package.json');
 var canGenerateReference = false;
 try {
   var api = require('../lib/api-v1');
-  var base = require('taskcluster-base');
+  var libConfig = require('taskcluster-lib-config');
   canGenerateReference = true;
 } catch (err) { }
 
@@ -377,7 +377,7 @@ program
   .option('--config <config>', 'Configuration file to use', 'development')
   .description('Assert that this provisioner has a table')
   .action(function (conf) {
-    var cfg = base.config({
+    var cfg = libConfig({
       defaults: require('../config/defaults.js'),
       profile: require('../config/' + conf.config),
       envs: [

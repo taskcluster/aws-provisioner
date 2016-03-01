@@ -13,22 +13,20 @@
     "aws-sdk": "^2.2.37",
     "aws-sdk-promise": "0.0.2",
     "babel": "^5.8.20",
-    "bluebird": "^2.9.34",
     "commander": "^2.6.0",
     "debug": "^2.2.0",
     "irc": "^0.4.0",
-    "kexec": "^1.2.0",
+    "kexec": "^2.0.2",
     "knuth-shuffle": "^1.0.1",
     "lodash": "^3.10.1",
     "node-uuid": "^1.4.2",
-    "nodemailer": "^0.7.1",
     "postmark": "^1.2.1",
     "promise": "^7.0.4",
-    "request-promise": "^1.0.2",
+    "request-promise": "^2.0.1",
     "sinon": "^1.15.4",
     "slugid": "^1.1.0",
-    "taskcluster-base": "0.8.12",
-    "taskcluster-client": "^0.22.6",
+    "taskcluster-base": "^0.10.8",
+    "taskcluster-client": "^0.23.13",
     "taskcluster-lib-config": "^0.8.8",
     "taskcluster-lib-stats": "^0.8.7",
     "typed-env-config": "^0.10.0"
@@ -38,7 +36,7 @@
     "babel-eslint": "^4.0.5",
     "eslint": "^1.0.0",
     "mocha": "^2.2.5",
-    "should": "^7.0.2"
+    "should": "^8.2.2"
   },
   "engines": {
     "node": "4.x"
