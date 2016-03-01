@@ -74,6 +74,7 @@ let launch = function (profile) {
   for (let region of allowedRegions) {
     let ec2conf = cfg.get('aws');
     ec2conf.region = region;
+    ec2conf.logger = process.stdout;
     ec2[region] = new aws.EC2(ec2conf);
   }
 
