@@ -11,6 +11,10 @@ let _ = require('lodash');
 let series = require('../lib/influx-series');
 let aws = require('aws-sdk-promise');
 
+process.on('unhandledRejection', err => {
+  debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
+});
+
 /** Launch server */
 let launch = async function (profile) {
   // Load configuration

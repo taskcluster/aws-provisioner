@@ -9,6 +9,10 @@ let AwsManager = require('../lib/aws-manager');
 let taskcluster = require('taskcluster-client');
 let _ = require('lodash');
 
+process.on('unhandledRejection', err => {
+  debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
+});
+
 let launch = function (profile) {
   let cfg = base.config({
     defaults: require('../config/defaults.js'),
