@@ -1256,7 +1256,7 @@ class AwsManager {
     }
 
     // Now, let's go through the states starting with spot requests.
-    if (states.includes('spotReq')) {
+    if (_.includes(states, 'spotReq')) {
       // Let's shuffle things!
       let shuffledRequests = shuffle.knuthShuffle(this.requestsOfType(workerType.workerType));
 
@@ -1278,7 +1278,7 @@ class AwsManager {
 
     let shuffledApiInstances = shuffle.knuthShuffle(this.instancesOfType(workerType.workerType));
     for (let instance of shuffledApiInstances) {
-      if (cont() && states.includes(instance.State.Name)) {
+      if (cont() && _.includes(states, instance.State.Name)) {
         capToKill += caps[instance.InstanceType] || 1;
         toKill[instance.Region].instances.push(instance.InstanceId);
       }
