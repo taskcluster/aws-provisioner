@@ -7,6 +7,9 @@
     "pretest": "npm run compile",
     "test": "chmod +x test/runtests.sh && test/runtests.sh"
   },
+  "bin": {
+    "manage-provisioner": "./lib/manage.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/taskcluster/aws-provisioner.git"
