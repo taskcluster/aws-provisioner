@@ -330,7 +330,7 @@ class AwsManager {
     if (sr.Status.Code === 'price-too-low') {
       debug('found a canceled spot request, submitting pricing floor');
       this.reportSpotPriceFloorFound({
-        region: region,
+        region: sr.Region,
         az: sr.LaunchSpecification.Placement.AvailabilityZone,
         instanceType: sr.LaunchSpecification.InstanceType,
         time: dateForInflux(new Date()),
