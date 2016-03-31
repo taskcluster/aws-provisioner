@@ -1,5 +1,5 @@
 $schema:  http://json-schema.org/draft-04/schema#
-title:                      "Get Worker Type Request"
+title:                      "Get Worker Type Response"
 description: |
   A worker launchSpecification and required metadata
 type:                       object
