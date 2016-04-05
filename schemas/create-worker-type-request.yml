@@ -161,6 +161,7 @@ properties:
             composed of printable ASCII characters and spaces.
       additionalProperties: false
       required:
+        - region
         - launchSpec
         - secrets
         - userData
