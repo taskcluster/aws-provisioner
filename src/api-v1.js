@@ -162,6 +162,7 @@ api.declare({
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Create new Worker Type',
+  stability:  base.API.stability.stable,
   description: [
     'Create a worker type.  A worker type contains all the configuration',
     'needed for the provisioner to manage the instances.  Each worker type',
@@ -278,6 +279,7 @@ api.declare({
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Update Worker Type',
+  stability:  base.API.stability.stable,
   description: [
     'Provide a new copy of a worker type to replace the existing one.',
     'This will overwrite the existing worker type definition if there',
@@ -343,6 +345,7 @@ api.declare({
   input: undefined,  // No input
   output: 'get-worker-type-response.json#',
   title: 'Get Worker Type',
+  stability:  base.API.stability.stable,
   description: [
     'Retreive a copy of the requested worker type definition.',
     'This copy contains a lastModified field as well as the worker',
@@ -387,6 +390,7 @@ api.declare({
   input: undefined,  // No input
   output: undefined,  // No output
   title: 'Delete Worker Type',
+  stability:  base.API.stability.stable,
   description: [
     'Delete a worker type definition.  This method will only delete',
     'the worker type definition from the storage table.  The actual',
@@ -432,6 +436,7 @@ api.declare({
   input: undefined,  // No input
   output: 'list-worker-types-response.json#',
   title: 'List Worker Types',
+  stability:  base.API.stability.stable,
   description: [
     'Return a list of string worker type names.  These are the names',
     'of all managed worker types known to the provisioner.  This does',
@@ -460,6 +465,7 @@ api.declare({
   scopes: [['aws-provisioner:create-secret']],
   input: 'create-secret-request.json#',
   title: 'Create new Secret',
+  stability:  base.API.stability.stable,
   description: [
     'Insert a secret into the secret storage.  The supplied secrets will',
     'be provided verbatime via `getSecret`, while the supplied scopes will',
@@ -522,6 +528,7 @@ api.declare({
   name: 'getSecret',
   output: 'get-secret-response.json#',
   title: 'Get a Secret',
+  stability:  base.API.stability.stable,
   description: [
     'Retrieve a secret from storage.  The result contains any passwords or',
     'other restricted information verbatim as well as a temporary credential',
@@ -567,6 +574,7 @@ api.declare({
   route: '/instance-started/:instanceId/:token',
   name: 'instanceStarted',
   title: 'Report an instance starting',
+  stability:  base.API.stability.stable,
   description: [
     'An instance will report in by giving its instance id as well',
     'as its security token.  The token is given and checked to ensure',
@@ -603,6 +611,7 @@ api.declare({
   route: '/secret/:token',
   name: 'removeSecret',
   title: 'Remove a Secret',
+  stability:  base.API.stability.stable,
   description: [
     'Remove a secret.  After this call, a call to `getSecret` with the given',
     'token will return no information.',
@@ -647,6 +656,7 @@ api.declare({
   input: undefined,  // No input
   output: 'get-launch-specs-response.json#',
   title: 'Get All Launch Specifications for WorkerType',
+  stability:  base.API.stability.experimental,
   description: [
     'This method returns a preview of all possible launch specifications',
     'that this worker type definition could submit to EC2.  It is used to',
@@ -682,6 +692,7 @@ api.declare({
   name: 'awsState',
   title: 'Get AWS State for all worker types',
   scopes: [['aws-provisioner:aws-state']],
+  stability:  base.API.stability.deprecated,
   description: [
     'This method is a left over and will be removed as soon as the',
     'tools.tc.net UI is updated to use the per-worker state',
@@ -730,6 +741,7 @@ api.declare({
   name: 'state',
   title: 'Get AWS State for a worker type',
   scopes: [['aws-provisioner:view-worker-type:<workerType>']],
+  stability:  base.API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
     'This state is stored as three lists: 1 for all instances, 1 for requests',
@@ -755,6 +767,7 @@ api.declare({
   route: '/ping',
   name: 'ping',
   title: 'Ping Server',
+  stability:  base.API.stability.experimental,
   description: [
     'Documented later...',
     '',
@@ -772,6 +785,7 @@ api.declare({
   route: '/backend-status',
   name: 'backendStatus',
   title: 'Backend Status',
+  stability:  base.API.stability.experimental,
   description: [
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
@@ -800,6 +814,7 @@ api.declare({
   route: '/api-reference',
   name: 'apiReference',
   title: 'api reference',
+  stability:  base.API.stability.deprecated,
   description: [
     'Get an API reference!',
     '',
