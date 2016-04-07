@@ -8,6 +8,7 @@ module.exports = {
     statsComponent:       'aws-provisioner2-test',
     allowedRegions:       'us-west-2',
     awsKeyPrefix:         'aws-provisioner2-test-managed:',
+    awsInstancePubkey:    'fake-pubkey'
   },
   server: {
     publicUrl:  'https://aws-provisioner2-test.herokuapp.com',
@@ -22,5 +23,8 @@ module.exports = {
       clientId:     'test-server',
       accessToken:  'none'
     }
+  },
+  influx: {
+    connectionString: 'https://fake.mozilla.com',
   }
 };
