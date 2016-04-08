@@ -8,6 +8,7 @@ module.exports = {
     statsComponent:       'aws-provisioner2-dev',
     awsKeyPrefix:         'aws-provisioner2-dev-managed:',
     allowedRegions:       'us-west-2',
+    awsInstancePubkey:    'fake-pubkey'
   },
   server: {
     publicUrl:  'http://localhost:5557',
@@ -16,4 +17,7 @@ module.exports = {
     forceSSL:   false,
     trustProxy: false,
   },
+  influx: {
+    connectionString: 'https://fake.mozilla.com',
+  }
 };

@@ -42,7 +42,7 @@
   "devDependencies": {
     "assume": "^1.2.5",
     "babel-eslint": "^5.0.0",
-    "eslint": "^2.2.0",
+    "eslint": "~2.2.0",
     "mocha": "^2.2.5",
     "should": "^8.2.2"
   },

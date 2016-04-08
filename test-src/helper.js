@@ -34,7 +34,6 @@ exports.cfg = cfg;
 if (!cfg.get('aws:secretAccessKey') ||
     !cfg.get('azure:accountKey') ||
     !cfg.get('pulse:password')) {
-  console.log('Skip tests due to missing credentials!');
   throw new Error('cannot run tests due to missing credentials');
 }
 
