@@ -9,6 +9,7 @@ let workerState = require('../lib/worker-state');
 let AwsManager = require('../lib/aws-manager');
 let taskcluster = require('taskcluster-client');
 let _ = require('lodash');
+require('source-map-support').install();
 
 process.on('unhandledRejection', err => {
   debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);

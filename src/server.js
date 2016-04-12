@@ -11,6 +11,7 @@ let v1 = require('../lib/api-v1');
 let _ = require('lodash');
 let series = require('../lib/influx-series');
 let aws = require('aws-sdk-promise');
+require('source-map-support').install();
 
 process.on('unhandledRejection', err => {
   debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
