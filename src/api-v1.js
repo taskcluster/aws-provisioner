@@ -808,22 +808,3 @@ api.declare({
     checked_in_at: snitch.checked_in_at,
   });
 });
-
-api.declare({
-  method: 'get',
-  route: '/api-reference',
-  name: 'apiReference',
-  title: 'api reference',
-  stability:  base.API.stability.deprecated,
-  description: [
-    'Get an API reference!',
-    '',
-    '**Warning** this api end-point is **not stable**.',
-  ].join('\n'),
-}, function (req, res) {
-  let host = req.get('host');
-  let proto = req.connection.encrypted ? 'https' : 'http';
-  res.status(200).json(api.reference({
-    baseUrl: proto + '://' + host + '/v1',
-  }));
-});
