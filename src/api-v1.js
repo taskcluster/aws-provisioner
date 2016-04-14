@@ -786,7 +786,14 @@ api.declare({
   name: 'backendStatus',
   title: 'Backend Status',
   stability:  base.API.stability.experimental,
+  output: 'backend-status-response.json#',
   description: [
+    'This endpoint is used to show when the last time the provisioner',
+    'has checked in.  A check in is done through the deadman\'s snitch',
+    'api.  It is done at the conclusion of a provisioning iteration',
+    'and used to tell if the background provisioning process is still',
+    'running.',
+    '',
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
 }, async function (req, res) {
