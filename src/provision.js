@@ -309,7 +309,7 @@ class Provisioner {
           debug(longWaitErr);
           debug(longWaitErr.stack);
         }
-        debug('error spawning %s with bid %j, pushing it',
+        debug('error spawning %s with bid %j, reinserting into list of bids to make',
             toSpawn.workerType.workerType, toSpawn.bid);
         debug(err);
         if (err.stack) {
