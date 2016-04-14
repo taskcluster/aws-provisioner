@@ -205,6 +205,7 @@ WorkerType.create = function (workerType, properties) {
   assert(properties, 'missing properties param');
   assert(!properties.workerType, 'properties cannot contain worker name');
   assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType), 'worker name invalid');
+  properties = _.clone(properties);
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };

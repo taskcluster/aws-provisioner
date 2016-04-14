@@ -157,13 +157,16 @@ async function validateWorkerType (ctx, workerTypeName, workerType) {
  */
 function workerTypeSummary(workerType, workerState) {
   let summary = {
-    workerType: workerType.workerType,
     minCapacity: workerType.minCapacity,
     maxCapacity: workerType.maxCapacity,
     requestedCapacity: 0,
     pendingCapacity: 0,
     runningCapacity: 0,
   };
+
+  if (!workerState) {
+    return summary;
+  }
 
   let capacities = {};
   workerType.instanceTypes.forEach(instanceType => {
@@ -212,8 +215,16 @@ api.declare({
     // now gather worker state information for each one, in parallel
     let result = [];
     await Promise.all(workerTypes.map(async (workerType) => {
-      let workerState = await this.WorkerState.load({workerType: workerType.workerType});
-      result.push(workerTypeSummary(workerType, workerState));
+      let workerState;
+      try {
+        workerState = await this.WorkerState.load({workerType: workerType.workerType});
+      } catch (err) {
+        if (err.code !== 'ResourceNotFound') {
+          throw err;
+        }
+      }
+      result.push(_.assign({workerType: workerType.workerType}, 
+                           workerTypeSummary(workerType, workerState)));
     }));
 
     return res.reply(result);
@@ -823,17 +834,35 @@ api.declare({
     'in the provisioner.',
   ].join('\n'),
 }, async function (req, res) {
-  let workerType = req.params.workerType;
+  let workerType, workerState;
+
   try {
-    let workerState = await this.WorkerState.load({workerType: workerType});
-    res.reply(workerState._properties);
+    workerType = await this.WorkerType.load({workerType: req.params.workerType});
   } catch (err) {
     if (err.code === 'ResourceNotFound') {
       res.status(404).json({
-        message: workerType + ' does not have any state information',
+        message: req.params.workerType + ' does not have any state information',
       }).end();
+    } else {
+      throw err;
     }
   }
+
+  try {
+    workerState = await this.WorkerState.load({workerType: req.params.workerType});
+  } catch (err) {
+    if (err.code !== 'ResourceNotFound') {
+      throw err;
+    }
+  }
+
+  res.reply({
+    workerType: workerType.workerType,
+    instances: workerState ? workerState.instances : [],
+    requests: workerState ? workerState.requests : [],
+    internalTrackedRequests: workerState ? workerState.internalTrackedRequests : [],
+    summary: workerTypeSummary(workerType, workerState),
+  });
 });
 
 api.declare({
