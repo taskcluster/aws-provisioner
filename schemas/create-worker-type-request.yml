@@ -8,6 +8,14 @@ properties:
     type: object
     description: |
       Launch Specification entries which are used in all regions and all instance types
+  description:
+    type: string
+    description: |
+      A string which describes what this image is for and hints on using it
+  owner:
+    type: string
+    description: |
+      A string which identifies the owner of this worker type
   secrets:
     type: object
     description: |
@@ -178,3 +186,5 @@ required:
   - maxPrice
   - instanceTypes
   - regions
+  - description
+  - owner

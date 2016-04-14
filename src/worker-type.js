@@ -195,6 +195,39 @@ WorkerType = WorkerType.configure({
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
 });
 
+// We want to add a description field
+WorkerType = WorkerType.configure({
+  version: 3,
+  properties: {
+    // These fields are documented in Version 1 of this Entity
+    workerType: base.Entity.types.String,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minPrice: base.Entity.types.Number,
+    maxPrice: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON, // delete this
+    canUseSpot: base.Entity.types.JSON, // delete this
+    instanceTypes: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+    lastModified: base.Entity.types.Date,
+    userData: base.Entity.types.JSON,
+    launchSpec: base.Entity.types.JSON,
+    secrets: base.Entity.types.JSON,
+    scopes: base.Entity.types.JSON,
+    // Store a string description of this worker type
+    description: base.Entity.types.String,
+    // Store the owner of this worker type
+    owner: base.Entity.types.String,
+  },
+  migrate: function (item) {
+    item.description = '** WRITE THIS**';
+    item.owner = '** WRITE THIS **';
+    return item;
+  },
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+});
+
 /**
  * Create a workerType in the table.  The properties
  * should not have a workerType key since that will be

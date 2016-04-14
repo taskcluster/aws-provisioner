@@ -6,6 +6,8 @@ var baseWorkerType = {
       'docker-worker',
     ],
   },
+  owner: 'John',
+  description: 'Mock worker type',
   //lastModified: new Date(),
   minCapacity: 0,
   maxCapacity: 20,
