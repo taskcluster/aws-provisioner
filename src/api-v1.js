@@ -151,7 +151,81 @@ async function validateWorkerType (ctx, workerTypeName, workerType) {
 
 }
 
+/**
+ * Calculate some summary statistics for a worker type, based on the given
+ * WorkerState.
+ */
+function workerTypeSummary(workerType, workerState) {
+  let summary = {
+    workerType: workerType.workerType,
+    minCapacity: workerType.minCapacity,
+    maxCapacity: workerType.maxCapacity,
+    requestedCapacity: 0,
+    pendingCapacity: 0,
+    runningCapacity: 0,
+  };
+
+  let capacities = {};
+  workerType.instanceTypes.forEach(instanceType => {
+    capacities[instanceType.instanceType] = instanceType.capacity;
+  });
+
+  workerState.instances.forEach(instance => {
+    if (instance.state === 'running') {
+      summary.runningCapacity += capacities[instance.type] || 0;
+    } else if (instance.state === 'pending') {
+      summary.pendingCapacity += capacities[instance.type] || 0;
+    } // note that other states are ignored
+  });
+
+  workerState.requests.forEach(request => {
+    summary.requestedCapacity += capacities[request.type] || 0;
+  });
+
+  return summary;
+}
+
 module.exports = api;
+
+api.declare({
+  method: 'get',
+  route: '/list-worker-type-summaries',
+  name: 'listWorkerTypeSummaries',
+  input: undefined,  // No input
+  output: 'list-worker-types-summaries-response.json#',
+  title: 'List worker types with details',
+  stability:  base.API.stability.stable,
+  description: [
+    'Return a list of worker types, including some summary information about',
+    'current capacity for each.  While this list includes all defined worker types,',
+    'there may be running EC2 instances for deleted worker types that are not',
+    'included here.  The list is unordered.',
+  ].join('\n'),
+}, async function (req, res) {
+  try {
+    // gather workerType information
+    let workerTypes = [];
+    await this.WorkerType.scan({}, {
+      handler: (item) => workerTypes.push(item),
+    });
+
+    // now gather worker state information for each one, in parallel
+    let result = [];
+    await Promise.all(workerTypes.map(async (workerType) => {
+      let workerState = await this.WorkerState.load({workerType: workerType.workerType});
+      result.push(workerTypeSummary(workerType, workerState));
+    }));
+
+    return res.reply(result);
+  } catch (err) {
+    debug('error listing workertypes');
+    debug(err);
+    if (err.stack) {
+      debug(err.stack);
+    }
+    throw err;
+  }
+});
 
 api.declare({
   method: 'put',
