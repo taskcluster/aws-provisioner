@@ -1,7 +1,7 @@
 let debug = require('debug')('routes:v1');
 let base = require('taskcluster-base');
 let taskcluster = require('taskcluster-client');
-let amiExists = require('../check-for-ami');
+let amiExists = require('./check-for-ami');
 let _ = require('lodash');
 let rp = require('request-promise');
 let url = require('url');
@@ -205,16 +205,17 @@ api.declare({
   //       that the caller has this scopes to avoid scope elevation.
 
   // We want to make sure that all AMIs that we are submitting are valid
-  for (let region of input.regions) {
-    let validAmi = await amiExists(this.ec2, region.launchSpec.ImageId, region.region);
-    if (!validAmi) {
-      res.status(400).json({
-        message: 'ami does not exist',
-        ami: region.launchSpec.ImageId,
-        region: region.region,
-      });
-      return;
+  let missing = [];
+  await Promise.all(input.regions.map(async (def) => {
+    if (await amiExists(this.ec2, def.launchSpec.ImageId, def.region)) {
+      missing.push({imageId: def.launchSpec.ImageId, region: def.region});
     }
+  }));
+  if (missing.length > 0) {
+    return res.status(400).json({
+      message: 'ami does not exist',
+      missing: missing,
+    });
   }
 
   // We want to make sure that every single possible generated LaunchSpec
@@ -317,15 +318,17 @@ api.declare({
   let modDate = new Date();
 
   // We want to make sure that all AMIs that we are submitting are valid
-  for (let region of input.regions) {
-    let validAmi = await amiExists(this.ec2, region.launchSpec.ImageId, region.region);
-    if (!validAmi) {
-      return res.status(400).json({
-        message: 'ami does not exist',
-        ami: region.launchSpec.ImageId,
-        region: region.region,
-      });
+  let missing = [];
+  await Promise.all(input.regions.map(async (def) => {
+    if (await amiExists(this.ec2, def.launchSpec.ImageId, def.region)) {
+      missing.push({imageId: def.launchSpec.ImageId, region: def.region});
     }
+  }));
+  if (missing.length > 0) {
+    return res.status(400).json({
+      message: 'ami does not exist',
+      missing: missing,
+    });
   }
 
   input.lastModified = modDate;

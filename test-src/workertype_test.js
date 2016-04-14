@@ -399,6 +399,7 @@ describe('worker type', function () {
       var actual = wType.determineSpotBids(['region1'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
+          bias: 1,
           region: 'region1',
           type: 'type2',
           zone: 'zone2',
@@ -413,6 +414,7 @@ describe('worker type', function () {
       var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
+          bias: 1,
           region: 'region2',
           type: 'type2',
           zone: 'zone3',
@@ -427,6 +429,7 @@ describe('worker type', function () {
       var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
+          bias: 1,
           region: 'region1',
           type: 'type2',
           zone: 'zone2',
@@ -445,6 +448,7 @@ describe('worker type', function () {
       var actual = wt.determineSpotBids(['region2'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
+          bias: 1,
           region: 'region2',
           type: 'type2',
           zone: 'zone3',
