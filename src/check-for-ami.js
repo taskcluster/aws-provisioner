@@ -20,7 +20,7 @@ module.exports = async function (ec2, ami) {
   let result;
   try {
     result = await ec2.describeImages(request).promise();
-    debug('result from ec2: %j', result);
+    debug('loaded information about %s', ami);
   } catch (err) {
     debug('did not find %s', ami);
     return false;

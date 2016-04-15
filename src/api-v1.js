@@ -207,7 +207,8 @@ api.declare({
   // We want to make sure that all AMIs that we are submitting are valid
   let missing = [];
   await Promise.all(input.regions.map(async (def) => {
-    if (await amiExists(this.ec2, def.launchSpec.ImageId, def.region)) {
+    let exists = await amiExists(this.ec2[def.region], def.launchSpec.ImageId);
+    if (!exists) {
       missing.push({imageId: def.launchSpec.ImageId, region: def.region});
     }
   }));
@@ -320,11 +321,13 @@ api.declare({
   // We want to make sure that all AMIs that we are submitting are valid
   let missing = [];
   await Promise.all(input.regions.map(async (def) => {
-    if (await amiExists(this.ec2, def.launchSpec.ImageId, def.region)) {
+    let exists = await amiExists(this.ec2[def.region], def.launchSpec.ImageId);
+    if (!exists) {
       missing.push({imageId: def.launchSpec.ImageId, region: def.region});
     }
   }));
   if (missing.length > 0) {
+    debug(missing);
     return res.status(400).json({
       message: 'ami does not exist',
       missing: missing,

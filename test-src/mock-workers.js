@@ -41,7 +41,7 @@ var baseWorkerType = {
     {
       region: 'us-west-2',
       launchSpec: {
-        ImageId: 'ami-1dfcd32d',
+        ImageId: 'ami-c229c0a2',
       },
       secrets: {},
       userData: {},
@@ -54,7 +54,7 @@ function makeRegion (overwrites) {
   return _.defaults(overwrites || {}, {
     region: 'us-west-2',
     launchSpec: {
-      ImageId: 'ami-1bdf21d',
+      ImageId: 'ami-c229c0a2',
     },
     secrets: {},
     userData: {},
