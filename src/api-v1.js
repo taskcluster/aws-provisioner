@@ -207,28 +207,27 @@ api.declare({
   ].join('\n'),
 }, async function (req, res) {
   try {
-    // gather workerType information
-    let workerTypes = [];
+    // gather workerType information by scanning, and immediately begin a request
+    // for the corresponding workerState for each worker type, collecting promises
+    // that will yield {workerType, workerState}, possibly with the latter omitted.
+    let workerInfoPromises = [];
     await this.WorkerType.scan({}, {
-      handler: (item) => workerTypes.push(item),
+      handler: (workerType) => {
+        workerInfoPromises.push(
+          this.WorkerState.load({workerType: workerType.workerType})
+          .then(
+            (workerState) => { return {workerType, workerState}; },
+            (err) => {
+              if (err.code !== 'ResourceNotFound') {
+                throw err;
+              }
+              return {workerType}; // omit workerState if not found
+            }));
+      },
     });
 
-    // now gather worker state information for each one, in parallel
-    let result = [];
-    await Promise.all(workerTypes.map(async (workerType) => {
-      let workerState;
-      try {
-        workerState = await this.WorkerState.load({workerType: workerType.workerType});
-      } catch (err) {
-        if (err.code !== 'ResourceNotFound') {
-          throw err;
-        }
-      }
-      result.push(_.assign({workerType: workerType.workerType},
-                           workerTypeSummary(workerType, workerState)));
-    }));
-
-    return res.reply(result);
+    return res.reply((await Promise.all(workerInfoPromises)).map(({workerType, workerState}) =>
+      _.assign({workerType: workerType.workerType}, workerTypeSummary(workerType, workerState))));
   } catch (err) {
     debug('error listing workertypes');
     debug(err);
