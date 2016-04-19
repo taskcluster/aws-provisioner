@@ -79,7 +79,7 @@ let WorkerType = base.Entity.configure({
      * can run on as well as type-specific information.
      * This is a dictionary in the shape:
      * {
-     *   'c1.small': {
+     *   { isntanceType: 'c1.small',
      *     capacity: 1,
      *     utility: 1,
      *     overwrites: {}
@@ -238,6 +238,7 @@ WorkerType.create = function (workerType, properties) {
   assert(properties, 'missing properties param');
   assert(!properties.workerType, 'properties cannot contain worker name');
   assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType), 'worker name invalid');
+  properties = _.clone(properties);
   properties.workerType = workerType;
   return base.Entity.create.call(this, properties);
 };
