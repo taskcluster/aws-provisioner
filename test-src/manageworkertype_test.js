@@ -262,6 +262,7 @@ describe('worker-type API methods', () => {
         requests: testWorkerState.requests,
         internalTrackedRequests: testWorkerState.internalTrackedRequests,
         summary: {
+          workerType: wt,
           minCapacity: 0,
           maxCapacity: 100,
           requestedCapacity: 6,
@@ -281,6 +282,7 @@ describe('worker-type API methods', () => {
           requests: [],
           internalTrackedRequests: [],
           summary: {
+            workerType: wt,
             minCapacity: 0,
             maxCapacity: 100,
             requestedCapacity: 0,
