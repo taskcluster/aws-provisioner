@@ -26,6 +26,12 @@ var defaultClients = [
 var cfg = libConfig({
   defaults: require('../config/defaults'),
   profile: require('../config/test'),
+  envs: [
+    'pulse_username',
+    'pulse_password',
+    'azure_accountName',
+    'azure_accountKey',
+  ],
   filename: 'taskcluster-aws-provisioner',
 });
 exports.cfg = cfg;

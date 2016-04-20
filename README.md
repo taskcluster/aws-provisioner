@@ -1,6 +1,8 @@
 TaskCluster AWS Provisioner
 ===========================
 
+[![Build Status](https://travis-ci.org/taskcluster/aws-provisioner.svg?branch=master)](https://travis-ci.org/taskcluster/taskcluster-aws-provisioner)
+
 The AWS Provisioner is responsible for starting Amazon EC2 instances to perform
 tasks in the TaskCluster queue.  It monitors queue lengths and uses spot
 bidding to maximize the cost-effectiveness of its resources.
