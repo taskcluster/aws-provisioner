@@ -17,7 +17,8 @@ describe('provisioner worker type api', () => {
   var workerTypeChanged = _.clone(workerTypeDefinition);
   workerTypeChanged.maxCapacity = 15;
 
-  it('should be able to create a worker (idempotent)', async () => {
+  // Test is disabled for automated testing because it interacts with aws
+  it.skip('should be able to create a worker (idempotent)', async () => {
     debug('### Create workerType');
     await helper.awsProvisioner.createWorkerType(id, workerTypeDefinition);
 
@@ -25,7 +26,8 @@ describe('provisioner worker type api', () => {
     await helper.awsProvisioner.createWorkerType(id, workerTypeDefinition);
   });
 
-  it('should be able to update a worker', async () => {
+  // Test is disabled for automated testing because it interacts with aws
+  it.skip('should be able to update a worker', async () => {
     debug('### Load workerType');
     var wType = await helper.awsProvisioner.workerType(id);
     assume(wType.maxCapacity).equals(20);

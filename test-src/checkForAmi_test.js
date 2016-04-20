@@ -3,7 +3,8 @@ let assume = require('assume');
 var libConfig = require('taskcluster-lib-config');
 let aws = require('aws-sdk-promise');
 
-describe('ami check', () => {
+// These tests require actual access to aws and are disabled
+describe.skip('ami check', () => {
   let ec2;
 
   before(() => {

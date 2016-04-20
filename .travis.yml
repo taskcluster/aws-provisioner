@@ -1,0 +1,27 @@
+language: node_js
+sudo: false
+node_js:
+  - '4'
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-4.8
+script: npm test
+env:
+  global:
+    - CXX=g++-4.8
+
+notifications:
+  irc:
+    channels:
+      # encrpyted string was "irc.mozilla.org#taskcluster-bots"
+      - secure: "KJEpiRlxfZ8/q3gIGLdlasUsJkOGVzSToE4eJ+1JNr7UWTCMHcwbxWxFMDP0ntlbgjhdsGJV1KNiUzccogvqqN/74eSqdXbd9OCuEBKgXaNxyW54RwadMeRvWtgg5A8BMmo/sYi0ihAh28MY/KHNgqiBwH4pExLCZpJz25XZEqk="
+    on_success: change
+    on_failure: always
+    template:
+    - "%{repository}#%{build_number} (%{branch} - %{commit} : %{author}): %{message}"
+    - 'Change view : %{compare_url}'
+    - 'Build details : %{build_url}'
+    - 'Commit message : %{commit_message}'

@@ -19,10 +19,6 @@ something like this:
 
 ```
 {
-  "aws": {
-    "accessKeyId": "fake",
-    "secretAccessKey": "fake"
-  },
   "pulse": {
     "username": "...",
     "password": "..."
@@ -34,8 +30,7 @@ something like this:
 }
 ```
 
-The `aws` configuration must be present, but its value is ignored.  You can
-create your own `pulse` credentials at https://pulseguardian.mozilla.org.
+You can create your own `pulse` credentials at https://pulseguardian.mozilla.org.
 You'll need to get the Azure configuration from another TaskCluster developer.
 
 ### Running Locally
