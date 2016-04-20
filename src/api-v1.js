@@ -158,6 +158,7 @@ async function validateWorkerType (ctx, workerTypeName, workerType) {
  */
 function workerTypeSummary(workerType, workerState) {
   let summary = {
+    workerType,
     minCapacity: workerType.minCapacity,
     maxCapacity: workerType.maxCapacity,
     requestedCapacity: 0,
@@ -227,8 +228,8 @@ api.declare({
       }
     });
 
-    return res.reply((await Promise.all(workerInfoPromises)).map(({workerType, workerState}) => 
-      _.assign({workerType: workerType.workerType}, workerTypeSummary(workerType, workerState))));
+    return res.reply((await Promise.all(workerInfoPromises)).map(
+          ({workerType, workerState}) => workerTypeSummary(workerType, workerState)));
   } catch (err) {
     debug('error listing workertypes');
     debug(err);
@@ -866,7 +867,8 @@ api.declare({
     'Return the state of a given workertype as stored by the provisioner. ',
     'This state is stored as three lists: 1 for all instances, 1 for requests',
     'which show in the ec2 api and 1 list for those only tracked internally',
-    'in the provisioner.',
+    'in the provisioner.  The `summary` property contains an updated summary',
+    'similar to that returned from `listWorkerTypeSummaries`.',
   ].join('\n'),
 }, async function (req, res) {
   let workerType, workerState;
