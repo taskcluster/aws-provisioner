@@ -34,9 +34,7 @@
     "taskcluster-lib-config": "^0.8.8",
     "taskcluster-lib-stats": "^0.8.7",
     "tc-rules": "^3.0.1",
-    "typed-env-config": "^0.10.0"
-  },
-  "devDependencies": {
+    "typed-env-config": "^0.10.0",
     "assume": "^1.2.5",
     "babel-eslint": "^6.0.0",
     "eslint": "~2.2.0",
