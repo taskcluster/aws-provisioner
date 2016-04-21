@@ -102,7 +102,7 @@ class AwsManager {
     // the 75s iteration frequency
     debug('updating aws state for all regions');
     await Promise.race([
-      delayer(120 * 1000)().then(() => {
+      delayer(240 * 1000)().then(() => {
         throw new Error('Timeout while updating AWS Api State');
       }),
       Promise.all(_.map(this.ec2, async (ec2, region) => {
