@@ -16,7 +16,7 @@
     "url": "https://github.com/taskcluster/aws-provisioner.git"
   },
   "dependencies": {
-    "aws-sdk": "^2.2.37",
+    "aws-sdk": "^2.3.0",
     "aws-sdk-promise": "0.0.2",
     "babel-compile": "^2.0.0",
     "babel-preset-taskcluster": "^2.0.1",
