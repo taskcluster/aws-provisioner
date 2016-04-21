@@ -21,12 +21,16 @@ something like this:
 
 ```
 {
+  "aws": {
+    "accessKeyId": "...",
+    "secretAccessKey": "..."
+  },
   "pulse": {
     "username": "...",
     "password": "..."
   },
   "azure": {
-    "accountName":        "taskclusterdev",
+    "accountName":        "...",
     "accountKey":         "..."
   }
 }
@@ -34,6 +38,7 @@ something like this:
 
 You can create your own `pulse` credentials at https://pulseguardian.mozilla.org.
 You'll need to get the Azure configuration from another TaskCluster developer.
+The AWS user can be found in the shared notes in Lastpass.
 
 ### Running Locally
 

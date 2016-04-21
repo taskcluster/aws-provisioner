@@ -27,6 +27,8 @@ var cfg = libConfig({
   defaults: require('../config/defaults'),
   profile: require('../config/test'),
   envs: [
+    'aws_accessKeyId',
+    'aws_secretAccessKey',
     'pulse_username',
     'pulse_password',
     'azure_accountName',
@@ -37,7 +39,8 @@ var cfg = libConfig({
 exports.cfg = cfg;
 
 // Skip tests if no AWS credentials is configured
-if (!cfg.get('azure:accountKey') ||
+if (!cfg.get('aws:secretAccessKey') ||
+    !cfg.get('azure:accountKey') ||
     !cfg.get('pulse:password')) {
   throw new Error('cannot run tests due to missing credentials');
 }

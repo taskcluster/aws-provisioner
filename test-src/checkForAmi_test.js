@@ -4,7 +4,7 @@ var libConfig = require('taskcluster-lib-config');
 let aws = require('aws-sdk-promise');
 
 // These tests require actual access to aws and are disabled
-describe.skip('ami check', () => {
+describe('ami check', () => {
   let ec2;
 
   before(() => {
