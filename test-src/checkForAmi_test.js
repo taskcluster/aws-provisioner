@@ -1,7 +1,7 @@
 let subject = require('../lib/check-for-ami');
 let assume = require('assume');
 var libConfig = require('taskcluster-lib-config');
-let aws = require('aws-sdk-promise');
+let aws = require('aws-sdk');
 
 describe('ami check', () => {
   let ec2;

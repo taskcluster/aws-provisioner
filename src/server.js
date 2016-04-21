@@ -10,7 +10,7 @@ let exchanges = require('../lib/exchanges');
 let v1 = require('../lib/api-v1');
 let _ = require('lodash');
 let series = require('../lib/influx-series');
-let aws = require('aws-sdk-promise');
+let aws = require('aws-sdk');
 require('source-map-support').install();
 
 process.on('unhandledRejection', err => {
