@@ -11,6 +11,14 @@ describe('ami check', () => {
     let cfg = libConfig({
       defaults: require('../config/defaults'),
       profile: require('../config/test'),
+      envs: [
+        'aws_accessKeyId',
+        'aws_secretAccessKey',
+        'pulse_username',
+        'pulse_password',
+        'azure_accountName',
+        'azure_accountKey',
+      ],
       filename: 'taskcluster-aws-provisioner',
     });
     let ec2conf = cfg.get('aws');
