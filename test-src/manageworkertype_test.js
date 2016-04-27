@@ -11,6 +11,7 @@ var mock = require('./mock-workers');
 // var makeRegion = mock.makeRegion;
 // var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
+var makeWorkerState = mock.makeWorkerState;
 
 describe('provisioner worker type api', () => {
 
@@ -94,114 +95,26 @@ describe('worker-type API methods', () => {
     await cleanTables();
 
     wt = slugid.nice();
-    testWorkerType = {
-      description: 'a worker type',
-      owner: 'me',
-      launchSpecification: {},
-      minCapacity: 0,
-      maxCapacity: 100,
-      scalingRatio: 1.0,
-      minPrice: 0.0,
-      maxPrice: 1.0,
-      canUseOndemand: true,
-      canUseSpot: true,
-      instanceTypes: [
-        {instanceType: 'm1', capacity: 1},
-        {instanceType: 'm2', capacity: 2},
-      ],
-      regions: [],
+    testWorkerType = makeWorkerType({
       lastModified: new Date(),
-      userData: {},
-      launchSpec: {},
-      secrets: {},
-      scopes: [],
-    };
-    testWorkerState = {
+    });
+    testWorkerState = makeWorkerState({
       workerType: wt,
       instances: [
-        {
-          id: 'i-1',
-          srId: 'sir-1',
-          ami: 'ami-123',
-          region: 'us-north-7',
-          zone: 'j',
-          launchTime: '2016-04-11T20:55:47.987Z',
-          type: 'm1',
-          state: 'running',
-        }, {
-          id: 'i-2',
-          srId: 'sir-2',
-          ami: 'ami-123',
-          region: 'us-north-7',
-          zone: 'j',
-          launchTime: '2016-04-11T20:55:47.987Z',
-          type: 'm2',
-          state: 'running',
-        }, {
-          id: 'i-3',
-          srId: 'sir-3',
-          ami: 'ami-123',
-          region: 'us-north-7',
-          zone: 'j',
-          launchTime: '2016-04-11T20:55:47.987Z',
-          type: 'm1',
-          state: 'pending',
-        }, {
-          id: 'i-4',
-          srId: 'sir-4',
-          ami: 'ami-123',
-          region: 'us-north-7',
-          zone: 'j',
-          launchTime: '2016-04-11T20:55:47.987Z',
-          type: 'm1',
-          state: 'error',
-        },
+        {type: 'c3.xlarge', state: 'running'},
+        {type: 'c3.2xlarge', state: 'running'},
+        {type: 'c3.xlarge', state: 'pending'},
+        {type: 'c3.xlarge', state: 'error'},
       ],
       requests: [
-        {
-          id: 'sir-11',
-          ami: 'ami-123',
-          type: 'm1',
-          region: 'us-north-8',
-          zone: 'w',
-          status: 'waiting',
-          time: '2016-03-11T20:55:47.987Z',
-        }, {
-          id: 'sir-12',
-          ami: 'ami-123',
-          type: 'm2',
-          region: 'us-north-8',
-          zone: 'w',
-          status: 'waiting',
-          time: '2016-03-11T20:55:47.987Z',
-        }, {
-          id: 'sir-13',
-          ami: 'ami-123',
-          type: 'm2',
-          region: 'us-north-8',
-          zone: 'w',
-          status: 'waiting',
-          time: '2016-03-11T20:55:47.987Z',
-        }, {
-          id: 'sir-14',
-          ami: 'ami-123',
-          type: 'm1',
-          region: 'us-north-8',
-          zone: 'w',
-          status: 'waiting',
-          time: '2016-03-11T20:55:47.987Z',
-        }, {
-          id: 'sir-15',
-          ami: 'ami-123',
-          type: 'm9',
-          region: 'us-north-8',
-          zone: 'w',
-          status: 'waiting',
-          time: '2016-03-11T20:55:47.987Z',
-        },
+        {type: 'c3.xlarge', status: 'waiting'},
+        {type: 'c3.2xlarge', status: 'waiting'},
+        {type: 'c3.2xlarge', status: 'waiting'},
+        {type: 'c3.xlarge', status: 'waiting'},
+        {type: 'c9.yuuuge', status: 'waiting'},
       ],
       internalTrackedRequests: [],
-    };
+    });
 
   });
 
@@ -219,7 +132,7 @@ describe('worker-type API methods', () => {
         assume(summaries).to.deeply.equal([{
           workerType: wt,
           minCapacity: 0,
-          maxCapacity: 100,
+          maxCapacity: 20,
           requestedCapacity: 6,
           pendingCapacity: 1,
           runningCapacity: 3,
@@ -234,7 +147,7 @@ describe('worker-type API methods', () => {
         assume(summaries).to.deeply.equal([{
           workerType: wt,
           minCapacity: 0,
-          maxCapacity: 100,
+          maxCapacity: 20,
           requestedCapacity: 0,
           pendingCapacity: 0,
           runningCapacity: 0,
@@ -264,7 +177,7 @@ describe('worker-type API methods', () => {
         summary: {
           workerType: wt,
           minCapacity: 0,
-          maxCapacity: 100,
+          maxCapacity: 20,
           requestedCapacity: 6,
           pendingCapacity: 1,
           runningCapacity: 3,
@@ -284,7 +197,7 @@ describe('worker-type API methods', () => {
           summary: {
             workerType: wt,
             minCapacity: 0,
-            maxCapacity: 100,
+            maxCapacity: 20,
             requestedCapacity: 0,
             pendingCapacity: 0,
             runningCapacity: 0,

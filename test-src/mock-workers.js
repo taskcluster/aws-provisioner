@@ -80,9 +80,49 @@ function makeWorkerType (overwrites) {
   return _.defaults(overwrites || {}, baseWorkerType);
 }
 
+function makeWorkerState (state) {
+  var id = 0;
+
+  return _.defaults({}, {
+    instances: state.instances.map((i) => {
+      id++;
+      if (typeof i === "string") {
+        i = {type: i};
+      }
+      return _.defaults({}, i, {
+        id: 'i-' + id,
+        srId: 'sir-' + id,
+        ami: 'ami-1234',
+        region: 'us-north-7',
+        zone: 'j',
+        launchTime: '2016-04-11T20:55:47.987Z',
+        type: 'c3.xlarge',
+        state: 'running',
+      });
+    }),
+    requests: state.requests.map((i) => {
+      id++;
+      if (typeof i === "string") {
+        i = {type: i};
+      }
+      return _.defaults({}, i, {
+        id: 'sir-' + id,
+        ami: 'ami-1234',
+        region: 'us-north-7',
+        zone: 'j',
+        time: '2016-04-11T20:55:47.987Z',
+        type: 'c3.xlarge',
+        status: 'running',
+      });
+    }),
+    internalTrackedRequests: [],
+  }, state);
+};
+
 module.exports = {
   baseWorkerType: baseWorkerType,
   makeRegion: makeRegion,
   makeInstanceType: makeInstanceType,
   makeWorkerType: makeWorkerType,
+  makeWorkerState,
 };
