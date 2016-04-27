@@ -1370,6 +1370,20 @@ class AwsManager {
       }
     }
 
+    for (let request of this.__internalState) {
+      if (request.WorkerType === workerName) {
+        response.internalTrackedRequests.push({
+          id: request.SpotInstanceRequestId,
+          ami: request.LaunchSpecification.ImageId,
+          type: request.LaunchSpecification.InstanceType,
+          region: request.Region,
+          zone: request.LaunchSpecification.Placement.AvailabilityZone,
+          time: request.CreateTime,
+          status: request.Status.Code,
+        });
+      }
+    }
+
     // TODO: Also do internally tracked instances
     return response;
   }
