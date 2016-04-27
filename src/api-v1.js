@@ -807,55 +807,6 @@ api.declare({
 
 api.declare({
   method: 'get',
-  route: '/aws-state',
-  name: 'awsState',
-  title: 'Get AWS State for all worker types',
-  scopes: [['aws-provisioner:aws-state']],
-  stability:  base.API.stability.deprecated,
-  description: [
-    'This method is a left over and will be removed as soon as the',
-    'tools.tc.net UI is updated to use the per-worker state',
-    '',
-    '**DEPRECATED.**',
-  ].join('\n'),
-}, async function (req, res) {
-  let state = {};
-  try {
-    let workers = await this.WorkerType.listWorkerTypes();
-    for (let worker of workers) {
-      try {
-        let workerState = await this.WorkerState.load({workerType: worker});
-        state[worker] = {
-          running: workerState.instances.filter(i => i.state === 'running'), //eslint-disable-line no-loop-func
-          pending: workerState.instances.filter(i => i.state === 'pending'), //eslint-disable-line no-loop-func
-          spotReq: workerState.requests,
-        };
-      } catch (err) {
-        state[worker] = {
-          running: [],
-          pending: [],
-          spotReq: [],
-        };
-        debug('error loading state for ' + worker);
-        debug(err);
-        if (err.stack) {
-          debug(err.stack);
-        }
-      }
-    }
-    res.reply(state);
-  } catch (err) {
-    debug('error listing worker types');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
-    throw err;
-  }
-});
-
-api.declare({
-  method: 'get',
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
