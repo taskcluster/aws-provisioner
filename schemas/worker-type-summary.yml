@@ -1,0 +1,32 @@
+$schema:  http://json-schema.org/draft-04/schema#
+title: Worker Type Summary
+description: |
+  A summary of a worker type's current state, expresed in terms of capacity.
+type: object
+properties:
+  workerType:
+    title: Worker type name
+    type: string
+  minCapacity:
+    title: Minimum capacity of the workerType
+    type: integer
+  maxCapacity:
+    title: Maximum capacity of the workerType
+    type: integer
+  requestedCapacity:
+    title: Total requested capacity
+    type: integer
+  pendingCapacity:
+    title: Total pending capacity
+    type: integer
+  runningCapacity:
+    title: Total running capacity
+    type: integer
+additionalProperties: false
+required:
+- workerType
+- minCapacity
+- maxCapacity
+- requestedCapacity
+- pendingCapacity
+- runningCapacity
