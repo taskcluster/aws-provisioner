@@ -86,7 +86,7 @@ function makeWorkerState (state) {
   return _.defaults({}, {
     instances: state.instances.map((i) => {
       id++;
-      if (typeof i === "string") {
+      if (typeof i === 'string') {
         i = {type: i};
       }
       return _.defaults({}, i, {
@@ -102,7 +102,7 @@ function makeWorkerState (state) {
     }),
     requests: state.requests.map((i) => {
       id++;
-      if (typeof i === "string") {
+      if (typeof i === 'string') {
         i = {type: i};
       }
       return _.defaults({}, i, {

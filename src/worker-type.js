@@ -79,7 +79,7 @@ let WorkerType = base.Entity.configure({
      * can run on as well as type-specific information.
      * This is a dictionary in the shape:
      * {
-     *   { isntanceType: 'c1.small',
+     *   { instanceType: 'c1.small',
      *     capacity: 1,
      *     utility: 1,
      *     overwrites: {}
