@@ -1334,16 +1334,13 @@ class AwsManager {
    * Create a thing which has the stuff to insert into a WorkerState entity
    */
   stateForStorage (workerName) {
-    let response = {
-      workerType: workerName,
-      instances: [],
-      requests: [],
-      internalTrackedRequests: [],
-    };
+    let instances = [];
+    let requests = [];
+    let internalTrackedRequests: [];
 
     for (let instance of this.__apiState.instances) {
       if (instance.WorkerType === workerName) {
-        response.instances.push({
+        instances.push({
           id: instance.InstanceId,
           srId: instance.SpotInstanceRequestId || '',
           ami: instance.ImageId,
@@ -1358,7 +1355,7 @@ class AwsManager {
 
     for (let request of this.__apiState.requests) {
       if (request.WorkerType === workerName) {
-        response.requests.push({
+        requests.push({
           id: request.SpotInstanceRequestId,
           ami: request.LaunchSpecification.ImageId,
           type: request.LaunchSpecification.InstanceType,
@@ -1372,7 +1369,7 @@ class AwsManager {
 
     for (let request of this.__internalState) {
       if (request.WorkerType === workerName) {
-        response.internalTrackedRequests.push({
+        internalTrackedRequests.push({
           id: request.SpotInstanceRequestId,
           ami: request.LaunchSpecification.ImageId,
           type: request.LaunchSpecification.InstanceType,
@@ -1384,8 +1381,12 @@ class AwsManager {
       }
     }
 
-    // TODO: Also do internally tracked instances
-    return response;
+    return {
+      workerType: workerName,
+      instances,
+      requests,
+      internalTrackedRequests,
+    };
   }
 
   /**
