@@ -1336,7 +1336,7 @@ class AwsManager {
   stateForStorage (workerName) {
     let instances = [];
     let requests = [];
-    let internalTrackedRequests: [];
+    let internalTrackedRequests = [];
 
     for (let instance of this.__apiState.instances) {
       if (instance.WorkerType === workerName) {
