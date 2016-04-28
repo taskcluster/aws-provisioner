@@ -1,4 +1,5 @@
-let debug = require('debug')('aws-provisioner:bin:provisioner');
+let debugModule = require('debug')
+let debug = debugModule('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
 let libConfig = require('taskcluster-lib-config');
 let provision = require('../lib/provision');
@@ -80,7 +81,15 @@ let launch = function (profile) {
   for (let region of allowedRegions) {
     let ec2conf = cfg.get('aws');
     ec2conf.region = region;
-    ec2conf.logger = process.stdout;
+    let s3Debugger = debugModule('aws-sdk');
+    let awsDebugLoggerBridge = {
+      write: x => {
+        for (let y of x.split('\n')) {
+          s3Debugger(y);
+        }
+      },
+    };
+    ec2conf.logger = awsDebugLoggerBridge;
     ec2[region] = new aws.EC2(ec2conf);
   }
 
