@@ -1,0 +1,22 @@
+$schema:  http://json-schema.org/draft-04/schema#
+title:                      "Backend Status Response"
+description: |
+  Backend Status Response
+type:                       object
+properties:
+  status:
+    type: string
+    description: |
+      A string from Deadman's Snitch which describes the status.  See
+      https://deadmanssnitch.com/docs/api/v1#listing-your-snitches for an
+      explanation of this value
+  checked_in_at:
+    type: string
+    description: |
+      A date when the provisioner backend process last completed an iteration.
+      This does not imply success, rather it is to make sure that the process
+      is alive
+additionalProperties: false
+required:
+  - status
+  - checked_in_at
