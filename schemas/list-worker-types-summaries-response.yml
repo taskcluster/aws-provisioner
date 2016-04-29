@@ -1,0 +1,6 @@
+---
+$schema:  http://json-schema.org/draft-04/schema#
+title: "List Worker Type Summaries Response"
+type: array
+uniqueItems: true
+items: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/worker-type-summary.json#"}

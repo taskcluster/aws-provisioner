@@ -21,7 +21,65 @@ function dateForInflux (thingy) {
 }
 
 /**
- * AWS EC2 state at a specific moment in time
+ * The AWS Manager is an object which tracks the state of the EC2 nodes,
+ * pricing and other aspects of interfacing with AWS's ec2 api.  Instances of
+ * this defer to responses of the EC2 API where appropriate.  There are cases
+ * where state sometimes needs to be maintained inside of the AWS Manager
+ * itself.  This is related to the evenutally consistent design of the EC2 api.
+ *
+ * Key to understanding how this class works is understanding the different
+ * states defined:
+ *
+ * running:
+ *      These are instances which are doing work.  They are booted, they are
+ *      configured and they have requested their provisioner secrets.
+ * pending:
+ *      These are fulfilled spot requests which are either in the process of
+ *      being booted up or are doing their internal setup.  They have not yet
+ *      fetched their provisioner secrets
+ * requested:
+ *      These are spot requests which have been made but have not yet been
+ *      fulfilled by amazon and so are not even machines yet
+ * internallyTracked:
+ *      These are spot instances which have been made but have not yet shown up
+ *      in the EC2 describeSpotRequests method.  The reason for this is that
+ *      the EC2 API is eventually consistant.  We've seen requets live in this
+ *      state for 20+ minutes sometimes, and even turn into running instances
+ *      before the api returns them in the describe* api calls.  We track these
+ *      ourselves because if we didn't, we could get into a state of constantly
+ *      submitting requests, forgetting about those requests then over
+ *      provisioning.
+ *
+ * Where possible, objects from the EC2 API are kept in as close shape and
+ * meaning to the EC2 api.  This is done to make it easier to reason with the
+ * objects and to allow for comparison to the EC2 API docs.
+ *
+ * Constructor arguments:
+ * ec2:
+ *      This is a object which maps EC2 regions (e.g. us-west-1) to instances
+ *      of the aws-sdk-promise library for the corresponding region.
+ * provisionerId:
+ *      This is the id of this provisioner (e.g. aws-provisioner-v1').  This
+ *      value is passed through to the Queue verbatim and is used to find the
+ *      number of pending tasks for a given provisionerId/workerType combo
+ * keyPrefix:
+ *      We use a prefix on KeyPair.Name for a given instance to store metadata.
+ *      The EC2 api provides for metadata to be stored in Tags, but tags are
+ *      not able to be set at the time a spot request is requested.  We use
+ *      this as a workaround.  This is currently the name of the worker type
+ *      the instances/request is associated with as well as a hash of the ssh
+ *      KeyPair key material so that we can upgrade ssh keys.
+ * pubKey:
+ *      public key data to be stored as the KeyPair data.  We use a single
+ *      public key for all instances.  Ideally in the future we would actually
+ *      use a public key that no one has the matching private key for so that
+ *      we effectively disable ssh access to our machines.
+ * maxInstanceLife:
+ *      absolute upper bounds of instance life.  This should never be hit, but
+ *      is rather a safety limit to ensure we don't have things living forever.
+ * influx:
+ *      Instance of a taskcluster-base.stats.Influx class which is used to
+ *      submit data points to an influx instance
  */
 class AwsManager {
   constructor (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
@@ -31,18 +89,32 @@ class AwsManager {
     assert(pubKey);
     assert(maxInstanceLife);
     assert(influx);
+
     this.ec2 = ec2;
     this.provisionerId = provisionerId;
     this.keyPrefix = keyPrefix;
     this.pubKey = pubKey;
     this.maxInstanceLife = maxInstanceLife;
     this.influx = influx;
+
+    // Known keypairs are tracked so that we don't have to retreive the list of
+    // all known key pairs on every iteration.
     this.__knownKeyPairs = [];
+
+    // The responses of the EC2 Api's view of state
     this.__apiState = {
       instances: [],
       requests: [],
     };
+
+    // We store the state of the previous iteration so that we can do
+    // comparisons to see which instances have changed state
     this.__previousApiState = this.__apiState;
+
+    // Internal state is state which we know exists but has not yet been
+    // reflected in the EC2 api.  This list is used to track the spot requests
+    // which we have submitted but which do not yet show up in the ec2 api
+    // calls which list the spot requests
     this.__internalState = [];
 
     // This is used to store the list of instances we're awaiting state change
@@ -56,7 +128,7 @@ class AwsManager {
     // Store the available availability zone
     this.__availableAZ = {};
 
-    // Set up reporters
+    // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
     this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
     this.reportSpotRequestsFulfilled = series.spotRequestsFulfilled.reporter(influx);
@@ -67,27 +139,35 @@ class AwsManager {
   }
 
   /**
-   * Update the state from the AWS API and return a promise
-   * with no resolution value when completed.
+   * Update the state from the AWS API
    */
   async update () {
-    // We fetch the living instance and spot requests separate from the dead ones
-    // to make things a little easier to work with as there's really very little
-    // in the provisioner which requires info on dead instances and spot requests
+    // We fetch the living instance and spot requests separate from the dead
+    // ones to make things a little easier to work with as there's really very
+    // little in the provisioner which requires info on dead instances and spot
+    // requests
     //
-    // The choice in which bucket each instance or request should belong in comes
-    // down to whether or not the resource is awaiting or currently working or
-    // needs to be tidied up after
+    // The choice in which bucket each instance or request should belong in
+    // comes down to whether or not the resource is awaiting or currently
+    // working or needs to be tidied up after
 
     // We want to fetch the last 30 minutes of pricing data
     let pricingStartDate = new Date();
     pricingStartDate.setMinutes(pricingStartDate.getMinutes() - 30);
 
+    // Remember that we keep the previous iteration's state for comparison
+    // purposes
     this.__previousApiState = this.__apiState;
+
+    // We always start with clean state because it's easier and safer than
+    // trying to modify the existing state object to reflect the api responses
     let apiState = {
       instances: [],
       requests: [],
     };
+
+    // We store the dead state on its own only to avoid having to rewrite a
+    // bunch of functions which we use on both dead and live state
     let deadState = {
       instances: [],
       requests: [],
@@ -101,8 +181,11 @@ class AwsManager {
     // better concurrency, but this is easier and not too slow considering
     // the 75s iteration frequency
     debug('updating aws state for all regions');
+    // We had an issue where the EC2 api would freeze up on these api calls and
+    // would never reject or resolve.  That's why we now race a 240s timeout
+    // and reject this promise if the state calls take longer than 240s
     await Promise.race([
-      delayer(120 * 1000)().then(() => {
+      delayer(240 * 1000)().then(() => {
         throw new Error('Timeout while updating AWS Api State');
       }),
       Promise.all(_.map(this.ec2, async (ec2, region) => {
@@ -181,7 +264,6 @@ class AwsManager {
         debug('ran aws state promises in %s', region);
 
         // Now let's classify them
-
         for (let reservation of response[0].data.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
@@ -193,10 +275,12 @@ class AwsManager {
           }
         };
 
+        // Stalled requests are those which have taken way too long to be
+        // fulfilled.  We'll consider them dead after a certain amount of time
+        // and make new requests for their pending tasks
         let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          // Maybe use objFilter here
           let filtered = request;
           filtered.Region = region;
           filtered.WorkerType = workerType;
@@ -212,6 +296,7 @@ class AwsManager {
         await this.killCancel(region, [], stalledSRIds);
         debug('killed stalled instances and spot requests in %s', region);
 
+        // Put the dead instances into the dead state object
         for (let reservation of response[2].data.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
@@ -224,6 +309,7 @@ class AwsManager {
         };
         debug('put dead state instances into deadState variable in %s', region);
 
+        // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
@@ -235,11 +321,13 @@ class AwsManager {
         }
         debug('put dead state requests into deadState variable in %s', region);
 
-        // Remember we don't filter these the same way that
-        // we filter the other responses
+        // Find all the available availability zones
         debug('categorizing availability zones in %s', region);
         availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
         debug('categorized availability zones in %s', region);
+
+
+        // Find the max prices
         debug('finding max prices in %s', region);
         allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
         debug('found max prices in %s', region);
@@ -247,11 +335,13 @@ class AwsManager {
     ]);
     debug('updated aws state for all regions');
 
+    // Assign all of the new state objects to the properties of this aws manager
     this.__availableAZ = availableAZ;
     this.__pricing = allPricingHistory;
     this.__apiState = apiState;
     this.__deadState = deadState;
 
+    // Figure out what's changed between this and the last iteration
     let stateDifferences = this._compareStates(this.__apiState, this.__previousApiState, this.__deadState);
     this._reconcileStateDifferences(stateDifferences, this.__deadState, this.__apiState);
 
@@ -269,7 +359,9 @@ class AwsManager {
   }
 
   /**
-   * Get rid of the keys that I don't care about
+   * Find the maximum price for each instance type in each availabilty zone.
+   * We find the maximum, not average price intentionally as the average is a
+   * poor metric in this case from experience
    */
   _findMaxPrices (res, zones) {
     // type -> zone
@@ -349,11 +441,12 @@ class AwsManager {
 
   /**
    * Compare two state objects to find the instances and requests which are no
-   * longer in the new state object.  The assumption here is that the items that
-   * are no longer in the state are those which have been terminated.  This
-   * method returns those instances and request which are no longer present in
-   * state.  You'll need to have another data source to find the resolution of
-   * the now missing resources
+   * longer in the new state object.  The assumption here is that the items
+   * that are no longer in the state are those which have been terminated.
+   * This method returns those instances and request which are no longer
+   * present in state.  You'll need to have another data source to find the
+   * resolution of the now missing resources, which is why the dead state is
+   * provided
    */
   _compareStates (newState, previousState, deadState) {
     assert(newState);
@@ -586,38 +679,6 @@ class AwsManager {
     });
   }
 
-  /**
-   * Instead of defining these lists in lots of places, let's ensure
-   * that we use the same filters in all places!
-   */
-
-  get filters () {
-    return {
-      spotReq: [
-        'CreateTime',
-        'State',
-        'LaunchSpecification:InstanceType',
-        'LaunchSpecification:ImageId',
-        'LaunchSpecification:Placement:AvailabilityZone',
-        'SpotInstanceRequestId',
-        'Tags',
-        'Status:Code',
-        'Status:UpdateTime',
-        'Status:Message',
-      ],
-      instance: [
-        'InstanceId',
-        'ImageId',
-        'InstanceType',
-        'LaunchTime',
-        'Placement:AvailabilityZone',
-        'SpotInstanceRequestId',
-        'State:Name',
-        'Tags',
-      ],
-    };
-  }
-
   /** Return a list of all Instances for a region */
   instancesInRegion (region) {
     if (typeof region === 'string') {
@@ -685,7 +746,7 @@ class AwsManager {
   }
 
   /**
-   * List all the workerTypes known in state
+   * List all the workerTypes known in EC2 state
    */
   knownWorkerTypes () {
     let workerTypes = [];
@@ -849,12 +910,12 @@ class AwsManager {
 
   /**
    * Because the AWS is eventually consistent, it will sometimes take time for
-   * spot requests to show up in the describeSpotInstanceRequests calls for
-   * AWS state.  We will maintain an internal table of these submitted but
-   * not yet visible spot requests so that we can offset the count of a given
-   * instance type for figuring out running capacity.  If the provisioning
-   * process is restarted before the spot request shows up in the api's
-   * state we will lose track of it until it turns into an instance.
+   * spot requests to show up in the describeSpotInstanceRequests calls for AWS
+   * state.  We will maintain an internal table of these submitted but not yet
+   * visible spot requests so that we can offset the count of a given instance
+   * type for figuring out running capacity.  If the provisioning process is
+   * restarted before the spot request shows up in the api's state we will lose
+   * track of it until it turns into an instance.
    */
   _trackNewSpotRequest (sr) {
     // sr is a SpotRequest object which we get back from the
@@ -875,10 +936,10 @@ class AwsManager {
   }
 
   /**
-   * Once a SpotRequest shows up in the state returned from the AWS api
-   * we should remove it from the internal state of spot requests that
-   * is needed.  We do this before running the provisioner of each
-   * workerType to avoid double counting a newly discovered spot request
+   * Once a SpotRequest shows up in the state returned from the AWS api we
+   * should remove it from the internal state of spot requests that is needed.
+   * We do this before running the provisioner of each workerType to avoid
+   * double counting a newly discovered spot request
    */
   _reconcileInternalState () {
     // Remove the SRs which AWS now tracks from internal state
@@ -940,10 +1001,10 @@ class AwsManager {
   }
 
   /**
-   * Create an instance of a WorkerType and track it.  Internally,
-   * we will track the outstanding spot requests until they are seen
-   * in the EC2 API.  This makes sure that we don't ignroe spot requests
-   * that we've made but not yet seen.  This avoids run-away provisioning
+   * Create an instance of a WorkerType and track it.  Internally, we will
+   * track the outstanding spot requests until they are seen in the EC2 API.
+   * This makes sure that we don't ignroe spot requests that we've made but not
+   * yet seen.  This avoids run-away provisioning
    */
   async requestSpotInstance (launchInfo, bid) {
     assert(bid, 'Must specify a spot bid');
@@ -1035,19 +1096,17 @@ class AwsManager {
   }
 
   /**
-   * We use KeyPair names to determine ownership and workerType
-   * in the EC2 world because we can't tag SpotRequests until they've
-   * mutated into Instances.  This sucks and all, but hey, what else
-   * can we do?  This method checks which regions have the required
-   * KeyPair already and creates the KeyPair in regions which do not
-   * already have it.  Note that the __knownKeyPair cache should never
-   * become shared, since we rely on it not surviving restarts in the
-   * case that we start running this manager in another region.  If
-   * we didn't dump the cache, we could create the key in one region
-   * but not the new one that we add.  TODO: Look into what happens
-   * when we add a region to the list of allowed regions... I suspect
-   * that we'll end up having to track which regions the workerName
-   * is enabled in.
+   * We use KeyPair names to determine ownership and workerType in the EC2
+   * world because we can't tag SpotRequests until they've mutated into
+   * Instances.  This sucks and all, but hey, what else can we do?  This method
+   * checks which regions have the required KeyPair already and creates the
+   * KeyPair in regions which do not already have it.  Note that the
+   * __knownKeyPair cache should never become shared, since we rely on it not
+   * surviving restarts in the case that we start running this manager in
+   * another region.  If we didn't dump the cache, we could create the key in
+   * one region but not the new one that we add.  TODO: Look into what happens
+   * when we add a region to the list of allowed regions... I suspect that
+   * we'll end up having to track which regions the workerName is enabled in.
    */
   async createKeyPair (workerName) {
     assert(workerName);
@@ -1087,9 +1146,8 @@ class AwsManager {
   }
 
   /**
-   * Delete a KeyPair when it's no longer needed.  This method
-   * does nothing more and you shouldn't run it until you've turned
-   * everything off.
+   * Delete a KeyPair when it's no longer needed.  This method does nothing
+   * more and you shouldn't run it until you've turned everything off.
    */
   async deleteKeyPair (workerName) {
     assert(workerName);
@@ -1121,12 +1179,11 @@ class AwsManager {
   }
 
   /**
-   * Rouge Killer.  A rouge is an instance that has a KeyPair name
-   * that belongs to this provisioner but is not present in the list
-   * of workerNames provided.  We can also use this to shut down all
-   * instances of everything if we just pass an empty list of workers
-   * which will say to this function that all workerTypes are rouge.
-   * Sneaky, huh?
+   * Rouge Killer.  A rouge is an instance that has a KeyPair name that belongs
+   * to this provisioner but is not present in the list of workerNames
+   * provided.  We can also use this to shut down all instances of everything
+   * if we just pass an empty list of workers which will say to this function
+   * that all workerTypes are rouge.  Sneaky, huh?
    */
   async rougeKiller (configuredWorkers) {
     assert(configuredWorkers);
@@ -1221,9 +1278,9 @@ class AwsManager {
   }
 
   /**
-   * Kill spot requests to change negatively by a capacity unit change.
-   * We use this function to do things like canceling spot requests that
-   * exceed the number we require.
+   * Kill spot requests to change negatively by a capacity unit change.  We use
+   * this function to do things like canceling spot requests that exceed the
+   * number we require.
    */
   async killCapacityOfWorkerType (workerType, count, states) {
     assert(workerType);
@@ -1298,9 +1355,9 @@ class AwsManager {
   }
 
   /**
-   * Hard kill instances which have lived too long.  This is a safe guard
-   * to protect against zombie attacks.  Workers should self impose a limit
-   * of 72 hours.
+   * Hard kill instances which have lived too long.  This is a safe guard to
+   * protect against zombie attacks.  Workers should self impose a limit of 72
+   * hours.
    */
   async zombieKiller () {
     let zombies = {};
@@ -1334,16 +1391,13 @@ class AwsManager {
    * Create a thing which has the stuff to insert into a WorkerState entity
    */
   stateForStorage (workerName) {
-    let response = {
-      workerType: workerName,
-      instances: [],
-      requests: [],
-      internalTrackedRequests: [],
-    };
+    let instances = [];
+    let requests = [];
+    let internalTrackedRequests = [];
 
     for (let instance of this.__apiState.instances) {
       if (instance.WorkerType === workerName) {
-        response.instances.push({
+        instances.push({
           id: instance.InstanceId,
           srId: instance.SpotInstanceRequestId || '',
           ami: instance.ImageId,
@@ -1358,7 +1412,7 @@ class AwsManager {
 
     for (let request of this.__apiState.requests) {
       if (request.WorkerType === workerName) {
-        response.requests.push({
+        requests.push({
           id: request.SpotInstanceRequestId,
           ami: request.LaunchSpecification.ImageId,
           type: request.LaunchSpecification.InstanceType,
@@ -1370,39 +1424,26 @@ class AwsManager {
       }
     }
 
-    // TODO: Also do internally tracked instances
-    return response;
-  }
-
-  /**
-   * This method is to emulate the old storage format of state for the purposes of
-   * not having to update the UI right away.  We don't bother checking internal
-   * state since... well... because... I don't feel like explaining why
-   */
-  emulateOldStateFormat () {
-    let oldState = {};
-
-    let x = (type) => {
-      if (!oldState[type]) {
-        oldState[type] = {
-          running: [],
-          pending: [],
-          spotReq: [],
-        };
+    for (let request of this.__internalState) {
+      if (request.WorkerType === workerName) {
+        internalTrackedRequests.push({
+          id: request.SpotInstanceRequestId,
+          ami: request.LaunchSpecification.ImageId,
+          type: request.LaunchSpecification.InstanceType,
+          region: request.Region,
+          zone: request.LaunchSpecification.Placement.AvailabilityZone,
+          time: request.CreateTime,
+          status: request.Status.Code,
+        });
       }
+    }
+
+    return {
+      workerType: workerName,
+      instances,
+      requests,
+      internalTrackedRequests,
     };
-
-    for (let instance of this.__apiState.instances) {
-      x(instance.WorkerType);
-      oldState[instance.WorkerType][instance.State.Name].push(instance);
-    }
-
-    for (let request of this.__apiState.requests) {
-      x(request.WorkerType);
-      oldState[request.WorkerType].spotReq.push(request);
-    }
-
-    return oldState;
   }
 }
 
