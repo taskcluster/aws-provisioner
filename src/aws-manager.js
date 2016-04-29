@@ -326,7 +326,6 @@ class AwsManager {
         availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
         debug('categorized availability zones in %s', region);
 
-
         // Find the max prices
         debug('finding max prices in %s', region);
         allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);

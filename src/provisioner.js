@@ -1,4 +1,4 @@
-let debugModule = require('debug')
+let debugModule = require('debug');
 let debug = debugModule('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
 let libConfig = require('taskcluster-lib-config');
