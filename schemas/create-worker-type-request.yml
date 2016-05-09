@@ -141,6 +141,10 @@ properties:
           type: string
           description: |
             The Amazon AWS Region being configured.  Example: us-west-1
+          enum:
+            - us-west-2
+            - us-east-1
+            - us-west-1
         launchSpec:
           type: object
           description: |
