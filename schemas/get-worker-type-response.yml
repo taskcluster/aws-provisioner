@@ -29,14 +29,6 @@ properties:
     type: object
     description: |
       UserData entries which are used in all regions and all instance types
-  scopes:
-    type: array
-    items: 
-      type: string
-      pattern: "^[\x20-\x7e]*$"
-    description: |
-      Scopes to issue credentials to for all regions.  Scopes must be composed
-      of printable ASCII characters and spaces.
   minCapacity:
     type: number
     description: |
@@ -74,16 +66,6 @@ properties:
       Maximum price we'll pay.  Like minPrice, this takes into account the
       utility factor when figuring out what the actual SpotPrice submitted
       to Amazon will be
-  canUseOndemand:
-    type: boolean
-    description: |
-      True if this worker type is allowed on demand instances.  Currently
-      ignored
-  canUseSpot:
-    type: boolean
-    description: |
-      True if this worker type is allowed spot instances.  Currently ignored
-      as all instances are Spot
   lastModified:
     type: string
     format: date-time
@@ -125,14 +107,6 @@ properties:
           type: object
           description: |
             UserData entries unique to this InstanceType
-        scopes:
-          type: array
-          items:
-            type: string
-            pattern: "^[\x20-\x7e]*$"
-          description: |
-            Scopes which should be included for this InstanceType.  Scopes must
-            be composed of printable ASCII characters and spaces.
       required:
         - instanceType
         - capacity
@@ -140,7 +114,6 @@ properties:
         - launchSpec
         - secrets
         - userData
-        - scopes
       additionalProperties: false
   regions:
     type: array
@@ -170,28 +143,18 @@ properties:
           type: object
           description: |
             UserData entries unique to this Region
-        scopes:
-          type: array
-          items:
-            type: string
-            pattern: "^[\x20-\x7e]*$"
-          description: |
-            Scopes which should be included for this Region.  Scopes must be
-            composed of printable ASCII characters and spaces.
       additionalProperties: false
       required:
         - region
         - launchSpec
         - secrets
         - userData
-        - scopes
 additionalProperties: false
 required:
   - workerType
   - launchSpec
   - userData
   - secrets
-  - scopes
   - minCapacity
   - maxCapacity
   - scalingRatio

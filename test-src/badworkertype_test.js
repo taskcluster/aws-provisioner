@@ -18,8 +18,6 @@ suite('Bad WorkerType definitions', () => {
     scalingRatio: 1.1,
     minPrice: 0.2,
     maxPrice: 1,
-    canUseOndemand: false,
-    canUseSpot: true,
     instanceTypes: [
       {
         instanceType: 'm3.medium',

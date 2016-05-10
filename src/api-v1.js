@@ -6,6 +6,7 @@ let _ = require('lodash');
 let rp = require('request-promise');
 let url = require('url');
 let assert = require('assert');
+let slugid = require('slugid');
 
 let SLUGID_PATTERN = /^[A-Za-z0-9_-]{8}[Q-T][A-Za-z0-9_-][CGKOSWaeimquy26-][A-Za-z0-9_-]{10}[AQgw]$/;
 let GENERIC_ID_PATTERN = /^[a-zA-Z0-9-_]{1,22}$/;
@@ -333,14 +334,11 @@ api.declare({
       'launchSpec',
       'userData',
       'secrets',
-      'scopes',
       'minCapacity',
       'maxCapacity',
       'scalingRatio',
       'minPrice',
       'maxPrice',
-      'canUseOndemand',
-      'canUseSpot',
       'instanceTypes',
       'regions',
     ].every((key) => {
@@ -367,8 +365,6 @@ api.declare({
   // anymore, but left in because it's harmless and there might still be an
   // entity or two that require it
   let workerjson = wType.json();
-  delete workerjson.canUseOnDemand;
-  workerjson.canUseOndemand = false;
   res.reply(workerjson);
   return;
 });
@@ -484,8 +480,6 @@ api.declare({
     // We do this because John made a mistake in the V1->V2
     // schema update and there was a typo :(
     let workerjson = worker.json();
-    workerjson.canUseOndemand = false;
-    delete workerjson.canUseOnDemand;
 
     return res.reply(workerjson);
   } catch (err) {
@@ -603,7 +597,7 @@ api.declare({
       token: token,
       workerType: input.workerType,
       secrets: input.secrets,
-      scopes: input.scopes,
+      region: input.region,
       expiration: new Date(input.expiration),
     });
   } catch (err) {
@@ -620,7 +614,7 @@ api.declare({
       'workerType',
       'secrets',
       'token',
-      'scopes',
+      'region',
       //'expiration' weird stuff is happening here.  going to assume that
       // we should probably do some sort of Date.toISOString() comparison or something
     ].every((key) => {
@@ -665,11 +659,18 @@ api.declare({
       token: token,
     });
 
+    let workerId = slugid.v4();
+    let workerGroup = 'ec2_' + secret.region;
+
     return res.reply({
       data: secret.secrets,
-      scopes: secret.scopes,
+      workerId: workerId,
+      workerGroup: workerGroup,
       credentials: taskcluster.createTemporaryCredentials({
-        scopes: secret.scopes,
+        scopes: [
+          `assume:worker-type:${this.provisionerId}/${secret.workerType}`,
+          `assume:worker-id:${workerGroup}:${workerId}`,
+        ],
         expiry: taskcluster.fromNow('96 hours'),
         credentials: this.credentials,
       }),

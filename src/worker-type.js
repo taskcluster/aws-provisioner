@@ -1,6 +1,5 @@
 let base = require('taskcluster-base');
 let assert = require('assert');
-let lodash = require('lodash');
 let debug = require('debug')('aws-provisioner:WorkerType');
 let debugMigrate = require('debug')('aws-provisioner:migrate:WorkerType');
 let util = require('util');
@@ -17,7 +16,7 @@ function fixUserData (x) {
     if (typeof x === 'string') {
       ud = JSON.parse(new Buffer(x, 'base64').toString());
     } else if (typeof x === 'object') {
-      ud = lodash.deepClone(x);
+      ud = _.deepClone(x);
     } else if (typeof x !== 'undefined') {
       debugMigrate('[alert-operator] this userData (%j) is garbage', x);
     }
@@ -153,7 +152,7 @@ WorkerType = WorkerType.configure({
       secrets: {},
       scopes: [],
       userData: fixUserData(item.launchSpecification.UserData),
-      launchSpec: lodash.omit(lodash.cloneDeep(item.launchSpecification), 'UserData'),
+      launchSpec: _.omit(_.cloneDeep(item.launchSpecification), 'UserData'),
     };
 
     // Now let's fix up the regions
@@ -167,7 +166,7 @@ WorkerType = WorkerType.configure({
         secrets: {},
         scopes: [],
         userData: ud,
-        launchSpec: lodash.omit(lodash.cloneDeep(r.overwrites), 'UserData'),
+        launchSpec: _.omit(_.cloneDeep(r.overwrites), 'UserData'),
       };
     });
 
@@ -184,7 +183,7 @@ WorkerType = WorkerType.configure({
         secrets: {},
         scopes: [],
         userData: ud,
-        launchSpec: lodash.omit(lodash.cloneDeep(t.overwrites), 'UserData'),
+        launchSpec: _.omit(_.cloneDeep(t.overwrites), 'UserData'),
       };
     });
 
@@ -224,6 +223,49 @@ WorkerType = WorkerType.configure({
     item.description = '** WRITE THIS**';
     item.owner = '** WRITE THIS **';
     return item;
+  },
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+});
+
+// We want to add a description field
+WorkerType = WorkerType.configure({
+  version: 4,
+  properties: {
+    // These fields are documented in Version 1 of this Entity
+    // Version 4 removes some fields we don't use
+    workerType: base.Entity.types.String,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minPrice: base.Entity.types.Number,
+    maxPrice: base.Entity.types.Number,
+    instanceTypes: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+    lastModified: base.Entity.types.Date,
+    userData: base.Entity.types.JSON,
+    launchSpec: base.Entity.types.JSON,
+    secrets: base.Entity.types.JSON,
+    description: base.Entity.types.String,
+    owner: base.Entity.types.String,
+  },
+  migrate: function (item) {
+    let newWorker = {
+      workerType: item.workerType,
+      minCapacity: item.minCapacity,
+      maxCapacity: item.maxCapacity,
+      scalingRatio: item.scalingRatio,
+      minPrice: item.minPrice,
+      maxPrice: item.maxPrice,
+      instanceTypes: _.cloneDeep(item.intanceTypes),
+      regions: _.cloneDeep(item.regions),
+      lastModified: _.cloneDeep(item.lastModified), // do dates need clone[Deep] ?
+      userData: _.cloneDeep(item.userData),
+      launchSpec: _.cloneDeep(item.launchSpec),
+      secrets: _.cloneDeep(item.secrets),
+      description: item.description,
+      owner: item.owner,   
+    };
+    return newWorker;
   },
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
 });
@@ -474,17 +516,19 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
     }
   }
 
-  let config = {};
+  let config = {
+    region: bid.region,
+  };
 
   // Do the cascading overwrites of the object things
   for (let x of ['launchSpec', 'userData', 'secrets']) {
-    config[x] = lodash.cloneDeep(worker[x] || {});
-    lodash.assign(config[x], selectedRegion[x]);
-    lodash.assign(config[x], selectedInstanceType[x]);
+    config[x] = _.cloneDeep(worker[x] || {});
+    _.assign(config[x], selectedRegion[x]);
+    _.assign(config[x], selectedInstanceType[x]);
   }
 
   // Generate the complete list of scopes;
-  config.scopes = lodash.cloneDeep(worker.scopes);
+  config.scopes = _.cloneDeep(worker.scopes);
 
   // Region specific scopes
   for (let scope of selectedRegion.scopes) {

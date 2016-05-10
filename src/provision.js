@@ -340,6 +340,7 @@ class Provisioner {
     debug('creating secret %s', launchInfo.securityToken);
     await this.Secret.create({
       token: launchInfo.securityToken,
+      region: launchInfo.region,
       workerType: workerType.workerType,
       secrets: launchInfo.secrets,
       scopes: launchInfo.scopes,
