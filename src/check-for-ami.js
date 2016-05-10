@@ -26,8 +26,11 @@ module.exports = async function (ec2, ami) {
     return false;
   }
 
-  if (result.data.Images.length !== 1) {
-    throw new Error('found more images than expected');
+  if (result.data.Images.length === 0) {
+    throw new Error('Image does not exist');
+  } else if (result.data.Images.length > 1) {
+    debug(result.data);
+    throw new Error('Image returned more than one result');
   }
 
   if (result.data.Images[0].ImageId === ami) {
