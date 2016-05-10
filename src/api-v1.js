@@ -333,14 +333,11 @@ api.declare({
       'launchSpec',
       'userData',
       'secrets',
-      'scopes',
       'minCapacity',
       'maxCapacity',
       'scalingRatio',
       'minPrice',
       'maxPrice',
-      'canUseOndemand',
-      'canUseSpot',
       'instanceTypes',
       'regions',
     ].every((key) => {
@@ -367,8 +364,6 @@ api.declare({
   // anymore, but left in because it's harmless and there might still be an
   // entity or two that require it
   let workerjson = wType.json();
-  delete workerjson.canUseOnDemand;
-  workerjson.canUseOndemand = false;
   res.reply(workerjson);
   return;
 });
@@ -484,8 +479,6 @@ api.declare({
     // We do this because John made a mistake in the V1->V2
     // schema update and there was a typo :(
     let workerjson = worker.json();
-    workerjson.canUseOndemand = false;
-    delete workerjson.canUseOnDemand;
 
     return res.reply(workerjson);
   } catch (err) {

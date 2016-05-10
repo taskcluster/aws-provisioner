@@ -14,9 +14,6 @@ var baseWorkerType = {
   scalingRatio: 0,
   minPrice: 0,
   maxPrice: 0.5,
-  canUseOndemand: false,
-  canUseSpot: true,
-  scopes: [],
   secrets: {},
   userData: {},
   instanceTypes: [
@@ -27,7 +24,6 @@ var baseWorkerType = {
       launchSpec: {},
       secrets: {},
       userData: {},
-      scopes: [],
     },
     {
       instanceType: 'c3.2xlarge',
@@ -36,7 +32,6 @@ var baseWorkerType = {
       launchSpec: {},
       secrets: {},
       userData: {},
-      scopes: [],
     },
   ],
   regions: [
@@ -47,7 +42,6 @@ var baseWorkerType = {
       },
       secrets: {},
       userData: {},
-      scopes: [],
     },
   ],
 };
@@ -60,7 +54,6 @@ function makeRegion (overwrites) {
     },
     secrets: {},
     userData: {},
-    scopes: [],
   });
 }
 
@@ -72,7 +65,6 @@ function makeInstanceType (overwrites) {
     launchSpec: {},
     secrets: {},
     userData: {},
-    scopes: [],
   });
 }
 
