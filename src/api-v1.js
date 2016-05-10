@@ -671,7 +671,7 @@ api.declare({
       credentials: taskcluster.createTemporaryCredentials({
         scopes: [
           `assume:worker-type:${this.provisionerId}/${secret.workerType}`,
-          `assume:worker-id:*`,
+          'assume:worker-id:*',
         ],
         expiry: taskcluster.fromNow('96 hours'),
         credentials: this.credentials,
