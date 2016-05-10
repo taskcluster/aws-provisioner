@@ -411,7 +411,6 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       selectedRegion.launchSpec = r.launchSpec || {};
       selectedRegion.userData = r.userData || {};
       selectedRegion.secrets = r.secrets || {};
-      selectedRegion.scopes = r.scopes || [];
       selectedRegion.region = r.region;
       // Remember that we need to have an ImageId
       assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
@@ -431,7 +430,6 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
       selectedInstanceType.launchSpec = t.launchSpec || {};
       selectedInstanceType.userData = t.userData || {};
       selectedInstanceType.secrets = t.secrets || {};
-      selectedInstanceType.scopes = t.scopes || [];
       selectedInstanceType.capacity = t.capacity;
       selectedInstanceType.utility = t.utility;
       selectedInstanceType.instanceType = t.instanceType;
@@ -481,23 +479,6 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
     config[x] = lodash.cloneDeep(worker[x] || {});
     lodash.assign(config[x], selectedRegion[x]);
     lodash.assign(config[x], selectedInstanceType[x]);
-  }
-
-  // Generate the complete list of scopes;
-  config.scopes = lodash.cloneDeep(worker.scopes);
-
-  // Region specific scopes
-  for (let scope of selectedRegion.scopes) {
-    if (!_.includes(config.scopes, scope)) {
-      config.scopes.push(scope);
-    }
-  }
-
-  // Instance Type specific scopes
-  for (let scope of selectedInstanceType.scopes) {
-    if (!_.includes(config.scopes, scope)) {
-      config.scopes.push(scope);
-    }
   }
 
   // Set the KeyPair, InstanceType and availability zone correctly
@@ -593,7 +574,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
   return {
     launchSpec: config.launchSpec,
     secrets: config.secrets, // Remember these are static secrets
-    scopes: config.scopes,
+    scopes: [],
     userData: config.userData,
     securityToken: securityToken,
     workerType: worker.workerType,
