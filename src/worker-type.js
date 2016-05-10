@@ -516,7 +516,9 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
     }
   }
 
-  let config = {};
+  let config = {
+    region: bid.region,
+  };
 
   // Do the cascading overwrites of the object things
   for (let x of ['launchSpec', 'userData', 'secrets']) {

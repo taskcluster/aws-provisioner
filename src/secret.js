@@ -11,7 +11,7 @@ let Secret = base.Entity.configure({
     expiration: base.Entity.types.Date,
     workerType: base.Entity.types.String,
     secrets: base.Entity.types.JSON,
-    scopes: base.Entity.types.JSON,
+    region: base.Entity.types.String,
   },
 });
 
