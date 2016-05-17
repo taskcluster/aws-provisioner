@@ -8,13 +8,13 @@ describe('secrets api', () => {
   var token = slugid.v4();
   var secretToAdd = {
     workerType: 'workerType',
+    region: 'us-west-1',
     secrets: {
       key1: true,
       key2: 123,
       key3: 'sample',
       key4: {a: 123},
     },
-    scopes: ['ascope'],
     token: token,
     expiration: taskcluster.fromNow('1 day'),
   };
@@ -26,6 +26,9 @@ describe('secrets api', () => {
 
   it('should be able to load a secret', async () => {
     var loadedSecret = await helper.awsProvisioner.getSecret(token);
+    console.log(JSON.stringify(loadedSecret, null, 2));
+    assume(loadedSecret.workerId).is.ok();
+    assume(loadedSecret.workerGroup).is.ok();
     assume(loadedSecret.data).to.eql(secretToAdd.secrets);
   });
 
