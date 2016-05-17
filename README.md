@@ -57,3 +57,23 @@ Deploying AWS Provisioner
 -------------------------
 
 AWS provisioner is automatically deployed on push to master, without waiting for CI to pass.
+
+
+Post Deployment Verification
+---------------------------
+
+The provisioner is deployed on heroku as a worker process and a web process.  A
+deployment of the provisioner is made by pushing a commit to the master branch,
+either through the command line or through merging a pull request.  Before
+doing a deployment, you should run the unit tests locally.
+
+Once the deployment is made, you should use the `heroku logs -t` command to
+verify that no exceptions are being thrown and that a complete provisioning
+iteration happens.  If the deployment is about adding a new feature or
+correcting a bug, it would be a good idea to ensure that logging messages
+confirm the fix.
+
+The unit test suite in the provisioner is limited to the web component.  The
+EC2 api's eventual consistency as well as it taking sometimes more than 20
+minutes to launch an instance mean that integration tests for the EC2
+interactions are not very feasible.
