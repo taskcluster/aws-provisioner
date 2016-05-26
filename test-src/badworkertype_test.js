@@ -1,4 +1,5 @@
 suite('Bad WorkerType definitions', () => {
+  var main = require('../lib/main');
   var helper = require('./helper');
   var slugid = require('slugid');
   var assume = require('assume');
@@ -33,9 +34,19 @@ suite('Bad WorkerType definitions', () => {
     ],
   };
 
+  let client;
+
+  before(async () => {
+    client = helper.getClient();
+  });
+
+  beforeEach(async () => {
+    await main('tableCleaner', {process: 'tableCleaner', profile: 'test'});
+  });
+
   test('Should cause failure when creating', async () => {
     try {
-      await helper.awsProvisioner.createWorkerType('createBadInput', {
+      await client.createWorkerType('createBadInput', {
         bad: 'input',
       });
       throw new Error('Expected and error');
@@ -46,7 +57,7 @@ suite('Bad WorkerType definitions', () => {
 
   test('should cause failure when updating', async () => {
     try {
-      await helper.awsProvisioner.updateWorkerType('createBadInput', {
+      await client.updateWorkerType('createBadInput', {
         bad: 'input',
       });
       throw new Error('Expected and error');
@@ -57,7 +68,7 @@ suite('Bad WorkerType definitions', () => {
 
   test('Fail when launch specs cannot be generated on create', async () => {
     try {
-      await helper.awsProvisioner.createWorkerType(
+      await client.createWorkerType(
         'invalid', invalidLaunchSpecWorkerType
       );
       throw new Error('Expected and error');
@@ -68,7 +79,7 @@ suite('Bad WorkerType definitions', () => {
 
   test('should fail when workertype is not found', async () => {
     try {
-      await helper.awsProvisioner.workerType(slugid.v4());
+      await client.workerType(slugid.v4());
       throw new Error('Expected and error');
     } catch (err) {
       assume(err.statusCode).is.between(400, 499);

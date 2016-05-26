@@ -1,19 +1,13 @@
 var base = require('taskcluster-base');
-var Config = require('typed-env-config');
 var workerType = require('../lib/worker-type');
 var slugid = require('slugid');
 var mock = require('./mock-workers');
+var main = require('../lib/main');
 
 // for convenience
 var makeRegion = mock.makeRegion;
 var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
-
-var config = Config('test');
-
-var keyPrefix = config.app.awsKeyPrefix;
-var pubKey = config.app.awsInstancePubkey;
-var provisionerId = config.app.id;
 
 function createMockBiaser (bias) {
   return {
@@ -23,18 +17,12 @@ function createMockBiaser (bias) {
   };
 }
 
-var subject = workerType.setup({
-  table: config.app.workerTypeTableName,
-  credentials: config.azure,
-  context: {
-    keyPrefix: keyPrefix,
-    provisionerId: provisionerId,
-    provisionerBaseUrl: config.server.publicUrl,
-    pubKey: pubKey,
-  },
-});
-
 describe('worker type', function () {
+  let subject;
+
+  before(async () => {
+    subject = await main('WorkerType', {process: 'WorkerType', profile: 'test'});
+  });
 
   // This duplicates the api test a little i guess but why not :/
   it('should be able to be created, updated and deleted', async function () {

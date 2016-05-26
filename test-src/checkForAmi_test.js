@@ -1,17 +1,15 @@
 let subject = require('../lib/check-for-ami');
 let assume = require('assume');
-let Config = require('typed-env-config');
+let main = require('../lib/main');
 let aws = require('aws-sdk-promise');
 
 // These tests require actual access to aws and are disabled
 describe('ami check', () => {
   let ec2;
 
-  before(() => {
-    let config = Config('test');
-    let ec2conf = config.aws;
-    ec2conf.region = 'us-west-2';
-    ec2 = new aws.EC2(ec2conf);
+  before(async () => {
+    ec2 = await main('ec2', {profile: 'test', process: 'ec2'});
+    ec2 = ec2['us-west-2'];
   });
 
   it('should see that an existing ami is really there', async () => {
