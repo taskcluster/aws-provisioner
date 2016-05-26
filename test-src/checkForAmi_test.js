@@ -1,6 +1,6 @@
 let subject = require('../lib/check-for-ami');
 let assume = require('assume');
-var libConfig = require('taskcluster-lib-config');
+let Config = require('typed-env-config');
 let aws = require('aws-sdk-promise');
 
 // These tests require actual access to aws and are disabled
@@ -8,22 +8,10 @@ describe('ami check', () => {
   let ec2;
 
   before(() => {
-    let cfg = libConfig({
-      defaults: require('../config/defaults'),
-      profile: require('../config/test'),
-      envs: [
-        'aws_accessKeyId',
-        'aws_secretAccessKey',
-        'pulse_username',
-        'pulse_password',
-        'azure_accountName',
-        'azure_accountKey',
-      ],
-      filename: 'taskcluster-aws-provisioner',
-    });
-    let ec2conf = cfg.get('aws');
+    let config = Config('test');
+    let ec2conf = config.aws;
     ec2conf.region = 'us-west-2';
-    ec2 = new aws.EC2(cfg.get('aws'));
+    ec2 = new aws.EC2(ec2conf);
   });
 
   it('should see that an existing ami is really there', async () => {

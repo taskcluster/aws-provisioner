@@ -31,7 +31,6 @@
     "source-map-support": "^0.4.0",
     "taskcluster-base": "^0.10.8",
     "taskcluster-client": "^0.23.13",
-    "taskcluster-lib-config": "^0.8.8",
     "taskcluster-lib-stats": "^0.8.7",
     "tc-rules": "^3.0.1",
     "typed-env-config": "^0.10.0",

@@ -10,7 +10,7 @@ var pkgData = require('../package.json');
 var canGenerateReference = false;
 try {
   var api = require('../lib/api-v1');
-  var libConfig = require('taskcluster-lib-config');
+  var Config = require('typed-env-config');
   canGenerateReference = true;
 } catch (err) { }
 
@@ -376,22 +376,12 @@ program
   .option('--config <config>', 'Configuration file to use', 'development')
   .description('Assert that this provisioner has a table')
   .action(function (conf) {
-    var cfg = libConfig({
-      defaults: require('../config/defaults.js'),
-      profile: require('../config/' + conf.config),
-      envs: [
-        'provisioner_workerTypeTableName',
-        'provisioner_workerStateTableName',
-        'provisioner_secretTableName',
-        'azure_accountName',
-      ],
-      filename: 'taskcluster-aws-provisioner',
-    });
+    var config = Config();
 
-    var accountName = cfg.get('azure:accountName');
-    var tableName = cfg.get('provisioner:workerTypeTableName');
-    var secretTable = cfg.get('provisioner:secretTableName');
-    var workerStateTable = cfg.get('provisioner:workerStateTableName');
+    var accountName = config.azure.accountName;
+    var tableName = config.app.workerTypeTableName;
+    var secretTable = config.app.secretTableName;
+    var workerStateTable = config.app.workerStateTableName;
 
     var auth = new tc.Auth();
 

@@ -1,7 +1,7 @@
 let debugModule = require('debug');
 let debug = debugModule('aws-provisioner:bin:provisioner');
 let base = require('taskcluster-base');
-let libConfig = require('taskcluster-lib-config');
+let Config = require('typed-env-config');
 let provision = require('../lib/provision');
 let aws = require('aws-sdk-promise');
 let workerType = require('../lib/worker-type');
@@ -16,52 +16,25 @@ process.on('unhandledRejection', err => {
   debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
 });
 
-let launch = function (profile) {
-  let cfg = libConfig({
-    defaults: require('../config/defaults.js'),
-    profile: require('../config/' + profile),
-    filename: 'taskcluster-aws-provisioner',
-    envs: [
-      'provisioner_publishMetaData',
-      'provisioner_awsInstancePubkey',
-      'provisioner_awsKeyPrefix',
-      'taskcluster_queueBaseUrl',
-      'taskcluster_authBaseUrl',
-      'taskcluster_credentials_clientId',
-      'taskcluster_credentials_accessToken',
-      'deadmanssnitch_api_key',
-      'deadmanssnitch_iterationSnitch',
-      'pulse_username',
-      'pulse_password',
-      'aws_accessKeyId',
-      'aws_secretAccessKey',
-      'azure_accountName',
-      'azure_accountKey',
-      'influx_connectionString',
-    ],
-  });
+let launch = async function (profile) {
+  let config = Config(profile);
 
-  let allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
-  let keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  let pubKey = cfg.get('provisioner:awsInstancePubkey');
-  let provisionerId = cfg.get('provisioner:id');
-  let provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
-  let maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
+  let allowedRegions = config.app.allowedRegions.split(',');
+  let keyPrefix = config.app.awsKeyPrefix;
+  let pubKey = config.app.awsInstancePubkey;
+  let provisionerId = config.app.id;
+  let provisionerBaseUrl = config.server.publicUrl + '/v1';
+  let maxInstanceLife = config.app.maxInstanceLife;
 
   let influx = new base.stats.Influx({
-    connectionString: cfg.get('influx:connectionString'),
-    maxDelay: cfg.get('influx:maxDelay'),
-    maxPendingPoints: cfg.get('influx:maxPendingPoints'),
-  });
-
-  let Secret = secret.setup({
-    table: cfg.get('provisioner:secretTableName'),
-    credentials: cfg.get('azure'),
+    connectionString: config.influx.connectionString,
+    maxDelay: config.influx.maxDelay,
+    maxPendingPoints: config.influx.maxPendingPoints,
   });
 
   let WorkerType = workerType.setup({
-    table: cfg.get('provisioner:workerTypeTableName'),
-    credentials: cfg.get('azure'),
+    table: config.app.workerTypeTableName,
+    credentials: config.azure,
     context: {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
@@ -71,17 +44,29 @@ let launch = function (profile) {
   });
 
   let WorkerState = workerState.setup({
-    table: cfg.get('provisioner:workerStateTableName'),
-    credentials: cfg.get('azure'),
+    table: config.app.workerStateTableName,
+    credentials: config.azure,
   });
+
+  let Secret = secret.setup({
+    table: config.app.secretTableName,
+    credentials: config.azure,
+  });
+
+  // Get promise for workerType table created (we'll await it later)
+  await Promise.all([
+    WorkerType.ensureTable(),
+    WorkerState.ensureTable(),
+    Secret.ensureTable(),
+  ]);
 
   // Create all the things which need to be injected into the
   // provisioner
   let ec2 = {};
   for (let region of allowedRegions) {
-    let ec2conf = cfg.get('aws');
+    let ec2conf = config.aws;
     ec2conf.region = region;
-    let s3Debugger = debugModule('aws-sdk');
+    let s3Debugger = debugModule('aws-sdk:provisioner');
     let awsDebugLoggerBridge = {
       write: x => {
         for (let y of x.split('\n')) {
@@ -100,23 +85,22 @@ let launch = function (profile) {
       pubKey,
       maxInstanceLife,
       influx);
-  let queue = new taskcluster.Queue({credentials: cfg.get('taskcluster:credentials')});
+  let queue = new taskcluster.Queue({credentials: config.taskcluster.credentials});
 
-  let config = {
+  let provisioner = new provision.Provisioner({
     WorkerType: WorkerType,
     Secret: Secret,
     WorkerState: WorkerState,
     queue: queue,
     provisionerId: provisionerId,
-    taskcluster: cfg.get('taskcluster'),
+    taskcluster: config.taskcluster,
     influx: influx,
     awsManager: awsManager,
-    provisionIterationInterval: cfg.get('provisioner:iterationInterval'),
-    dmsApiKey: cfg.get('deadmanssnitch:api:key'),
-    iterationSnitch: cfg.get('deadmanssnitch:iterationSnitch'),
-  };
+    provisionIterationInterval: config.app.iterationInterval,
+    dmsApiKey: config.deadmanssnitch.api.key,
+    iterationSnitch: config.deadmanssnitch.iterationSnitch,
+  });
 
-  let provisioner = new provision.Provisioner(config);
   try {
     provisioner.run();
   } catch (err) {

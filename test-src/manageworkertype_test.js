@@ -1,11 +1,12 @@
-let workerType = require('../lib/worker-type');
-let workerState = require('../lib/worker-state');
+var workerType = require('../lib/worker-type');
+var workerState = require('../lib/worker-state');
 var helper = require('./helper');
 var slugid = require('slugid');
 var assume = require('assume');
 var debug = require('debug')('test');
 var _ = require('lodash');
 var mock = require('./mock-workers');
+var config = require('typed-env-config')();
 
 // for convenience
 // var makeRegion = mock.makeRegion;
@@ -62,7 +63,11 @@ describe('provisioner worker type api', () => {
 });
 
 describe('worker-type API methods', () => {
-  let WorkerType, WorkerState, wt, testWorkerType, testWorkerState;
+  let WorkerType;
+  let WorkerState;
+  let wt;
+  let testWorkerType;
+  let testWorkerState;
 
   let cleanTables = async () => {
     // remove all rows from either table
@@ -75,23 +80,34 @@ describe('worker-type API methods', () => {
   };
 
   before(async () => {
-    WorkerState = workerState.setup({
-      table: helper.cfg.get('provisioner:workerStateTableName'),
-      credentials: helper.cfg.get('azure'),
-    });
+    let allowedRegions = config.app.allowedRegions.split(',');
+    let keyPrefix = config.app.awsKeyPrefix;
+    let pubKey = config.app.awsInstancePubkey;
+    let provisionerId = config.app.id;
+    let provisionerBaseUrl = config.server.publicUrl + '/v1';
+    let maxInstanceLife = config.app.maxInstanceLife;
 
-    let keyPrefix = helper.cfg.get('provisioner:awsKeyPrefix');
-    let pubKey = helper.cfg.get('provisioner:awsInstancePubkey');
-    let provisionerId = helper.cfg.get('provisioner:id');
-    let provisionerBaseUrl = helper.cfg.get('server:publicUrl') + '/v1';
     WorkerType = workerType.setup({
-      table: helper.cfg.get('provisioner:workerTypeTableName'),
-      credentials: helper.cfg.get('azure'),
-      context: {keyPrefix, provisionerId, provisionerBaseUrl, pubKey},
+      table: config.app.workerTypeTableName,
+      credentials: config.azure,
+      context: {
+        keyPrefix: keyPrefix,
+        provisionerId: provisionerId,
+        provisionerBaseUrl: provisionerBaseUrl,
+        pubKey: pubKey,
+      },
     });
 
-    await WorkerState.ensureTable();
-    await WorkerType.ensureTable();
+    WorkerState = workerState.setup({
+      table: config.app.workerStateTableName,
+      credentials: config.azure,
+    });
+
+    await Promise.all([
+      WorkerType.ensureTable(),
+      WorkerState.ensureTable(),
+    ]);
+
     await cleanTables();
 
     wt = slugid.nice();

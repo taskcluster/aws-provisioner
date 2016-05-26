@@ -1,5 +1,5 @@
 var base = require('taskcluster-base');
-var libConfig = require('taskcluster-lib-config');
+var Config = require('typed-env-config');
 var workerType = require('../lib/worker-type');
 var slugid = require('slugid');
 var mock = require('./mock-workers');
@@ -9,30 +9,11 @@ var makeRegion = mock.makeRegion;
 var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
 
-var cfg = libConfig({
-  defaults: require('../config/defaults'),
-  profile: require('../config/test'),
-  envs: [
-    'provisioner_publishMetaData',
-    'provisioner_awsInstancePubkey',
-    'provisioner_awsKeyPrefix',
-    'azure_accountName',
-    'azure_accountKey',
-  ],
-  filename: 'taskcluster-aws-provisioner',
-});
+var config = Config('test');
 
-var keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-var pubKey = cfg.get('provisioner:awsInstancePubkey');
-var provisionerId = cfg.get('provisioner:id');
-//var maxInstanceLife = cfg.get('provisioner:maxInstanceLife');
-
-// We don't use influx yet, but may as well include it
-/* var influx = new base.stats.Influx({
-  connectionString: cfg.get('influx:connectionString'),
-  maxDelay: cfg.get('influx:maxDelay'),
-  maxPendingPoints: cfg.get('influx:maxPendingPoints'),
-});*/
+var keyPrefix = config.app.awsKeyPrefix;
+var pubKey = config.app.awsInstancePubkey;
+var provisionerId = config.app.id;
 
 function createMockBiaser (bias) {
   return {
@@ -43,17 +24,14 @@ function createMockBiaser (bias) {
 }
 
 var subject = workerType.setup({
-  table: cfg.get('provisioner:workerTypeTableName'),
-  credentials: cfg.get('azure'),
+  table: config.app.workerTypeTableName,
+  credentials: config.azure,
   context: {
     keyPrefix: keyPrefix,
     provisionerId: provisionerId,
-    provisionerBaseUrl: cfg.get('server:publicUrl'),
+    provisionerBaseUrl: config.server.publicUrl,
     pubKey: pubKey,
   },
-  //account: cfg.get('azure:accountName'),
-  //credentials: cfg.get('taskcluster:credentials'),
-  //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
 });
 
 describe('worker type', function () {

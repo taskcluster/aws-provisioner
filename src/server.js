@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 let path = require('path');
-let debug = require('debug')('aws-provisioner:bin:server');
+let debugModule = require('debug');
+let debug = debugModule('aws-provisioner:bin:server');
 let base = require('taskcluster-base');
-let libConfig = require('taskcluster-lib-config');
+let Config = require('typed-env-config');
 let workerType = require('../lib/worker-type');
 let secret = require('../lib/secret');
 let workerState = require('../lib/worker-state');
@@ -19,117 +20,88 @@ process.on('unhandledRejection', err => {
 
 /** Launch server */
 let launch = async function (profile) {
-  // Load configuration
-  let cfg = libConfig({
-    defaults: require('../config/defaults'),
-    profile: require('../config/' + profile),
-    envs: [
-      'provisioner_publishMetaData',
-      'provisioner_awsInstancePubkey',
-      'provisioner_awsKeyPrefix',
-      'taskcluster_queueBaseUrl',
-      'taskcluster_authBaseUrl',
-      'taskcluster_credentials_clientId',
-      'taskcluster_credentials_accessToken',
-      'deadmanssnitch_api_key',
-      'deadmanssnitch_iterationSnitch',
-      'pulse_username',
-      'pulse_password',
-      'aws_accessKeyId',
-      'aws_secretAccessKey',
-      'azure_accountName',
-      'azure_accountKey',
-      'influx_connectionString',
-    ],
-    filename: 'taskcluster-aws-provisioner',
-  });
+  let config = Config(profile);
 
-  let keyPrefix = cfg.get('provisioner:awsKeyPrefix');
-  let pubKey = cfg.get('provisioner:awsInstancePubkey');
-  let provisionerId = cfg.get('provisioner:id');
-  let provisionerBaseUrl = cfg.get('server:publicUrl') + '/v1';
+  let allowedRegions = config.app.allowedRegions.split(',');
+  let keyPrefix = config.app.awsKeyPrefix;
+  let pubKey = config.app.awsInstancePubkey;
+  let provisionerId = config.app.id;
+  let provisionerBaseUrl = config.server.publicUrl + '/v1';
 
-  // Create InfluxDB connection for submitting statistics
   let influx = new base.stats.Influx({
-    connectionString: cfg.get('influx:connectionString'),
-    maxDelay: cfg.get('influx:maxDelay'),
-    maxPendingPoints: cfg.get('influx:maxPendingPoints'),
+    connectionString: config.influx.connectionString,
+    maxDelay: config.influx.maxDelay,
+    maxPendingPoints: config.influx.maxPendingPoints,
   });
 
-  // Start monitoring the process
   base.stats.startProcessUsageReporting({
     drain: influx,
-    component: cfg.get('provisioner:statsComponent'),
+    component: config.app.statsComponent,
     process: 'server',
   });
 
-  // Configure WorkerType entities
   let WorkerType = workerType.setup({
-    table: cfg.get('provisioner:workerTypeTableName'),
-    credentials: cfg.get('azure'),
+    table: config.app.workerTypeTableName,
+    credentials: config.azure,
     context: {
       keyPrefix: keyPrefix,
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
       pubKey: pubKey,
     },
-    //account: cfg.get('azure:accountName'),
-    //credentials: cfg.get('taskcluster:credentials'),
-    //authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
   });
 
-  // Configure WorkerState entities
   let WorkerState = workerState.setup({
-    table: cfg.get('provisioner:workerStateTableName'),
-    credentials: cfg.get('azure'),
+    table: config.app.workerStateTableName,
+    credentials: config.azure,
   });
 
-  // Configure WorkerType entities
   let Secret = secret.setup({
-    table: cfg.get('provisioner:secretTableName'),
-    credentials: cfg.get('azure'),
+    table: config.app.secretTableName,
+    credentials: config.azure,
   });
 
-  // Get promise for workerType table created (we'll await it later)
-  let tablesCreated = Promise.all([
+  await Promise.all([
     WorkerType.ensureTable(),
     WorkerState.ensureTable(),
     Secret.ensureTable(),
   ]);
 
-  // Setup Pulse exchanges and create a publisher
-  // First create a validator and then publisher
   let validator = await base.validator({
     folder: path.join(__dirname, '..', 'schemas'),
     constants: require('../schemas/constants'),
-    publish: cfg.get('provisioner:publishMetaData') === 'true',
+    publish: config.app.publishMetaData === 'true',
     schemaPrefix: 'aws-provisioner/v1/',
-    aws: cfg.get('aws'),
+    aws: config.aws,
   });
 
-  // Store the publisher to inject it as context into the API
   let publisher = await exchanges.setup({
-    credentials: cfg.get('pulse'),
-    exchangePrefix: cfg.get('provisioner:exchangePrefix'),
+    credentials: config.pulse,
+    exchangePrefix: config.app.exchangePrefix,
     validator: validator,
     referencePrefix: 'aws-provisioner/v1/exchanges.json',
-    publish: cfg.get('provisioner:publishMetaData') === 'true',
-    aws: cfg.get('aws'),
+    publish: config.app.publishMetaData === 'true',
+    aws: config.aws,
     drain: influx,
-    component: cfg.get('provisioner:statsComponent'),
+    component: config.app.statsComponent,
     process: 'server',
   });
 
-  let allowedRegions = cfg.get('provisioner:allowedRegions').split(',');
   let ec2 = {};
   for (let region of allowedRegions) {
-    let ec2conf = cfg.get('aws');
+    let ec2conf = config.aws;
     ec2conf.region = region;
+    let s3Debugger = debugModule('aws-sdk:api');
+    let awsDebugLoggerBridge = {
+      write: x => {
+        for (let y of x.split('\n')) {
+          s3Debugger(y);
+        }
+      },
+    };
+    ec2conf.logger = awsDebugLoggerBridge;
     ec2[region] = new aws.EC2(ec2conf);
   }
-
-  // We also want to make sure that the table is created.
-  await tablesCreated;
 
   let reportInstanceStarted = series.instanceStarted.reporter(influx);
 
@@ -145,27 +117,27 @@ let launch = async function (profile) {
       provisionerId: provisionerId,
       provisionerBaseUrl: provisionerBaseUrl,
       reportInstanceStarted: reportInstanceStarted,
-      credentials: cfg.get('taskcluster:credentials'),
-      dmsApiKey: cfg.get('deadmanssnitch:api:key'),
-      iterationSnitch: cfg.get('deadmanssnitch:iterationSnitch'),
+      credentials: config.taskcluster.credentials,
+      dmsApiKey: config.deadmanssnitch.api.key,
+      iterationSnitch: config.deadmanssnitch.iterationSnitch,
       ec2: ec2,
     },
     validator: validator,
-    authBaseUrl: cfg.get('taskcluster:authBaseUrl'),
-    publish: cfg.get('provisioner:publishMetaData') === 'true',
-    baseUrl: cfg.get('server:publicUrl') + '/v1',
+    authBaseUrl: config.taskcluster.authBaseUrl,
+    publish: config.app.publishMetaData === 'true',
+    baseUrl: config.server.publicUrl + '/v1',
     referencePrefix: 'aws-provisioner/v1/api.json',
-    aws: cfg.get('aws'),
-    component: cfg.get('provisioner:statsComponent'),
+    aws: config.aws,
+    component: config.app.statsComponent,
     drain: influx,
   });
 
   // Create app
   let app = base.app({
-    port: Number(process.env.PORT || cfg.get('server:port')),
-    env: cfg.get('server:env'),
-    forceSSL: cfg.get('server:forceSSL'),
-    trustProxy: cfg.get('server:trustProxy'),
+    port: Number(process.env.PORT || config.server.port),
+    env: config.server.env,
+    forceSSL: config.server.forceSSL,
+    trustProxy: config.server.trustProxy,
   });
 
   // Mount API router

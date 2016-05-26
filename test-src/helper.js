@@ -1,11 +1,22 @@
 var base = require('taskcluster-base');
-var libConfig = require('taskcluster-lib-config');
+var Config = require('typed-env-config');
 var mocha = require('mocha');
 var v1 = require('../lib/api-v1');
 var taskcluster = require('taskcluster-client');
 var bin = {
   server: require('../lib/server'),
 };
+
+mocha.before(() => {
+  base.testing.fakeauth.start({
+    'test-server': ['*'],
+    'test-client': ['*'],
+  });
+});
+
+mocha.after(() => {
+  base.testing.fakeauth.stop();
+});
 
 // Some default clients for the mockAuthServer
 var defaultClients = [
@@ -22,31 +33,20 @@ var defaultClients = [
   },
 ];
 
+var config = Config('test');
+
 // Load configuration
-var cfg = libConfig({
-  defaults: require('../config/defaults'),
-  profile: require('../config/test'),
-  envs: [
-    'aws_accessKeyId',
-    'aws_secretAccessKey',
-    'pulse_username',
-    'pulse_password',
-    'azure_accountName',
-    'azure_accountKey',
-  ],
-  filename: 'taskcluster-aws-provisioner',
-});
-exports.cfg = cfg;
+exports.config = config;
 
 // Skip tests if no AWS credentials is configured
-if (!cfg.get('aws:secretAccessKey') ||
-    !cfg.get('azure:accountKey') ||
-    !cfg.get('pulse:password')) {
+if (!config.aws.secretAccessKey ||
+    !config.azure.accountKey ||
+    !config.pulse.password) {
   throw new Error('cannot run tests due to missing credentials');
 }
 
 // Configure PulseTestReceiver
-exports.events = new base.testing.PulseTestReceiver(cfg.get('pulse'), mocha);
+exports.events = new base.testing.PulseTestReceiver(config.pulse, mocha);
 
 // Hold reference to authServer
 var authServer = null;
