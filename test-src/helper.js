@@ -23,10 +23,10 @@ mocha.after(async () => {
   await server.terminate();
 });
 
-module.exports.getServer = function () {
+module.exports.getServer = function() {
   return server;
 };
 
-module.exports.getClient = function () {
+module.exports.getClient = function() {
   return client;
 };

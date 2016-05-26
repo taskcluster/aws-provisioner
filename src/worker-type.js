@@ -11,7 +11,7 @@ let _ = require('lodash');
 const KEY_CONST = 'worker-type';
 
 // We do this three times, lets just stick it into a function
-function fixUserData (x) {
+function fixUserData(x) {
   let ud = {};
   try {
     if (typeof x === 'string') {
@@ -138,7 +138,7 @@ WorkerType = WorkerType.configure({
     // temporary TC credentials will be issued against
     scopes: base.Entity.types.JSON,
   },
-  migrate: function (item) {
+  migrate: function(item) {
     // First, let's set up the static/easy data
     let newWorker = {
       workerType: item.workerType,
@@ -220,7 +220,7 @@ WorkerType = WorkerType.configure({
     // Store the owner of this worker type
     owner: base.Entity.types.String,
   },
-  migrate: function (item) {
+  migrate: function(item) {
     item.description = '** WRITE THIS**';
     item.owner = '** WRITE THIS **';
     return item;
@@ -233,7 +233,7 @@ WorkerType = WorkerType.configure({
  * should not have a workerType key since that will be
  * specified in the workerType argument
  */
-WorkerType.create = function (workerType, properties) {
+WorkerType.create = function(workerType, properties) {
   assert(workerType, 'missing workerType param');
   assert(properties, 'missing properties param');
   assert(!properties.workerType, 'properties cannot contain worker name');
@@ -252,7 +252,7 @@ WorkerType.loadAll = async function () {
   try {
     debug('going to load all workers by scanning the WorkerType table');
     await base.Entity.scan.call(this, {}, {
-      handler: function (item) {
+      handler: function(item) {
         workers.push(item);
       },
     });
@@ -277,7 +277,7 @@ WorkerType.listWorkerTypes = async function () {
 
   try {
     await base.Entity.scan.call(this, {}, {
-      handler: function (item) {
+      handler: function(item) {
         names.push(item.workerType);
       },
     });
@@ -299,7 +299,7 @@ WorkerType.listWorkerTypes = async function () {
  * method intended for use in displaying the data associated
  * with a given workerType
  */
-WorkerType.prototype.json = function () {
+WorkerType.prototype.json = function() {
   return JSON.parse(JSON.stringify(this._properties));
 };
 
@@ -307,7 +307,7 @@ WorkerType.prototype.json = function () {
  * Retreive the InstanceType data for a given instanceType
  * and optionally a single property from it.
  */
-WorkerType.prototype.getInstanceType = function (instanceType) {
+WorkerType.prototype.getInstanceType = function(instanceType) {
   let types = this.instanceTypes.filter(t => t.instanceType === instanceType);
 
   if (types.length === 1) {
@@ -325,7 +325,7 @@ WorkerType.prototype.getInstanceType = function (instanceType) {
  * Retreive the Region data for a given region and optionally a
  * single property from it.
  */
-WorkerType.prototype.getRegion = function (region) {
+WorkerType.prototype.getRegion = function(region) {
   let regions = this.regions.filter(r => r.region === region);
 
   if (regions.length === 1) {
@@ -342,14 +342,14 @@ WorkerType.prototype.getRegion = function (region) {
 /**
  * Return the capacity for a given type
  */
-WorkerType.prototype.utilityOfType = function (instanceType) {
+WorkerType.prototype.utilityOfType = function(instanceType) {
   return this.getInstanceType(instanceType).utility;
 };
 
 /**
  * Return the capacity for a given type
  */
-WorkerType.prototype.capacityOfType = function (instanceType) {
+WorkerType.prototype.capacityOfType = function(instanceType) {
   return this.getInstanceType(instanceType).capacity;
 };
 
@@ -358,7 +358,7 @@ WorkerType.prototype.capacityOfType = function (instanceType) {
  * does all the various overwriting of type and region specific LaunchSpecification
  * keys.
  */
-WorkerType.prototype.createLaunchSpec = function (bid) {
+WorkerType.prototype.createLaunchSpec = function(bid) {
   assert(bid);
   return WorkerType.createLaunchSpec(bid,
       this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl, this.pubKey, this.workerType);
@@ -369,7 +369,7 @@ WorkerType.prototype.createLaunchSpec = function (bid) {
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function () {
+WorkerType.prototype.testLaunchSpecs = function() {
   return WorkerType.testLaunchSpecs(
       this,
       this.keyPrefix,
@@ -385,7 +385,7 @@ WorkerType.prototype.testLaunchSpecs = function () {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
+WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
   // These are the keys which are only applicable to a given region.
   assert(bid, 'must specify a bid');
   assert(bid.region, 'bid must specify a region');
@@ -586,7 +586,7 @@ WorkerType.createLaunchSpec = function (bid, worker, keyPrefix, provisionerId, p
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
+WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
@@ -648,7 +648,7 @@ WorkerType.testLaunchSpecs = function (worker, keyPrefix, provisionerId, provisi
  * offset the number of units that we'd be creating by the number of pending
  * capacity units
  */
-WorkerType.prototype.determineCapacityChange = function (runningCapacity, pendingCapacity, pending) {
+WorkerType.prototype.determineCapacityChange = function(runningCapacity, pendingCapacity, pending) {
   assert(typeof runningCapacity === 'number');
   assert(typeof pendingCapacity === 'number');
   assert(typeof pending === 'number');
@@ -706,7 +706,7 @@ WorkerType.prototype.determineCapacityChange = function (runningCapacity, pendin
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function (managedRegions, pricing, change, biaser) {
+WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, change, biaser) {
   assert(managedRegions);
   assert(pricing);
   assert(change);

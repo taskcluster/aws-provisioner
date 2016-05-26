@@ -8,7 +8,7 @@ let crypto = require('crypto');
  * and create a sha256 key.  Because this is not important from a security
  * perspective, we just take the first 7 chars
  */
-module.exports.createPubKeyHash = function (pubKey) {
+module.exports.createPubKeyHash = function(pubKey) {
   assert(pubKey);
   let keyData = pubKey.split(' ');
   assert(keyData.length >= 2, 'pub key must be in a valid format');
@@ -20,7 +20,7 @@ module.exports.createPubKeyHash = function (pubKey) {
 /**
  * Create a KeyPair name
  */
-module.exports.createKeyPairName = function (prefix, pubKey, workerName) {
+module.exports.createKeyPairName = function(prefix, pubKey, workerName) {
   assert(prefix);
   // We want to support the case where we're still using a config setting
   // that ends in : as it used to
@@ -37,7 +37,7 @@ module.exports.createKeyPairName = function (prefix, pubKey, workerName) {
  * Parse a KeyPair name into an object with a prefix, workerType and
  * keyHash properties on the returned object
  */
-module.exports.parseKeyPairName = function (name) {
+module.exports.parseKeyPairName = function(name) {
   assert(name);
   let parts = name.split(':');
   let rv = {

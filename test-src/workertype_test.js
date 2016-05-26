@@ -9,15 +9,15 @@ var makeRegion = mock.makeRegion;
 var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
 
-function createMockBiaser (bias) {
+function createMockBiaser(bias) {
   return {
-    getBias: function () {
+    getBias: function() {
       return bias;
     },
   };
 }
 
-describe('worker type', function () {
+describe('worker type', function() {
   let subject;
 
   before(async () => {
@@ -49,7 +49,7 @@ describe('worker type', function () {
     return await asModified.remove();
   });
 
-  describe('generating launch specifications', function () {
+  describe('generating launch specifications', function() {
     it('should create a launch spec with valid data', async function () {
       var wType = makeWorkerType({
         lastModified: new Date(),
@@ -59,9 +59,9 @@ describe('worker type', function () {
       subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId', 'url', 'ssh-rsa fakepubkey comment', 'workerName');
     });
 
-    function shouldThrow (wType) {
+    function shouldThrow(wType) {
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         subject.testLaunchSpecs(wType, 'keyPrefix', 'provisionerId');
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
@@ -83,7 +83,7 @@ describe('worker type', function () {
       shouldThrow(wType);
     });
 
-    it('should fail with region specific key in general', function () {
+    it('should fail with region specific key in general', function() {
       var wType = makeWorkerType({
         launchSpec: {
           ImageId: 'ami-1234579',
@@ -92,21 +92,21 @@ describe('worker type', function () {
       shouldThrow(wType);
     });
 
-    it('should fail with region specific key in instance type', function () {
+    it('should fail with region specific key in instance type', function() {
       var wType = makeWorkerType({
         instanceTypes: [makeInstanceType({launchSpec: {ImageId: 'ami-1234558'}})],
       });
       shouldThrow(wType);
     });
 
-    it('should fail with instance type specific key in region', function () {
+    it('should fail with instance type specific key in region', function() {
       var wType = makeWorkerType({
         regions: [makeRegion({launchSpec: {InstanceType: 'c3.small'}})],
       });
       shouldThrow(wType);
     });
 
-    it('should fail with instance type specific key in general', function () {
+    it('should fail with instance type specific key in general', function() {
       var wType = makeWorkerType({
         launchSpec: {
           InstanceType: 'ami-1234558',
@@ -131,7 +131,7 @@ describe('worker type', function () {
     });
     ** THESE TESTS ABOVE SHOULD WORK */
 
-    it('should create valid user data', function () {
+    it('should create valid user data', function() {
       var wType = makeWorkerType({
         lastModified: new Date(),
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
@@ -152,7 +152,7 @@ describe('worker type', function () {
 
   });
 
-  describe('convenience methods', function () {
+  describe('convenience methods', function() {
     var wType;
     var wName;
 
@@ -179,7 +179,7 @@ describe('worker type', function () {
       wt.getRegion('moon-3').region.should.equal('moon-3');
 
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.getRegion('notvalid');
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
@@ -194,7 +194,7 @@ describe('worker type', function () {
       wt.getInstanceType('t1.micro').instanceType.should.equal('t1.micro');
 
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.getinstanceType('notvalid');
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
@@ -208,7 +208,7 @@ describe('worker type', function () {
       wt.capacityOfType('c3.small').should.equal(5);
 
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.capacityOfType('notvalid');
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
@@ -223,21 +223,21 @@ describe('worker type', function () {
       wt.utilityOfType('c3.small').should.equal(4);
 
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.utilityOfType('notvalid');
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
 
     });
 
-    it('should return a json representation of itself', function () {
+    it('should return a json representation of itself', function() {
       wType.json().should.be.an.Object; //eslint-disable-line no-unused-expressions
       wType.json().should.have.property('workerType');
       wType.json().should.not.have.property('__properties');
     });
   });
 
-  describe('determining capacity change', function () {
+  describe('determining capacity change', function() {
     var wType;
     var wName;
 
@@ -255,7 +255,7 @@ describe('worker type', function () {
       await wType.remove();
     });
 
-    function testChange (expected, rCap, pCap, pend, min, max, sr) {
+    function testChange(expected, rCap, pCap, pend, min, max, sr) {
       it(rCap + ' runningCap ' + pCap + ' pendingCap ' + pend + ' pending ==> ' +
          expected + ' ratio ' + (sr || 0) + ' min/max ' + (min || 0) + '/' + (max || 20), async function () {
         var wt = await wType.modify(w => {
@@ -267,7 +267,7 @@ describe('worker type', function () {
       });
     }
 
-    describe('no scaling ratio', function () {
+    describe('no scaling ratio', function() {
       testChange(0, 0, 0, 0);
       testChange(1, 0, 0, 0, 1);
       testChange(5, 0, 0, 5);
@@ -280,7 +280,7 @@ describe('worker type', function () {
       testChange(20, 0, 0, 30, 1, 20);
     });
 
-    describe('20% scaling ratio', function () {
+    describe('20% scaling ratio', function() {
       testChange(0, 0, 0, 0, 0, 1000, 0.2);
       testChange(1, 0, 0, 0, 1, 1000, 0.2);
       //testChange(80, 0, 0, 100, 0, 1000, 0.2); // why doesn't this work
@@ -289,7 +289,7 @@ describe('worker type', function () {
       testChange(960, 0, 40, 10000, 0, 1000, 0.2);
     });
 
-    describe('-20% scaling ratio', function () {
+    describe('-20% scaling ratio', function() {
       testChange(0, 0, 0, 0, 0, 1000, -0.2);
       testChange(1, 0, 0, 0, 1, 1000, -0.2);
       //testChange(120, 0, 0, 100, 0, 1000, -0.2); // why doesn't this work
@@ -300,7 +300,7 @@ describe('worker type', function () {
 
   });
 
-  function fakePricing (silly) {
+  function fakePricing(silly) {
     var d;
     if (silly) {
       d = {
@@ -333,7 +333,7 @@ describe('worker type', function () {
     return d;
   }
 
-  describe('determining spot bids', function () {
+  describe('determining spot bids', function() {
     var wType;
     var wName;
 
@@ -361,7 +361,7 @@ describe('worker type', function () {
       await wType.remove();
     });
 
-    it('should pick the cheapest region, zone and type in one region', function () {
+    it('should pick the cheapest region, zone and type in one region', function() {
       var actual = wType.determineSpotBids(['region1'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
@@ -376,7 +376,7 @@ describe('worker type', function () {
       expected.should.eql(actual);
     });
 
-    it('should pick the cheapest region, zone and type in two regions', function () {
+    it('should pick the cheapest region, zone and type in two regions', function() {
       var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
@@ -391,7 +391,7 @@ describe('worker type', function () {
       expected.should.eql(actual);
     });
 
-    it('should work with an empty region', function () {
+    it('should work with an empty region', function() {
       var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1, createMockBiaser(1));
       var expected = [
         {
@@ -430,7 +430,7 @@ describe('worker type', function () {
         w.maxPrice = 0.1;
       });
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */
@@ -441,7 +441,7 @@ describe('worker type', function () {
         w.maxPrice = 100000;
       });
       /* eslint-disable no-extra-parens, no-wrap-func */
-      (function () {
+      (function() {
         wt.determineSpotBids(['region1', 'region2'], fakePricing(true), 1);
       }).should.throw();
       /* eslint-enable no-extra-parens, no-wrap-func */

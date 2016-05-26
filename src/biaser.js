@@ -10,7 +10,7 @@ let _ = require('lodash');
  * for that instance type in the workerType definition.
  */
 class Biaser {
-  constructor (cfg) {
+  constructor(cfg) {
     // Store a taskcluster-base.stats Influx object that the queries will be run
     // against
     assert(cfg.influx);
@@ -74,7 +74,7 @@ class Biaser {
    * assume that we no longer have valid biasing information and return a bias
    * of one.
    */
-  getBias (region, zone, type) {
+  getBias(region, zone, type) {
     assert(region);
     assert(zone);
     assert(type);
@@ -139,7 +139,7 @@ class Biaser {
    * Given a set of instance types and regions, fetch the information needed to
    * determine a bias value
    */
-  async fetchBiasInfo (azinfo, types) {
+  async fetchBiasInfo(azinfo, types) {
     let regions = Object.keys(azinfo);
 
     let biasTable = {};

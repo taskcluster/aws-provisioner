@@ -3,7 +3,6 @@ var assume = require('assume');
 var debug = require('debug')('test');
 var _ = require('lodash');
 var mock = require('./mock-workers');
-var config = require('typed-env-config')();
 var base = require('taskcluster-base');
 
 // for convenience

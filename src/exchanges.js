@@ -39,18 +39,18 @@ let commonRoutingKey = [
 ];
 
 /** Build an pulse compatible message from a message */
-let commonMessageBuilder = function (message) {
+let commonMessageBuilder = function(message) {
   message.version = 1;
   return message;
 };
 
 /** Build a routing-key from message */
-let commonRoutingKeyBuilder = function (message) {
+let commonRoutingKeyBuilder = function(message) {
   return {workerType: message.workerType};
 };
 
 /** Build a list of routes to CC */
-let commonCCBuilder = function () {
+let commonCCBuilder = function() {
   return [];
 };
 

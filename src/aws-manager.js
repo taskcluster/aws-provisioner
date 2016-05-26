@@ -10,7 +10,7 @@ let delayer = require('./delayer');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
-function dateForInflux (thingy) {
+function dateForInflux(thingy) {
   if (typeof thingy === 'object' && thingy.getTime) {
     // assume this is a date object
     return thingy.getTime();
@@ -82,7 +82,7 @@ function dateForInflux (thingy) {
  *      submit data points to an influx instance
  */
 class AwsManager {
-  constructor (ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
@@ -141,7 +141,7 @@ class AwsManager {
   /**
    * Update the state from the AWS API
    */
-  async update () {
+  async update() {
     // We fetch the living instance and spot requests separate from the dead
     // ones to make things a little easier to work with as there's really very
     // little in the provisioner which requires info on dead instances and spot
@@ -353,7 +353,7 @@ class AwsManager {
    * Return an object that maps region names to a list of availability zones
    * which are able to be provisioned in
    */
-  availableAZ () {
+  availableAZ() {
     return this.__availableAZ;
   }
 
@@ -362,7 +362,7 @@ class AwsManager {
    * We find the maximum, not average price intentionally as the average is a
    * poor metric in this case from experience
    */
-  _findMaxPrices (res, zones) {
+  _findMaxPrices(res, zones) {
     // type -> zone
     let pricing = {};
 
@@ -392,7 +392,7 @@ class AwsManager {
    * This function returns an object with the spot requests sorted
    * into these buckets.
    */
-  _spotRequestStalled (sr) {
+  _spotRequestStalled(sr) {
     let now = new Date();
 
     // These are states which have a state of 'open' but which are likely not
@@ -447,7 +447,7 @@ class AwsManager {
    * resolution of the now missing resources, which is why the dead state is
    * provided
    */
-  _compareStates (newState, previousState, deadState) {
+  _compareStates(newState, previousState, deadState) {
     assert(newState);
     assert(previousState);
     assert(deadState);
@@ -495,7 +495,7 @@ class AwsManager {
    * Remember that we're only looking at the differences between iteration intervals.
    * This is how we ensure that we don't look the same spot request twice.
    */
-  _reconcileStateDifferences (differences, deadState, apiState) {
+  _reconcileStateDifferences(differences, deadState, apiState) {
     assert(differences);
     assert(deadState);
     assert(apiState);
@@ -679,7 +679,7 @@ class AwsManager {
   }
 
   /** Return a list of all Instances for a region */
-  instancesInRegion (region) {
+  instancesInRegion(region) {
     if (typeof region === 'string') {
       region = [region];
     }
@@ -689,7 +689,7 @@ class AwsManager {
   }
 
   /** Return a list of all SpotRequests for a region */
-  requestsInRegion (region) {
+  requestsInRegion(region) {
     if (typeof region === 'string') {
       region = [region];
     }
@@ -699,7 +699,7 @@ class AwsManager {
   }
 
   /** Return a list of all Instances for a workerType */
-  instancesOfType (workerType) {
+  instancesOfType(workerType) {
     if (typeof workerType === 'string') {
       workerType = [workerType];
     }
@@ -709,7 +709,7 @@ class AwsManager {
   }
 
   /** Return a list of all SpotRequests for a workerType */
-  requestsOfType (workerType) {
+  requestsOfType(workerType) {
     if (typeof workerType === 'string') {
       workerType = [workerType];
     }
@@ -718,7 +718,7 @@ class AwsManager {
     });
   }
 
-  instancesOfTypeInRegion (region, workerType) {
+  instancesOfTypeInRegion(region, workerType) {
     if (typeof workerType === 'string') {
       workerType = [workerType];
     }
@@ -731,7 +731,7 @@ class AwsManager {
 
   }
 
-  requestsOfTypeInRegion (region, workerType) {
+  requestsOfTypeInRegion(region, workerType) {
     if (typeof workerType === 'string') {
       workerType = [workerType];
     }
@@ -747,7 +747,7 @@ class AwsManager {
   /**
    * List all the workerTypes known in EC2 state
    */
-  knownWorkerTypes () {
+  knownWorkerTypes() {
     let workerTypes = [];
 
     for (let instance of this.__apiState.instances) {
@@ -779,7 +779,7 @@ class AwsManager {
    * If specified, `extraSpotRequests` is a dictionary which contains a region
    * and worker type categorized list of outstanding spot requests
    */
-  capacityForType (workerType, states) {
+  capacityForType(workerType, states) {
     assert(workerType);
     if (!states) {
       states = ['running', 'pending', 'spotReq'];
@@ -828,7 +828,7 @@ class AwsManager {
    * get detailed pricing data, but they are not, nor should be, used by
    * the provisioner internally
    */
-  async ensureTags () {
+  async ensureTags() {
     let missingTags = (obj) => {
       let hasTag = false;
       if (obj.Tags) {
@@ -890,7 +890,7 @@ class AwsManager {
    * List every known spot instance request id known to the AWS
    * state.
    */
-  knownSpotInstanceRequestIds () {
+  knownSpotInstanceRequestIds() {
     // We need to know all the SpotInstanceRequestIds which are known
     // to aws state.  This is mostly just the id from the requests
     let allKnownSrIds = this.__apiState.requests.map(r => r.SpotInstanceRequestId);
@@ -916,7 +916,7 @@ class AwsManager {
    * restarted before the spot request shows up in the api's state we will lose
    * track of it until it turns into an instance.
    */
-  _trackNewSpotRequest (sr) {
+  _trackNewSpotRequest(sr) {
     // sr is a SpotRequest object which we get back from the
     // AWS Api when we submit the SpotRequest
     assert(sr);
@@ -940,7 +940,7 @@ class AwsManager {
    * We do this before running the provisioner of each workerType to avoid
    * double counting a newly discovered spot request
    */
-  _reconcileInternalState () {
+  _reconcileInternalState() {
     // Remove the SRs which AWS now tracks from internal state
 
     // TODO: This stuff is broken right now
@@ -1005,7 +1005,7 @@ class AwsManager {
    * This makes sure that we don't ignroe spot requests that we've made but not
    * yet seen.  This avoids run-away provisioning
    */
-  async requestSpotInstance (launchInfo, bid) {
+  async requestSpotInstance(launchInfo, bid) {
     assert(bid, 'Must specify a spot bid');
     assert(typeof bid.price === 'number', 'Spot Price must be number');
 
@@ -1076,21 +1076,21 @@ class AwsManager {
   /**
    * wrapper for brevity
    */
-  createPubKeyHash () {
+  createPubKeyHash() {
     return keyPairs.createPubKeyHash(this.pubKey);
   }
 
   /**
    * wrapper for brevity
    */
-  createKeyPairName (workerName) {
+  createKeyPairName(workerName) {
     return keyPairs.createKeyPairName(this.keyPrefix, this.pubKey, workerName);
   }
 
   /**
    * wrapper for brevity
    */
-  parseKeyPairName (name) {
+  parseKeyPairName(name) {
     return keyPairs.parseKeyPairName(name);
   }
 
@@ -1107,7 +1107,7 @@ class AwsManager {
    * when we add a region to the list of allowed regions... I suspect that
    * we'll end up having to track which regions the workerName is enabled in.
    */
-  async createKeyPair (workerName) {
+  async createKeyPair(workerName) {
     assert(workerName);
 
     let keyName = this.createKeyPairName(workerName);
@@ -1148,7 +1148,7 @@ class AwsManager {
    * Delete a KeyPair when it's no longer needed.  This method does nothing
    * more and you shouldn't run it until you've turned everything off.
    */
-  async deleteKeyPair (workerName) {
+  async deleteKeyPair(workerName) {
     assert(workerName);
 
     let keyName = this.createKeyPairName(workerName);
@@ -1184,7 +1184,7 @@ class AwsManager {
    * if we just pass an empty list of workers which will say to this function
    * that all workerTypes are rouge.  Sneaky, huh?
    */
-  async rougeKiller (configuredWorkers) {
+  async rougeKiller(configuredWorkers) {
     assert(configuredWorkers);
     let workersKnowByAws = this.knownWorkerTypes();
 
@@ -1201,7 +1201,7 @@ class AwsManager {
   /**
    * Kill all instances in all regions of a given workerName.
    */
-  async killByName (name, states) {
+  async killByName(name, states) {
     assert(name);
     assert(typeof name === 'string');
     if (!states) {
@@ -1237,7 +1237,7 @@ class AwsManager {
   /**
    * Kill instances and cancel spot requests
    */
-  async killCancel (region, instances, requests) {
+  async killCancel(region, instances, requests) {
     assert(instances || requests);
 
     let i = instances || [];
@@ -1281,7 +1281,7 @@ class AwsManager {
    * this function to do things like canceling spot requests that exceed the
    * number we require.
    */
-  async killCapacityOfWorkerType (workerType, count, states) {
+  async killCapacityOfWorkerType(workerType, count, states) {
     assert(workerType);
     assert(typeof count === 'number');
     assert(states);
@@ -1308,7 +1308,7 @@ class AwsManager {
       };
     }
 
-    function cont () {
+    function cont() {
       return count <= capToKill && capacity - capToKill >= workerType.minCapacity;
     }
 
@@ -1358,7 +1358,7 @@ class AwsManager {
    * protect against zombie attacks.  Workers should self impose a limit of 72
    * hours.
    */
-  async zombieKiller () {
+  async zombieKiller() {
     let zombies = {};
 
     let killIfOlderThan = taskcluster.fromNow(this.maxInstanceLife);
@@ -1389,7 +1389,7 @@ class AwsManager {
   /**
    * Create a thing which has the stuff to insert into a WorkerState entity
    */
-  stateForStorage (workerName) {
+  stateForStorage(workerName) {
     let instances = [];
     let requests = [];
     let internalTrackedRequests = [];

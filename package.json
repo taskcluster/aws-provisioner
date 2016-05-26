@@ -26,21 +26,20 @@
     "babel-runtime": "^6.6.1",
     "commander": "^2.6.0",
     "debug": "^2.2.0",
-    "eslint": "~2.2.0",
-    "eslint-config-taskcluster": "^1.0.0",
+    "eslint": "^2.10.2",
+    "eslint-config-taskcluster": "^2.0.0",
     "eslint-plugin-taskcluster": "^1.0.0",
     "knuth-shuffle": "^1.0.1",
     "lodash": "^3.10.1",
     "mocha": "^2.2.5",
-    "request-promise": "^2.0.1",
+    "request-promise": "^3.0.0",
     "should": "^8.2.2",
     "sinon": "^1.15.4",
     "slugid": "^1.1.0",
     "source-map-support": "^0.4.0",
     "taskcluster-base": "^2.1.0",
-    "taskcluster-client": "^0.23.13",
-    "taskcluster-lib-stats": "https://registry.npmjs.org/taskcluster-lib-stats/-/taskcluster-lib-stats-0.8.8.tgz",
-    "tc-rules": "^3.0.1"
+    "taskcluster-client": "^1.0.1",
+    "taskcluster-lib-stats": "https://registry.npmjs.org/taskcluster-lib-stats/-/taskcluster-lib-stats-0.8.8.tgz"
   },
   "engines": {
     "node": "4.x"
