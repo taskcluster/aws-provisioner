@@ -74,10 +74,7 @@ let load = base.loader({
     requires: ['cfg'],
     setup: async ({cfg}) => {
       return await base.validator({
-        folder: path.join(__dirname, '..', 'schemas'),
-        constants: require('../schemas/constants'),
-        publish: cfg.app.publishMetaData === 'true',
-        schemaPrefix: 'aws-provisioner/v1/',
+        prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
       });
     },
