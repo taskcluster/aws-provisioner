@@ -32,8 +32,9 @@ let load = base.loader({
     requires: ['cfg'],
     setup: async ({cfg}) => {
       let WorkerType = workerType.setup({
+        account: cfg.azure.account,
         table: cfg.app.workerTypeTableName,
-        credentials: cfg.azure,
+        credentials: cfg.taskcluster.credentials,
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
           provisionerId: cfg.app.id,
@@ -41,7 +42,6 @@ let load = base.loader({
           pubKey: cfg.app.awsInstancePubkey,
         },
       });
-      await WorkerType.ensureTable();
       return WorkerType;
     },
   },
@@ -50,10 +50,10 @@ let load = base.loader({
     requires: ['cfg'],
     setup: async ({cfg}) => {
       let WorkerState = workerState.setup({
+        account: cfg.azure.account,
         table: cfg.app.workerStateTableName,
-        credentials: cfg.azure,
+        credentials: cfg.taskcluster.credentials,
       });
-      await WorkerState.ensureTable();
       return WorkerState;
     },
   },
@@ -62,10 +62,10 @@ let load = base.loader({
     requires: ['cfg'],
     setup: async ({cfg}) => {
       let Secret = secret.setup({
+        account: cfg.azure.account,
         table: cfg.app.secretTableName,
-        credentials: cfg.azure,
+        credentials: cfg.taskcluster.credentials,
       });
-      await Secret.ensureTable();
       return Secret;
     },
   },
@@ -74,10 +74,7 @@ let load = base.loader({
     requires: ['cfg'],
     setup: async ({cfg}) => {
       return await base.validator({
-        folder: path.join(__dirname, '..', 'schemas'),
-        constants: require('../schemas/constants'),
-        publish: cfg.app.publishMetaData === 'true',
-        schemaPrefix: 'aws-provisioner/v1/',
+        prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
       });
     },

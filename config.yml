@@ -27,8 +27,7 @@ defaults:
     trustProxy: false
 
   azure:
-    accountName: !env AZURE_ACCOUNT_NAME
-    accountKey: !env AZURE_ACCOUNT_KEY
+    account: !env AZURE_ACCOUNT_NAME
 
   pulse:
     username: !env PULSE_USERNAME

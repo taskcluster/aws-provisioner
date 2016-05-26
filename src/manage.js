@@ -378,7 +378,7 @@ program
   .action(function (conf) {
     var config = Config();
 
-    var accountName = config.azure.accountName;
+    var account = config.azure.account;
     var tableName = config.app.workerTypeTableName;
     var secretTable = config.app.secretTableName;
     var workerStateTable = config.app.workerStateTableName;
@@ -386,9 +386,9 @@ program
     var auth = new tc.Auth();
 
     var p = Promise.all([
-      auth.azureTableSAS(accountName, tableName),
-      auth.azureTableSAS(accountName, secretTable),
-      auth.azureTableSAS(accountName, workerStateTable),
+      auth.azureTableSAS(account, tableName),
+      auth.azureTableSAS(account, secretTable),
+      auth.azureTableSAS(account, workerStateTable),
     ]);
 
     p = p.then(function () {
