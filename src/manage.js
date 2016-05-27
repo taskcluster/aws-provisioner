@@ -18,11 +18,14 @@ var localhostAddress = 'http://localhost:5557/v1';
 var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
 
 function errorHandler(err) {
-  console.log(JSON.stringify({
+  /*console.log(JSON.stringify({
     outcome: 'failure',
     err: err,
     stack: err.stack || 'no-stack',
-  }, null, 2));
+  }, null, 2));*/
+  if (err.stack) {
+    console.log(err.stack);
+  }
   throw err;
 }
 

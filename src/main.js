@@ -254,6 +254,13 @@ let load = base.loader({
     },
   },
 
+  all: {
+    requires: ['provisioner', 'server'],
+    setup: async ({provisioner, server}) => {
+      await Promise.race([provisioner, server]);
+    },
+  }
+
 }, ['profile', 'process']);
 
 // If this file is executed launch component from first argument

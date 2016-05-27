@@ -1,2 +1,2 @@
-web:            node lib/server.js      production
-provisioner:    node lib/provisioner.js production
+web: node lib/main server
+provisioner: node lib/main provisioner

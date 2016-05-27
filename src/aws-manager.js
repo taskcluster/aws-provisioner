@@ -1227,9 +1227,9 @@ class AwsManager {
 
       let requests = apiRequests.slice().concat(intRequests);
 
-      debug('killing %s by name in states %j', name, states);
+      debug('killing %s in region %s by name in states %j', name, region, states);
       await this.killCancel(region, instances, requests);
-      debug('killed %s by name in states %j', name, states);
+      debug('killed %s in region %s by name in states %j', name, region, states);
 
     }));
   }
