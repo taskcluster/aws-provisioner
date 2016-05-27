@@ -1211,17 +1211,17 @@ class AwsManager {
     }
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let instances = this.__apiState.instances.filter(instance => {
+      let instances = this.__apiState.instances.filter(x => x.Region === region).filter(instance => {
         return instance.WorkerType === name && _.includes(states, instance.State.Name); 
       });
 
       // _.concat just doesn't seem to work, so I'm doing this a slightly
       // different way.  _.concat is showing as undefined :/
-      let apiRequests = this.__apiState.requests.filter(request => {
+      let apiRequests = this.__apiState.requests.filter(x => x.Region === region).filter(request => {
         return request.WorkerType === name && _.includes(states, 'spotReq');
       });
 
-      let intRequests = this.__internalState.filter(request => {
+      let intRequests = this.__internalState.filter(x => x.Region === region).filter(request => {
         return request.request.WorkerType && _.includes(states, 'spotReq');
       });
 
