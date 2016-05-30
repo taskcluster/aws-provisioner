@@ -1387,7 +1387,7 @@ class AwsManager {
   }
 
   /**
-   * Create a thing which has the stuff to insert into a WorkerState entity
+   * Create a thing which has the stuff to insert into a worker state blob
    */
   stateForStorage(workerName) {
     let instances = [];

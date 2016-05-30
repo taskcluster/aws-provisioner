@@ -11,12 +11,13 @@ let base = require('taskcluster-base');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
-let workerState = require('./worker-state');
 let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
 let v1 = require('./api-v1');
 let series = require('./influx-series');
+let azure = require('azure-storage');
+let Container = require('./container');
 
 process.on('unhandledRejection', err => {
   debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
@@ -26,6 +27,18 @@ let load = base.loader({
   cfg: {
     requires: ['profile'],
     setup: ({profile}) => base.config(profile),
+  },
+
+  stateContainer: {
+    requires: ['cfg', 'profile'],
+    setup: async ({cfg, profile}) => {
+      // Azure Storage doesn't have promises, but we're using it in so few
+      // places it doesn't make sense to write a full promise wrapper.
+      // Instead, we'll just wrap as needed.
+      // TODO: Use ExponentialRetryPolicyFilter
+      let container = `worker-state-${profile}`;
+      return Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, container);
+    },
   },
 
   WorkerType: {
@@ -43,18 +56,6 @@ let load = base.loader({
         },
       });
       return WorkerType;
-    },
-  },
-
-  WorkerState: {
-    requires: ['cfg'],
-    setup: async ({cfg}) => {
-      let WorkerState = workerState.setup({
-        account: cfg.azure.account,
-        table: cfg.app.workerStateTableName,
-        credentials: cfg.taskcluster.credentials,
-      });
-      return WorkerState;
     },
   },
 
@@ -103,7 +104,7 @@ let load = base.loader({
     requires: ['cfg', 'process'],
     setup: async ({cfg, process}) => {
       let ec2 = {};
-      for (let region of cfg.app.allowedRegions.split(',')) {
+      for (let region of cfg.app.allowedRegions) {
         let ec2conf = cfg.aws;
         ec2conf.region = region;
         let s3Debugger = debugModule('aws-sdk:' + process);
@@ -123,14 +124,13 @@ let load = base.loader({
   },
 
   api: {
-    requires: ['cfg', 'WorkerType', 'WorkerState', 'Secret', 'ec2', 'validator', 'publisher', 'influx'],
-    setup: async ({cfg, WorkerType, WorkerState, Secret, ec2, validator, publisher, influx}) => {
+    requires: ['cfg', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'validator', 'publisher', 'influx'],
+    setup: async ({cfg, WorkerType, Secret, ec2, stateContainer, validator, publisher, influx}) => {
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
 
       let router = await v1.setup({
         context: {
           WorkerType: WorkerType,
-          WorkerState: WorkerState,
           Secret: Secret,
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
@@ -174,13 +174,10 @@ let load = base.loader({
 
   // Table Cleaner for testing
   tableCleaner: {
-    requires: ['WorkerType', 'WorkerState', 'Secret'],
-    setup: async ({WorkerType, WorkerState, Secret}) => {
+    requires: ['WorkerType', 'Secret'],
+    setup: async ({WorkerType, Secret}) => {
       await Promise.all([
         WorkerType.scan({}, {
-          handler: async (x) => { await x.remove(); },
-        }),
-        WorkerState.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
         Secret.scan({}, {
@@ -226,14 +223,13 @@ let load = base.loader({
   },
 
   provisioner: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'WorkerState', 'Secret', 'ec2', 'influx'],
-    setup: async ({cfg, awsManager, WorkerType, WorkerState, Secret, ec2, influx}) => {
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'influx'],
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, influx}) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
       let provisioner = new provision.Provisioner({
         WorkerType: WorkerType,
         Secret: Secret,
-        WorkerState: WorkerState,
         queue: queue,
         provisionerId: cfg.app.id,
         taskcluster: cfg.taskcluster,
@@ -242,6 +238,7 @@ let load = base.loader({
         provisionIterationInterval: cfg.app.iterationInterval,
         dmsApiKey: cfg.deadmanssnitch.api.key,
         iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
+        stateContainer: stateContainer,
       });
 
       try {
@@ -259,7 +256,7 @@ let load = base.loader({
     setup: async ({provisioner, server}) => {
       await Promise.race([provisioner, server]);
     },
-  }
+  },
 
 }, ['profile', 'process']);
 

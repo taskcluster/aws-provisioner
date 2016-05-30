@@ -154,7 +154,7 @@ async function validateWorkerType(ctx, workerTypeName, workerType) {
 
 /**
  * Calculate some summary statistics for a worker type, based on the given
- * WorkerState.
+ * worker state.
  */
 function workerTypeSummary(workerType, workerState) {
   let summary = {
@@ -218,9 +218,9 @@ api.declare({
     let result = await Promise.all(workerTypes.map(async (workerType) => {
       let workerState;
       try {
-        workerState = await this.WorkerState.load({workerType: workerType.workerType});
+        workerState = await this.stateContainer.read(workerType.workerType);
       } catch (err) {
-        if (err.code !== 'ResourceNotFound') {
+        if (err.code !== 'BlobNotFound') {
           throw err;
         }
       }
@@ -823,7 +823,8 @@ api.declare({
     'similar to that returned from `listWorkerTypeSummaries`.',
   ].join('\n'),
 }, async function (req, res) {
-  let workerType, workerState;
+  let workerType;
+  let workerState;
 
   try {
     workerType = await this.WorkerType.load({workerType: req.params.workerType});
@@ -838,9 +839,9 @@ api.declare({
   }
 
   try {
-    workerState = await this.WorkerState.load({workerType: req.params.workerType});
+    workerState = await this.stateContainer.read(workerType.workerType);
   } catch (err) {
-    if (err.code !== 'ResourceNotFound') {
+    if (err.code !== 'BlobNotFound') {
       throw err;
     }
   }
