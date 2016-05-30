@@ -54,9 +54,9 @@ defaults:
 production:
   app:
     id: aws-provisioner-v1
-    workerTypeTableName: AWSWorkerTypesV2
-    secretTableName: ProvisionerSecrets
-    workerStateTableName: ProvisionerWorkerState
+    workerTypeTableName: WorkerTypes
+    secretTableName: Secrets
+    workerStateTableName: WorkerState
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
