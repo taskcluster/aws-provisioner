@@ -29,7 +29,7 @@ function errorHandler(err) {
   throw err;
 }
 
-function classifyNames(client, names) {
+async function classifyNames(client, names) {
   var p = client.listWorkerTypes();
 
   p = p.then(function(listing) {
@@ -144,42 +144,38 @@ program
 program
   .command('create <files...>')
   .description('Create a workerType based on these files')
-  .action(function(filenames) {
-    var files = slurp(filenames);
-    var workerTypeNames = [];
+  .action(async function(filenames) {
+    try{
+      var files = slurp(filenames);
+      var workerTypeNames = [];
 
-    Object.keys(files).forEach(function(workerType) {
-      workerTypeNames.push(files[workerType].workerType);
-    });
+      Object.keys(files).forEach(function(workerType) {
+        workerTypeNames.push(files[workerType].workerType);
+      });
 
-    var client = createClient();
+      var client = createClient();
 
-    var p = classifyNames(client, workerTypeNames);
+      let classified = await classifyNames(client, workerTypeNames);
 
-    p = p.then(function(classified) {
       var promises = [];
 
-      classified.present.forEach(function(name) {
+      for (let name of classified.present) {
         delete files[name].workerType;
-        promises.push(client.updateWorkerType(name, files[name]));
-      });
+        await client.updateWorkerType(name, files[name]);
+      }
 
-      classified.absent.forEach(function(name) {
+      for (let name of classified.absent) {
         delete files[name].workerType;
-        promises.push(client.createWorkerType(name, files[name]));
-      });
+        await client.createWorkerType(name, files[name]);
+      }
 
-      return Promise.all(promises);
-    });
-
-    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         created: workerTypeNames,
       }, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+    } catch (err) {
+      console.log('Error! ' + err.stack || err);
+    }
   });
 
 program
