@@ -4,8 +4,10 @@ defaults:
     secretAccessKey:    '...'
     region:             us-west-2
   azure:
-    accountName:        jungle
-    accountKey:         '...'
+    account:        jungle
+  azureBlob:
+    accountName: jungle
+    accountKey: '...'
   pulse:
     username:           '...'
     password:           '...'

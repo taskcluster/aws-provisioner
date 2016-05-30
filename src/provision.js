@@ -31,10 +31,6 @@ class Provisioner {
     assert(cfg.WorkerType);
     this.WorkerType = cfg.WorkerType;
 
-    // We should have a WorkerState Entity
-    assert(cfg.WorkerState);
-    this.WorkerState = cfg.WorkerState;
-
     // We should have a Secret Entity
     assert(cfg.Secret);
     this.Secret = cfg.Secret;
@@ -42,6 +38,10 @@ class Provisioner {
     // We should have a Queue
     assert(cfg.queue);
     this.queue = cfg.queue;
+
+    // We should have Azure Blob Storage info
+    assert(cfg.stateContainer);
+    this.stateContainer = cfg.stateContainer;
 
     // We should have an influx object
     assert(cfg.influx);
@@ -252,10 +252,10 @@ class Provisioner {
       try {
         // This does create a bunch of extra logs... darn!
         let state = this.awsManager.stateForStorage(worker.workerType);
-        await this.WorkerState.create(state, true);
+
+        await stateContainer.write(worker.workerType, state);
       } catch (stateWriteErr) {
-        debug('[alert-operator] failed to update state for %s', worker.workerType);
-        debug(stateWriteErr.stack || stateWriteErr);
+        debug('[alert-operator] failed to update state for %s: %s', worker.workerType, err.stack || err);
       }
 
       if (change > 0) {
