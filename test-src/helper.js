@@ -1,109 +1,32 @@
-var base = require('taskcluster-base');
-var libConfig = require('taskcluster-lib-config');
-var mocha = require('mocha');
-var v1 = require('../lib/api-v1');
-var taskcluster = require('taskcluster-client');
-var bin = {
-  server: require('../lib/server'),
+let mocha = require('mocha');
+
+let base = require('taskcluster-base');
+let taskcluster = require('taskcluster-client');
+
+let main = require('../lib/main');
+
+let client;
+let server;
+
+mocha.before(async () => {
+  client = await main('apiClient', {process: 'apiClient', profile: 'test'});
+  server = await main('server', {process: 'server', profile: 'test'});
+
+  // Mock out the authentication
+  let x = {};
+  x[client._options.credentials.clientId] = ['*'];
+  base.testing.fakeauth.start(x);
+});
+
+mocha.after(async () => {
+  base.testing.fakeauth.stop();
+  await server.terminate();
+});
+
+module.exports.getServer = function() {
+  return server;
 };
 
-// Some default clients for the mockAuthServer
-var defaultClients = [
-  {
-    clientId: 'test-server',  // Hardcoded into config/test.js
-    accessToken: 'none',
-    scopes: [],
-    expires: new Date(3000, 0, 0, 0, 0, 0, 0),
-  }, {
-    clientId: 'test-client',  // Used in default AwsProvisioner creation
-    accessToken: 'none',
-    scopes: ['*'],
-    expires: new Date(3000, 0, 0, 0, 0, 0, 0),
-  },
-];
-
-// Load configuration
-var cfg = libConfig({
-  defaults: require('../config/defaults'),
-  profile: require('../config/test'),
-  envs: [
-    'aws_accessKeyId',
-    'aws_secretAccessKey',
-    'pulse_username',
-    'pulse_password',
-    'azure_accountName',
-    'azure_accountKey',
-  ],
-  filename: 'taskcluster-aws-provisioner',
-});
-exports.cfg = cfg;
-
-// Skip tests if no AWS credentials is configured
-if (!cfg.get('aws:secretAccessKey') ||
-    !cfg.get('azure:accountKey') ||
-    !cfg.get('pulse:password')) {
-  throw new Error('cannot run tests due to missing credentials');
-}
-
-// Configure PulseTestReceiver
-exports.events = new base.testing.PulseTestReceiver(cfg.get('pulse'), mocha);
-
-// Hold reference to authServer
-var authServer = null;
-var webServer = null;
-
-// Setup before tests
-mocha.before(async () => {
-  // Create mock authentication server
-  authServer = await base.testing.createMockAuthServer({
-    port: 60407, // This is hardcoded into config/test.js
-    clients: defaultClients,
-  });
-
-  webServer = await bin.server('test');
-
-  // Create client for working with API
-  exports.baseUrl = 'http://localhost:' + webServer.address().port + '/v1';
-  var reference = v1.reference({baseUrl: exports.baseUrl});
-  exports.AwsProvisioner = taskcluster.createClient(reference);
-  // Utility to create an Queue instance with limited scopes
-  exports.scopes = (...scopes) => {
-    exports.awsProvisioner = new exports.AwsProvisioner({
-      // Ensure that we use global agent, to avoid problems with keepAlive
-      // preventing tests from exiting
-      agent: require('http').globalAgent,
-      baseUrl: exports.baseUrl,
-      credentials: {
-        clientId: 'test-client',
-        accessToken: 'none',
-      },
-      authorizedScopes: scopes.length > 0 ? scopes : undefined,
-    });
-  };
-
-  // Initialize provisioner client
-  exports.scopes();
-
-  /*
-  // Create client for binding to reference
-  var exchangeReference = exchanges.reference({
-    exchangePrefix:   cfg.get('provisioner:exchangePrefix'),
-    credentials:      cfg.get('pulse')
-  });
-  helper.AwsProvisionerEvents = taskcluster.createClient(exchangeReference);
-  helper.awsProvisionerEvents = new helper.AwsProvisionerEvents();
-  */
-});
-
-// Setup before each test
-mocha.beforeEach(() => {
-  // Setup client with all scopes
-  exports.scopes();
-});
-
-// Cleanup after tests
-mocha.after(async () => {
-  // Kill webServer
-  await webServer.terminate();
-  await authServer.terminate();
-});
+module.exports.getClient = function() {
+  return client;
+};

@@ -66,7 +66,7 @@ let api = new base.API({
  * with a '.reasons' attribute with a list of reasons why it is invalid if it's
  * not valid
  */
-async function validateWorkerType (ctx, workerTypeName, workerType) {
+async function validateWorkerType(ctx, workerTypeName, workerType) {
   assert(typeof ctx === 'object', 'context must be an object');
   assert(typeof workerTypeName === 'string', 'workerTypeName must be string');
   assert(typeof workerType === 'object', 'workerType must be object');
@@ -156,7 +156,7 @@ async function validateWorkerType (ctx, workerTypeName, workerType) {
  * Calculate some summary statistics for a worker type, based on the given
  * WorkerState.
  */
-function workerTypeSummary (workerType, workerState) {
+function workerTypeSummary(workerType, workerState) {
   let summary = {
     workerType: workerType.workerType,
     minCapacity: workerType.minCapacity,
@@ -436,7 +436,7 @@ api.declare({
 
   let wType = await this.WorkerType.load({workerType: workerType});
 
-  await wType.modify(function (w) {
+  await wType.modify(function(w) {
     // We know that data that gets to here is valid per-schema
     for (let key of Object.keys(input)) {
       w[key] = input[key];
@@ -865,7 +865,7 @@ api.declare({
     '',
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
-}, function (req, res) {
+}, function(req, res) {
   res.status(200).json({
     alive: true,
     uptime: process.uptime(),

@@ -15,7 +15,7 @@ let lodash = require('lodash');
   recursiveObjectPicker(source, ["d"]) # --> { d: 3 }
 
  */
-function recursiveObjectFilter (obj, keys) {
+function recursiveObjectFilter(obj, keys) {
   assert(typeof obj === 'object');
   assert(Array.isArray(keys));
   let newObj = {};
@@ -30,7 +30,7 @@ function recursiveObjectFilter (obj, keys) {
       p = p[prop];
     }
 
-    props.forEach(function (prop, idx, arr) { // eslint-disable-line no-loop-func
+    props.forEach(function(prop, idx, arr) { // eslint-disable-line no-loop-func
       if (d[prop]) {
         if (typeof d[prop] !== 'object') {
           throw new Error('trying to assign property to non-object (%j)', d[prop]);

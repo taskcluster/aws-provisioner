@@ -1,7 +1,7 @@
 let debug = require('debug')('aws-provisioner:delayer');
 
-function delayer (t) {
-  return function (resVal) {
+function delayer(t) {
+  return function(resVal) {
     return new Promise(resolve => {
       debug('sleeping for %d ms', t);
       setTimeout(() => {

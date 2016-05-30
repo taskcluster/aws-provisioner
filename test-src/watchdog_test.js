@@ -2,30 +2,30 @@ var subject = require('../lib/watchdog');
 var sinon = require('sinon');
 var assume = require('assume');
 
-describe('watchdog', function () {
-  beforeEach(function () {
+describe('watchdog', function() {
+  beforeEach(function() {
     this.clock = sinon.useFakeTimers();
     sinon.stub(process, 'exit');
     process.exit.throws(new Error('process.exit'));
   });
 
-  afterEach(function () {
+  afterEach(function() {
     this.clock.restore();
     process.exit.restore();
   });
 
-  it('should emit when starting', function (done) {
+  it('should emit when starting', function(done) {
     var w = new subject(10);
-    w.on('started', function () {
+    w.on('started', function() {
       done();
     });
     w.start();
     w.stop();
   });
 
-  it('should emit when touched', function (done) {
+  it('should emit when touched', function(done) {
     var w = new subject(10);
-    w.on('touched', function () {
+    w.on('touched', function() {
       done();
     });
     w.start();
@@ -33,16 +33,16 @@ describe('watchdog', function () {
     w.stop();
   });
 
-  it('should emit when stopped', function (done) {
+  it('should emit when stopped', function(done) {
     var w = new subject(10);
-    w.on('stopped', function () {
+    w.on('stopped', function() {
       done();
     });
     w.start();
     w.stop();
   });
 
-  it('should emit expired event', function (done) {
+  it('should emit expired event', function(done) {
     var w = new subject(1);
     w.on('expired', () => {
       done();
@@ -51,14 +51,14 @@ describe('watchdog', function () {
     this.clock.tick(1000);
   });
 
-  it('should not throw early', function () {
+  it('should not throw early', function() {
     var w = new subject(1);
     w.start();
     this.clock.tick(999);
     w.stop();
   });
 
-  it('should throw on time', function () {
+  it('should throw on time', function() {
     var w = new subject(1);
     w.start();
     assume(() => {
@@ -67,7 +67,7 @@ describe('watchdog', function () {
     w.stop();
   });
 
-  it('touching should reset timer', function () {
+  it('touching should reset timer', function() {
     var w = new subject(1);
     w.start();
     // We do this three times to ensure that the

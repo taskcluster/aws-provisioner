@@ -21,7 +21,7 @@ class Provisioner {
    * It does not understand itself how to do AWS things or Azure things, it just
    * knows how and when certain things need to occur for provisioning to happen
    */
-  constructor (cfg) {
+  constructor(cfg) {
     assert(typeof cfg === 'object');
     // We should have an AwsManager
     assert(cfg.awsManager);
@@ -96,7 +96,7 @@ class Provisioner {
   /**
    * Start running a provisioner.
    */
-  async run () {
+  async run() {
     this.__keepRunning = true;
 
     this.__watchDog.on('expired', () => {
@@ -182,7 +182,7 @@ class Provisioner {
    * Stop launching new provisioner iterations but don't
    * end the current one
    */
-  stop () {
+  stop() {
     this.__keepRunning = false;
     this.__watchDog.stop();
     this.__stats.runs = 0;
@@ -192,7 +192,7 @@ class Provisioner {
   /**
    * Run provisioners for all known worker types once
    */
-  async runAllProvisionersOnce () {
+  async runAllProvisionersOnce() {
     let allProvisionerStart = new Date();
     let workerTypes;
     debug('loading worker types');
@@ -331,7 +331,7 @@ class Provisioner {
    * Figure out how to create the launch information based on a bid then
    * insert the secrets into the secret storage
    */
-  async spawn (workerType, bid) {
+  async spawn(workerType, bid) {
     assert(workerType);
     assert(bid);
 
@@ -355,7 +355,7 @@ class Provisioner {
   /**
    * Determine the change for a given worker type
    */
-  async changeForType (workerType) {
+  async changeForType(workerType) {
     let result;
     debug('getting pending tasks for %s', workerType.workerType);
     result = await this.queue.pendingTasks(this.provisionerId, workerType.workerType);

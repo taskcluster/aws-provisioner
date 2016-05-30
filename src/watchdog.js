@@ -10,7 +10,7 @@ let debug = require('debug')('watchdog');
  * timer is allowed to expire
  */
 class WatchDog extends events.EventEmitter {
-  constructor (maxTime) {
+  constructor(maxTime) {
     super();
     this.maxTime = maxTime;
     events.EventEmitter.call(this);
@@ -30,7 +30,7 @@ class WatchDog extends events.EventEmitter {
   /**
    * Start the timers
    */
-  start () {
+  start() {
     this.__watchDog = setTimeout(this.action, this.maxTime * 1000);
     this.emit('started');
     debug('started, emitted started event');
@@ -39,7 +39,7 @@ class WatchDog extends events.EventEmitter {
   /**
    * Stop the timer
    */
-  stop () {
+  stop() {
     if (this.__watchDog) {
       debug('clearing timeout');
       clearTimeout(this.__watchDog);
@@ -53,7 +53,7 @@ class WatchDog extends events.EventEmitter {
    * resets the time on this watchdog, but the watchdog
    * keeps running
    */
-  touch () {
+  touch() {
     let oldWD = this.__watchDog;
     this.__watchDog = setTimeout(this.action, this.maxTime * 1000);
     clearTimeout(oldWD);

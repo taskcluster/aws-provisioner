@@ -52,7 +52,7 @@ var baseWorkerType = {
   ],
 };
 
-function makeRegion (overwrites) {
+function makeRegion(overwrites) {
   return _.defaults(overwrites || {}, {
     region: 'us-west-2',
     launchSpec: {
@@ -64,7 +64,7 @@ function makeRegion (overwrites) {
   });
 }
 
-function makeInstanceType (overwrites) {
+function makeInstanceType(overwrites) {
   return _.defaults(overwrites || {}, {
     instanceType: 't1.micro',
     capacity: 1,
@@ -76,11 +76,11 @@ function makeInstanceType (overwrites) {
   });
 }
 
-function makeWorkerType (overwrites) {
+function makeWorkerType(overwrites) {
   return _.defaults(overwrites || {}, baseWorkerType);
 }
 
-function makeWorkerState (state) {
+function makeWorkerState(state) {
   var id = 0;
 
   return _.defaults({}, {

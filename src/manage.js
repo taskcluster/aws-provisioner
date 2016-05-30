@@ -10,31 +10,34 @@ var pkgData = require('../package.json');
 var canGenerateReference = false;
 try {
   var api = require('../lib/api-v1');
-  var libConfig = require('taskcluster-lib-config');
+  var Config = require('typed-env-config');
   canGenerateReference = true;
 } catch (err) { }
 
 var localhostAddress = 'http://localhost:5557/v1';
 var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
 
-function errorHandler (err) {
-  console.log(JSON.stringify({
+function errorHandler(err) {
+  /*console.log(JSON.stringify({
     outcome: 'failure',
     err: err,
     stack: err.stack || 'no-stack',
-  }, null, 2));
+  }, null, 2));*/
+  if (err.stack) {
+    console.log(err.stack);
+  }
   throw err;
 }
 
-function classifyNames (client, names) {
+function classifyNames(client, names) {
   var p = client.listWorkerTypes();
 
-  p = p.then(function (listing) {
-    var existing = names.filter(function (name) {
+  p = p.then(function(listing) {
+    var existing = names.filter(function(name) {
       return listing.indexOf(name) !== -1;
     });
 
-    var notExisting = names.filter(function (name) {
+    var notExisting = names.filter(function(name) {
       return listing.indexOf(name) === -1;
     });
 
@@ -44,9 +47,9 @@ function classifyNames (client, names) {
   return p;
 }
 
-function slurp (filenames) {
+function slurp(filenames) {
   var files = {};
-  filenames.forEach(function (file) {
+  filenames.forEach(function(file) {
     var raw = fs.readFileSync(file);
     var data = JSON.parse(raw);
     files[data.workerType] = data;
@@ -54,18 +57,18 @@ function slurp (filenames) {
   return files;
 }
 
-function writeWorkerTypes (client, workerTypes) {
+function writeWorkerTypes(client, workerTypes) {
   if (!fs.existsSync('workers')) {
     fs.mkdirSync('workers');
   }
 
-  var p = Promise.all(workerTypes.map(function (name) {
+  var p = Promise.all(workerTypes.map(function(name) {
     return client.workerType(name);
   }));
 
-  p = p.then(function (res) {
+  p = p.then(function(res) {
     var filenames = [];
-    res.forEach(function (worker) {
+    res.forEach(function(worker) {
       var filename = path.join('workers', worker.workerType + '.json');
       filenames.push(filename);
       if (!fs.existsSync(filename)) {
@@ -81,7 +84,7 @@ function writeWorkerTypes (client, workerTypes) {
   return p;
 }
 
-function createClient () {
+function createClient() {
   var url = program.url;
 
   var shouldGenerateReference = false;
@@ -117,17 +120,17 @@ program
 program
   .command('help')
   .description('Show help')
-  .action(function () {
+  .action(function() {
     program.help();
   });
 
 program
   .command('list')
   .description('list worker types known to the host')
-  .action(function () {
+  .action(function() {
     var p = createClient().listWorkerTypes();
 
-    p = p.then(function (workerTypes) {
+    p = p.then(function(workerTypes) {
       if (workerTypes.length > 0) {
         console.log(JSON.stringify(workerTypes, null, 2));
       } else {
@@ -141,11 +144,11 @@ program
 program
   .command('create <files...>')
   .description('Create a workerType based on these files')
-  .action(function (filenames) {
+  .action(function(filenames) {
     var files = slurp(filenames);
     var workerTypeNames = [];
 
-    Object.keys(files).forEach(function (workerType) {
+    Object.keys(files).forEach(function(workerType) {
       workerTypeNames.push(files[workerType].workerType);
     });
 
@@ -153,15 +156,15 @@ program
 
     var p = classifyNames(client, workerTypeNames);
 
-    p = p.then(function (classified) {
+    p = p.then(function(classified) {
       var promises = [];
 
-      classified.present.forEach(function (name) {
+      classified.present.forEach(function(name) {
         delete files[name].workerType;
         promises.push(client.updateWorkerType(name, files[name]));
       });
 
-      classified.absent.forEach(function (name) {
+      classified.absent.forEach(function(name) {
         delete files[name].workerType;
         promises.push(client.createWorkerType(name, files[name]));
       });
@@ -169,7 +172,7 @@ program
       return Promise.all(promises);
     });
 
-    p = p.then(function () {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         created: workerTypeNames,
@@ -182,24 +185,24 @@ program
 program
   .command('modify-all <nodeModule>')
   .description('modify all server-side worker types using the function exported by the nodeModule')
-  .action(function (nodeModule) {
+  .action(function(nodeModule) {
     var modifier = require(nodeModule);
     var client = createClient();
 
     var r = client.listWorkerTypes();
 
-    r = r.then(function (workers) {
-      return Promise.all(workers.map(function (workerTypeName) {
+    r = r.then(function(workers) {
+      return Promise.all(workers.map(function(workerTypeName) {
         var p = client.workerType(workerTypeName);
 
-        p = p.then(function (workerType) {
+        p = p.then(function(workerType) {
           var modified = modifier(workerType);
           delete modified.lastModified;
           delete modified.workerType;
           return modified;
         });
 
-        p = p.then(function (workerType) {
+        p = p.then(function(workerType) {
           return client.updateWorkerType(workerTypeName, workerType);
         });
 
@@ -213,21 +216,21 @@ program
 program
   .command('modify <nodeModule> <workerTypes...>')
   .description('modify specified server-side worker types using the function exported by the nodeModule')
-  .action(function (nodeModule, workerTypes) {
+  .action(function(nodeModule, workerTypes) {
     var modifier = require(nodeModule);
     var client = createClient();
 
-    Promise.all(workerTypes.map(function (workerTypeName) {
+    Promise.all(workerTypes.map(function(workerTypeName) {
       var p = client.workerType(workerTypeName);
 
-      p = p.then(function (workerType) {
+      p = p.then(function(workerType) {
         var modified = modifier(workerType);
         delete modified.lastModified;
         delete modified.workerType;
         return modified;
       });
 
-      p = p.then(function (workerType) {
+      p = p.then(function(workerType) {
         return client.updateWorkerType(workerTypeName, workerType);
       });
 
@@ -239,9 +242,9 @@ program
 program
   .command('modify-file <nodeModule> <filenames...>')
   .description('modify specified local worker types using the function exported by the nodeModule')
-  .action(function (nodeModule, filenames) {
+  .action(function(nodeModule, filenames) {
     var modifier = require(nodeModule);
-    filenames.forEach(function (filename) {
+    filenames.forEach(function(filename) {
       var original = JSON.parse(fs.readFileSync(filename));
       var modified = modifier(original);
       fs.writeFileSync(filename + '_modified', JSON.stringify(modified, null, 2));
@@ -251,20 +254,20 @@ program
 program
   .command('delete <workerTypes...>')
   .description('delete listed worker types')
-  .action(function (workerTypeNames) {
+  .action(function(workerTypeNames) {
     var workerTypes;
     var client = createClient();
 
     var p = classifyNames(client, workerTypeNames);
 
-    p = p.then(function (workerTypes_) {
+    p = p.then(function(workerTypes_) {
       workerTypes = workerTypes_;
-      return Promise.all(workerTypes.present.map(function (workerType) {
+      return Promise.all(workerTypes.present.map(function(workerType) {
         return client.removeWorkerType(workerType);
       }));
     });
 
-    p = p.then(function () {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         deleted: workerTypes.present || [],
@@ -278,20 +281,20 @@ program
 program
   .command('delete-all')
   .description('Delete all workerTypes')
-  .action(function () {
+  .action(function() {
     var client = createClient();
     var workerTypeNames;
 
     var p = client.listWorkerTypes();
 
-    p = p.then(function (workerTypes) {
+    p = p.then(function(workerTypes) {
       workerTypeNames = workerTypes;
-      return Promise.all(workerTypes.map(function (workerType) {
+      return Promise.all(workerTypes.map(function(workerType) {
         return client.removeWorkerType(workerType);
       }));
     });
 
-    p = p.then(function () {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         deleted: workerTypeNames,
@@ -304,16 +307,16 @@ program
 program
   .command('fetch-all')
   .description('Fetch all workerTypes')
-  .action(function () {
+  .action(function() {
     var client = createClient();
 
     var p = client.listWorkerTypes();
 
-    p = p.then(function (names) {
+    p = p.then(function(names) {
       return writeWorkerTypes(client, names);
     });
 
-    p = p.then(function (filenames) {
+    p = p.then(function(filenames) {
       console.log(JSON.stringify({
         outcome: 'success',
         wrote: filenames,
@@ -326,12 +329,12 @@ program
 program
   .command('show <workerType>')
   .description('print specified workerType to screen')
-  .action(function (workerType) {
+  .action(function(workerType) {
     var client = createClient();
 
     var p = client.workerType(workerType);
 
-    p = p.then(function (worker) {
+    p = p.then(function(worker) {
       console.log(JSON.stringify(worker, null, 2));
     });
 
@@ -341,12 +344,12 @@ program
 program
   .command('preview-launch-specs <workerType>')
   .description('print specified workerTypes to screen')
-  .action(function (workerType) {
+  .action(function(workerType) {
     var client = createClient();
 
     var p = client.getLaunchSpecs(workerType);
 
-    p = p.then(function (specs) {
+    p = p.then(function(specs) {
       console.log(JSON.stringify(specs, null, 2));
     });
 
@@ -356,12 +359,12 @@ program
 program
   .command('fetch <workerTypes...>')
   .description('fetch specified workerTypes')
-  .action(function (workerTypes) {
+  .action(function(workerTypes) {
     var client = createClient();
 
     var p = writeWorkerTypes(client, workerTypes);
 
-    p = p.then(function (filenames) {
+    p = p.then(function(filenames) {
       console.log(JSON.stringify({
         outcome: 'success',
         wrote: filenames,
@@ -375,33 +378,23 @@ program
   .command('setup-table')
   .option('--config <config>', 'Configuration file to use', 'development')
   .description('Assert that this provisioner has a table')
-  .action(function (conf) {
-    var cfg = libConfig({
-      defaults: require('../config/defaults.js'),
-      profile: require('../config/' + conf.config),
-      envs: [
-        'provisioner_workerTypeTableName',
-        'provisioner_workerStateTableName',
-        'provisioner_secretTableName',
-        'azure_accountName',
-      ],
-      filename: 'taskcluster-aws-provisioner',
-    });
+  .action(function(conf) {
+    var config = Config();
 
-    var accountName = cfg.get('azure:accountName');
-    var tableName = cfg.get('provisioner:workerTypeTableName');
-    var secretTable = cfg.get('provisioner:secretTableName');
-    var workerStateTable = cfg.get('provisioner:workerStateTableName');
+    var account = config.azure.account;
+    var tableName = config.app.workerTypeTableName;
+    var secretTable = config.app.secretTableName;
+    var workerStateTable = config.app.workerStateTableName;
 
     var auth = new tc.Auth();
 
     var p = Promise.all([
-      auth.azureTableSAS(accountName, tableName),
-      auth.azureTableSAS(accountName, secretTable),
-      auth.azureTableSAS(accountName, workerStateTable),
+      auth.azureTableSAS(account, tableName),
+      auth.azureTableSAS(account, secretTable),
+      auth.azureTableSAS(account, workerStateTable),
     ]);
 
-    p = p.then(function () {
+    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
         tableName: tableName,

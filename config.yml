@@ -1,0 +1,99 @@
+defaults:
+  app:
+    publishMetaData: false
+    iterationInterval: 10000
+    maxInstanceLife: '- 96 hours'
+    id: aws-provisioner-dev
+    workerTypeTableName: DevWorkerTypes
+    secretTableName: DevWorkerSecrets
+    workerStateTableName: DevWorkerState
+    awsInstancePubkey: !env AWS_INSTANCE_PUBKEY
+    awsKeyPrefix: "aws-provisioner-dev-managed:"
+    statsComponent: aws-provisioner-dev
+    allowedRegions: "us-west-2,us-east-1,us-west-1"
+    exchangePrefix: "v1/"
+  taskcluster:
+    authBaseUrl: https://auth.taskcluster.net/v1
+    queueBaseUrl: https://queue.taskcluster.net/v1
+    credentials:
+      clientId: !env TASKCLUSTER_CLIENT_ID
+      accessToken: !env TASKCLUSTER_ACCESS_TOKEN
+
+  server:
+    port: 5557
+    publicUrl: localhost:5557
+    env: development
+    forceSSL: false
+    trustProxy: false
+
+  azure:
+    account: !env AZURE_ACCOUNT_NAME
+
+  pulse:
+    username: !env PULSE_USERNAME
+    password: !env PULSE_PASSWORD
+
+  influx:
+    connectionString: !env INFLUX_CONNECTION
+    maxDelay: 300
+    maxPendingPoints: 300
+
+  aws:
+    # Credentials with access to artifact buckets and
+    # references/schemas.taskcluster.net if you wish to publish meta-data
+    accessKeyId: !env AWS_ACCESS_KEY_ID
+    secretAccessKey: !env AWS_SECRET_ACCESS_KEY
+    region: us-west-2
+    apiVersion: 2014-01-01
+
+  deadmanssnitch:
+    api:
+      key: !env DEADMANSSNITCH_API_KEY
+    iterationSnitch: !env DEADMANSSNITCH_ITERATION_SNITCH
+# Configuration in production
+production:
+  app:
+    id: aws-provisioner-v1
+    workerTypeTableName: WorkerTypes
+    secretTableName: Secrets
+    workerStateTableName: WorkerState
+    publishMetaData: true
+    statsComponent: aws-provisioner-v1
+    awsKeyPrefix: "aws-provisioner-v1-managed:"
+    allowedRegions: "us-west-2,us-east-1,us-west-1"
+    iterationInterval: 75000
+  server:
+    publicUrl: https://aws-provisioner.taskcluster.net
+    port: !env:number PORT
+    env: production
+    forceSSL: true
+    trustProxy: true
+
+development:
+  deadmanssnitch:
+    api:
+      key: 'nokey'
+    iterationSnitch: 'http://httpbin.org/status/200'
+
+test:
+  app:
+    id: aws-provisioner-test
+    workerTypeTableName: TestWorkerTypes
+    secretTableName: TestWorkerSecrets
+    workerStateTableName: TestWorkerState
+    publishMetaData: false
+    statsComponent: aws-provisioner-test
+    awsKeyPrefix: "aws-provisioner-test-managed:"
+    allowedRegions: "us-west-2"
+  server:
+    publicUrl: https://localhost:60407
+    port: !env:number PORT
+    env: test
+    forceSSL: false
+    trustProxy: false
+  deadmanssnitch:
+    api:
+      key: 'nokey'
+    iterationSnitch: 'http://httpbin.org/status/200'
+
+

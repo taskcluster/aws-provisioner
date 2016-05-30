@@ -15,7 +15,7 @@ let Secret = base.Entity.configure({
   },
 });
 
-Secret.prototype.modify = function () {
+Secret.prototype.modify = function() {
   throw new Error('No modifications of secrets are allowed');
 };
 
