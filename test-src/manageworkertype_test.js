@@ -57,6 +57,7 @@ describe('provisioner worker type api', () => {
 
   beforeEach(async () => {
     await main('tableCleaner', {process: 'tableCleaner', profile: 'test'});
+    await stateContainer.remove(id);
   });
 
   it('should be able to create a worker (idempotent)', async () => {

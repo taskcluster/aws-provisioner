@@ -145,7 +145,7 @@ program
   .command('create <files...>')
   .description('Create a workerType based on these files')
   .action(async function(filenames) {
-    try{
+    try {
       var files = slurp(filenames);
       var workerTypeNames = [];
 

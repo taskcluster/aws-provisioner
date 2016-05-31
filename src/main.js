@@ -142,6 +142,7 @@ let load = base.loader({
           dmsApiKey: cfg.deadmanssnitch.api.key,
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
           ec2: ec2,
+          stateContainer: stateContainer,
         },
         validator: validator,
         authBaseUrl: cfg.taskcluster.authBaseUrl,

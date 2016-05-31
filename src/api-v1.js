@@ -529,6 +529,7 @@ api.declare({
   if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   try {
+    await this.stateContainer.remove(workerType);
     await this.WorkerType.remove({workerType: workerType}, true);
     await that.publisher.workerTypeRemoved({
       workerType: workerType,
