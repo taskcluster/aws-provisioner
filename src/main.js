@@ -11,6 +11,7 @@ let base = require('taskcluster-base');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
+let amiSet = require('./ami-set');
 let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
@@ -56,6 +57,18 @@ let load = base.loader({
         },
       });
       return WorkerType;
+    },
+  },
+
+  AmiSet: {
+    requires: ['cfg'],
+    setup: async ({cfg}) => {
+      let AmiSet = amiSet.setup({
+        account: cfg.azure.account,
+        table: cfg.app.amiSetTableName,
+        credentials: cfg.taskcluster.credentials,
+      });
+      return AmiSet;
     },
   },
 
@@ -124,13 +137,15 @@ let load = base.loader({
   },
 
   api: {
-    requires: ['cfg', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'validator', 'publisher', 'influx'],
-    setup: async ({cfg, WorkerType, Secret, ec2, stateContainer, validator, publisher, influx}) => {
+    requires: ['cfg', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator', 'publisher', 'influx'],
+    setup: async ({cfg, WorkerType, AmiSet, Secret, ec2, stateContainer, validator, publisher, influx}) => {
+
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
 
       let router = await v1.setup({
         context: {
           WorkerType: WorkerType,
+          AmiSet: AmiSet,
           Secret: Secret,
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
@@ -154,7 +169,7 @@ let load = base.loader({
         drain: influx,
       });
 
-      return router; 
+      return router;
     },
   },
 
@@ -175,13 +190,16 @@ let load = base.loader({
 
   // Table Cleaner for testing
   tableCleaner: {
-    requires: ['WorkerType', 'Secret'],
-    setup: async ({WorkerType, Secret}) => {
+    requires: ['WorkerType', 'Secret', 'AmiSet'],
+    setup: async ({WorkerType, Secret, AmiSet}) => {
       await Promise.all([
         WorkerType.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
         Secret.scan({}, {
+          handler: async (x) => { await x.remove(); },
+        }),
+        AmiSet.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
       ]);
@@ -247,7 +265,7 @@ let load = base.loader({
       } catch (err) {
         debug('[alert-operator] Error: ' + err.stack || err);
       }
-      
+
       return provisioner;
     },
   },

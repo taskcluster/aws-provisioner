@@ -5,6 +5,7 @@ defaults:
     maxInstanceLife: '- 96 hours'
     id: aws-provisioner-dev
     workerTypeTableName: DevWorkerTypes
+    amiSetTableName: DevAmiSets
     secretTableName: DevWorkerSecrets
     workerStateTableName: DevWorkerState
     awsInstancePubkey: !env AWS_INSTANCE_PUBKEY
@@ -61,6 +62,7 @@ production:
   app:
     id: aws-provisioner-v1
     workerTypeTableName: WorkerTypes
+    amiSetTableName: AmiSets
     secretTableName: Secrets
     workerStateTableName: WorkerState
     publishMetaData: true
@@ -112,5 +114,3 @@ test:
     api:
       key: 'nokey'
     iterationSnitch: 'http://httpbin.org/status/200'
-
-
