@@ -253,9 +253,9 @@ class Provisioner {
         // This does create a bunch of extra logs... darn!
         let state = this.awsManager.stateForStorage(worker.workerType);
 
-        await stateContainer.write(worker.workerType, state);
+        await this.stateContainer.write(worker.workerType, state);
       } catch (stateWriteErr) {
-        debug('[alert-operator] failed to update state for %s: %s', worker.workerType, err.stack || err);
+        debug('[alert-operator] failed to update state for %s: %s', worker.workerType, stateWriteErr.stack || stateWriteErr);
       }
 
       if (change > 0) {
