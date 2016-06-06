@@ -15,6 +15,7 @@ defaults:
       - 'us-west-1'
       - 'us-west-2'
       - 'us-east-1'
+      - 'eu-central-1'
   taskcluster:
     authBaseUrl: https://auth.taskcluster.net/v1
     queueBaseUrl: https://queue.taskcluster.net/v1
@@ -86,6 +87,7 @@ development:
       - 'us-west-1'
       - 'us-west-2'
       - 'us-east-1'
+      - 'eu-central-1'
 
 test:
   app:
@@ -96,7 +98,7 @@ test:
     publishMetaData: false
     statsComponent: aws-provisioner-test
     awsKeyPrefix: "aws-provisioner-test-managed:"
-    allowedRegions: 
+    allowedRegions:
       - 'us-west-2'
   server:
     publicUrl: https://localhost:60407

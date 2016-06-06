@@ -145,6 +145,7 @@ properties:
             - us-west-2
             - us-east-1
             - us-west-1
+            - eu-central-1
         launchSpec:
           type: object
           description: |
