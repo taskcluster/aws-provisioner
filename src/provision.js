@@ -300,6 +300,7 @@ class Provisioner {
       try {
         debug('spawning a %s', toSpawn.workerType.workerType);
         await this.spawn(toSpawn.workerType, toSpawn.bid);
+        this.__watchDog.touch();
         debug('spawned a %s', toSpawn.workerType.workerType);
         await d();
       } catch (err) {
