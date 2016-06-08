@@ -1018,22 +1018,15 @@ class AwsManager {
     // We should monitor logs for something like this pattern:
     // "The image id '[ami-33333333]' does not exist"
     let spotRequest;
-    try {
-      debug('requesting spot instance');
-      spotRequest = await this.ec2[bid.region].requestSpotInstances({
-        InstanceCount: 1,
-        Type: 'one-time',
-        LaunchSpecification: launchInfo.launchSpec,
-        SpotPrice: bid.price.toString(),
-      }).promise();
-      debug('requested spot instance');
-    } catch (err) {
-      if (err.code === 'InvalidAMIID.NotFound') {
-        debug(err.message + ' in ' + bid.region);
-      } else {
-        throw err;
-      }
-    }
+
+    debug('requesting spot instance');
+    spotRequest = await this.ec2[bid.region].requestSpotInstances({
+      InstanceCount: 1,
+      Type: 'one-time',
+      LaunchSpecification: launchInfo.launchSpec,
+      SpotPrice: bid.price.toString(),
+    }).promise();
+    debug('requested spot instance');
 
     let spotReq = spotRequest.data.SpotInstanceRequests[0];
 
