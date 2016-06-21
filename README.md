@@ -17,24 +17,7 @@ You will need Node 4 to run the AWS provisioner.  With this in place, a simple
 
 To test, you will need a set of credentials.  The best way to find these is to
 ask another developer for a copy of theirs.  The configuration should look
-something like this:
-
-```
-{
-  "aws": {
-    "accessKeyId": "...",
-    "secretAccessKey": "..."
-  },
-  "pulse": {
-    "username": "...",
-    "password": "..."
-  },
-  "azure": {
-    "accountName":        "...",
-    "accountKey":         "..."
-  }
-}
-```
+something like that in ``user-config-example.yml``.
 
 You can create your own `pulse` credentials at https://pulseguardian.mozilla.org.
 You'll need to get the Azure configuration from another TaskCluster developer.
