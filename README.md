@@ -46,7 +46,7 @@ To run the provisioner locally, you will need a similar set of configuration.
 Then run
 
 ```
-npm compile && DEBUG=* node lib/server.js development
+npm run compile && DEBUG=* node lib/server.js development
 ```
 
 Note that this is not usually the best way to test the provisioner.  Be careful
