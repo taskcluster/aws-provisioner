@@ -1,12 +1,11 @@
+let log = require('./log');
+let debug = log.debugCompat('aws-provisioner:lib:check-for-ami');
 let assert = require('assert');
 
 /**
  * Check for the existence of an AMI that's executable by
  * the provided ec2 object in the given region
  */
-
-let debug = require('debug')('aws-provisioner:lib:check-for-ami');
-
 module.exports = async function (ec2, ami) {
   let request = {
     /* Not sure why this isn't working

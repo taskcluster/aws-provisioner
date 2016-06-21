@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-let debugModule = require('debug');
-let debug = debugModule('aws-provisioner:main');
+let log = require('./log');
+let debugModule = log.debugCompat;
+let debug = log.debugCompat('aws-provisioner:main');
 let aws = require('aws-sdk-promise');
 let _ = require('lodash');
 let path = require('path');
