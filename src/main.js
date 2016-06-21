@@ -209,6 +209,7 @@ let load = base.loader({
         });
       } else {
         console.log("No influx.connectionString configured; not using influx");
+        return new base.stats.NullDrain();
       }
     },
   },

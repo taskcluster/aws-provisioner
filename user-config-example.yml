@@ -4,10 +4,12 @@ defaults:
     accessKeyId:        '...'
     secretAccessKey:    '...'
     region:             us-west-2
-  # an azure account for table storage
-  azure:
-    account:            jungle
-    accountKey:         '...'
+  # Taskcluster credentials with
+  # - "auth:azure-table-access:jungle/DevWorkerTypes"
+  taskcluster:
+    credentials:
+      clientId:         '...'
+      accessToken:      '...'
   # an azure account for blob storage (which can be the same)
   azureBlob:
     accountName:        jungle

@@ -29,7 +29,8 @@ To run the provisioner locally, you will need a similar set of configuration.
 Then run
 
 ```
-npm run compile && DEBUG=* node lib/main.js server
+npm run compile && NODE_ENV=development DEBUG=* node lib/main.js server # just web server
+npm run compile && NODE_ENV=development DEBUG=* node lib/main.js all    # web + provisioner
 ```
 
 Note that this is not usually the best way to test the provisioner.  Be careful
