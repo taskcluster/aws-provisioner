@@ -201,11 +201,15 @@ let load = base.loader({
   influx: {
     requires: ['cfg'],
     setup: ({cfg}) => {
-      return new base.stats.Influx({
-        connectionString: cfg.influx.connectionString,
-        maxDelay: cfg.influx.maxDelay,
-        maxPendingPoints: cfg.influx.maxPendingPoints,
-      });
+      if (cfg.influx.connectionString) {
+        return new base.stats.Influx({
+          connectionString: cfg.influx.connectionString,
+          maxDelay: cfg.influx.maxDelay,
+          maxPendingPoints: cfg.influx.maxPendingPoints,
+        });
+      } else {
+        console.log("No influx.connectionString configured; not using influx");
+      }
     },
   },
 
