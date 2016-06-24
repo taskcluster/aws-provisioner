@@ -1,0 +1,33 @@
+$schema:  http://json-schema.org/draft-04/schema#
+title:                      Create AMI Set Request
+description: |
+  Create a new AMI Set
+type:                       object
+properties:
+  amis:
+    type: array
+    description: |
+      AMIs in this set
+    items:
+      type: object
+      properties:
+        region:
+          type: string
+          description: |
+            The Amazon AWS region of the AMI set
+        hvm:
+          type: string
+          description: |
+            The AMI that uses HVM virtualization type
+        pv:
+          type: string
+          description: |
+            The AMI that uses PV virtualization type
+      additionalProperties: false
+      required:
+        - region
+        - hvm
+        - pv
+additionalProperties: false
+required:
+  - amis

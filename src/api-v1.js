@@ -582,6 +582,7 @@ api.declare({
   method: 'put',
   route: '/ami-set/:id',
   name: 'createAmiSet',
+  input: 'create-ami-set-request.json#',
   deferAuth: true,
   scopes: [['aws-provisioner:manage-ami-set:<amiSetId>']],
   title: 'Create new AMI Set',
@@ -601,7 +602,11 @@ api.declare({
   // Create amiSet
   let amiSet;
   try {
-    amiSet = await this.AmiSet.create(id, input);
+    amiSet = await this.AmiSet.create({
+      id: id,
+      amis: input.amis,
+      lastModified: new Date(),
+    });
   } catch (err) {
     // We only catch EntityAlreadyExists errors
     if (!err || err.code !== 'EntityAlreadyExists') {
@@ -625,6 +630,8 @@ api.declare({
       return;
     }
   }
+  res.reply({outcome: 'success'});
+  return;
 
 });
 
@@ -664,6 +671,8 @@ api.declare({
   name: 'updateAmiSet',
   deferAuth: true,
   scopes: [['aws-provisioner:manage-ami-set:<amiSetId>']],
+  input: 'create-ami-set-request.json#',
+  output: 'get-ami-set-response.json#',
   title: 'Update AMI Set',
   stability:  base.API.stability.stable,
   description: [
@@ -700,6 +709,7 @@ api.declare({
   method: 'get',
   route: '/list-ami-sets',
   name: 'listAmiSets',
+  output: 'list-ami-sets-response.json#',
   title: 'List AMI sets',
   stability:  base.API.stability.stable,
   description: [
@@ -726,6 +736,8 @@ api.declare({
   name: 'removeAmiSet',
   deferAuth: true,
   scopes: [['aws-provisioner:manage-ami-set:<amiSetId>']],
+  input: undefined,  // No input
+  output: undefined,  // No output
   title: 'Delete AMI Set',
   stability:  base.API.stability.stable,
   description: [

@@ -1,0 +1,44 @@
+$schema:  http://json-schema.org/draft-04/schema#
+title:                      "Get AMI Set Response"
+description: |
+  An AMI Set from the provisioner
+type:                       object
+properties:
+  id:
+    type: string
+    description: |
+      Name of the AMI set
+  amis:
+    type: array
+    description: |
+      AMIs in this set
+    items:
+      type: object
+      properties:
+        region:
+          type: string
+          description: |
+            The Amazon AWS region of the AMI set
+        hvm:
+          type: string
+          description: |
+            The AMI that uses HVM virtualization type
+        pv:
+          type: string
+          description: |
+            The AMI that uses PV virtualization type
+      additionalProperties: false
+      required:
+        - region
+        - hvm
+        - pv
+  lastModified:
+    type: string
+    format: date-time
+    description: |
+      ISO Date string (e.g. new Date().toISOString()) which represents the time
+      when this AMI Set was last altered (inclusive of creation)
+additionalProperties: false
+required:
+  - id
+  - amis
