@@ -36,16 +36,15 @@ let AmiSet = base.Entity.configure({
 });
 
 /**
- * Load all the knwon Amis
+ * Load the names of all the known Amis
  */
 AmiSet.listAmiSets = async function () {
-
-  let amiSetList = [];
+  let names = [];
 
   try {
     await base.Entity.scan.call(this, {}, {
       handler: function(item) {
-        amiSetList.push(item.json());
+        names.push(item.id);
       },
     });
   } catch (err) {
@@ -57,7 +56,7 @@ AmiSet.listAmiSets = async function () {
     throw err;
   }
 
-  return amiSetList;
+  return names;
 };
 
 /**
