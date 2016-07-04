@@ -85,6 +85,7 @@ development:
   azure:
     account: jungle
   app:
+    awsInstancePubkey: 'fake-pubkey'
     allowedRegions:
       - 'us-west-1'
       - 'us-west-2'

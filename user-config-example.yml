@@ -1,13 +1,20 @@
 defaults:
+  # AWS credentials (leave these blank if just running the server)
   aws:
     accessKeyId:        '...'
     secretAccessKey:    '...'
     region:             us-west-2
-  azure:
-    account:        jungle
+  # Taskcluster credentials with
+  # - "auth:azure-table-access:jungle/DevWorkerTypes"
+  taskcluster:
+    credentials:
+      clientId:         '...'
+      accessToken:      '...'
+  # an azure account for blob storage (which can be the same)
   azureBlob:
-    accountName: jungle
-    accountKey: '...'
+    accountName:        jungle
+    accountKey:         '...'
+  # pulse credentials - see http://pulseguardian.mozilla.org/
   pulse:
     username:           '...'
     password:           '...'
