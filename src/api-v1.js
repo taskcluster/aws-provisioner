@@ -696,13 +696,13 @@ api.declare({
     return;
   }
 
-  let amiSet = await this.AmiSet.load({id});
+  let loadedAmiSet = await this.AmiSet.load({id});
 
-  await amiSet.modify(function(amiSet) {
+  await loadedAmiSet.modify(function(amiSet) {
     // We know that data that gets to here is valid per-schema
     amiSet.amis = input.amis;
   });
-  return res.reply(amiSet.json());
+  return res.reply(loadedAmiSet.json());
 });
 
 api.declare({
