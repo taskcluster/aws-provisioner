@@ -266,9 +266,14 @@ class Provisioner {
             this.awsManager.__pricing,
             change,
             this.biaser);
-        // This could probably be done cleaner
-        for (let bid of bids) {
-          forSpawning.push({workerType: worker, bid: bid});
+        // Let's validate that this worker type can be launched before we
+        // make an attempt.
+        if (await this.awsManager.workerTypeCanLaunch(worker)) {
+          for (let bid of bids) {
+            forSpawning.push({workerType: worker, bid: bid});
+          }
+        } else {
+          debug(`[alert-operator] ${worker.workerType} is invalid, ignoring change ${change}`);
         }
       } else if (change < 0) {
         let capToKill = -change;
@@ -301,6 +306,7 @@ class Provisioner {
       try {
         debug('spawning a %s', toSpawn.workerType.workerType);
         await this.spawn(toSpawn.workerType, toSpawn.bid);
+        this.__watchDog.touch();
         debug('spawned a %s', toSpawn.workerType.workerType);
         await d();
       } catch (err) {
