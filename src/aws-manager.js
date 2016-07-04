@@ -7,7 +7,6 @@ let series = require('./influx-series');
 let keyPairs = require('./key-pairs');
 let _ = require('lodash');
 let delayer = require('./delayer');
-let amiExists = require('./check-for-ami');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -998,34 +997,6 @@ class AwsManager {
         }
       }
     });
-  }
-
-  /**
-   * Validate that a provided worker type is able to be spawned.  Return true if all
-   * conditions are met and return false if any of the conditions are not met.
-   */
-  async workerTypeCanLaunch(worker) {
-    let canLaunch = true;
-    let cantLaunchReasons = [];
-
-    // Condition 1: AMIs for all regions exist
-    for (let r of worker.regions) {
-      let exists = await amiExists(this.ec2, r.launchSpec.ImageId);
-      if (!exists) {
-        canLaunch = false;
-        cantLaunchReasons.push(`${r.launchSpec.ImageId} not found in ${r.region}`);
-      }
-    }
-
-    // TODO: Condition 2: SecurityGroups exist in all regions
-    // TODO: Condition 3: KernelIDs exist in all regions
-
-    if (!canLaunch) {
-      // taskcluster-lib-monitor this should be a report error and maybe a try
-      // to email the owner field
-      debug(`[alert-operator] cannot launch ${worker.workerType} because: ` + cantLaunchReasons.join(', '));
-    }
-    return canLaunch;
   }
 
   /**
