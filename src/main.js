@@ -226,7 +226,7 @@ let load = base.loader({
           maxPendingPoints: cfg.influx.maxPendingPoints,
         });
       } else {
-        console.log("No influx.connectionString configured; not using influx");
+        console.log('No influx.connectionString configured; not using influx');
         return new base.stats.NullDrain();
       }
     },
