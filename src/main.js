@@ -102,7 +102,7 @@ let load = base.loader({
         exchangePrefix: cfg.app.exchangePrefix,
         validator: validator,
         referencePrefix: 'aws-provisioner/v1/exchanges.json',
-        publish: cfg.app.publishMetaData === 'true',
+        publish: cfg.app.publishMetaData,
         aws: cfg.aws,
         drain: influx,
         component: cfg.app.statsComponent,
