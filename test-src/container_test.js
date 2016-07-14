@@ -1,4 +1,5 @@
-let debug = require('debug')('container-tests');
+let log = require('../lib/log');
+let debug = log.debugCompat('container-tests');
 let subject = require('../lib/container');
 let main = require('../lib/main');
 let assume = require('assume');

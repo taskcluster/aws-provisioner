@@ -1,4 +1,5 @@
-let debug = require('debug')('routes:v1');
+let log = require('./log');
+let debug = log.debugCompat('routes:v1');
 let base = require('taskcluster-base');
 let taskcluster = require('taskcluster-client');
 let amiExists = require('./check-for-ami');

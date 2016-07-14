@@ -1,6 +1,7 @@
 let util = require('util');
 let events = require('events');
-let debug = require('debug')('watchdog');
+let log = require('./log');
+let debug = log.debugCompat('watchdog');
 
 /**
  * This is a watch dog timer.  Think of it as a ticking

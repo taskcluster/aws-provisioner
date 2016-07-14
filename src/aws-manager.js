@@ -1,5 +1,6 @@
+let log = require('./log');
+let debug = log.debugCompat('aws-provisioner:aws-manager');
 let assert = require('assert');
-let debug = require('debug')('aws-provisioner:aws-manager');
 //let objFilter = require('../lib/objFilter');
 let shuffle = require('knuth-shuffle');
 let taskcluster = require('taskcluster-client');
