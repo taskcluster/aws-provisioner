@@ -1172,23 +1172,23 @@ class AwsManager {
   }
 
   /**
-   * Rouge Killer.  A rouge is an instance that has a KeyPair name that belongs
+   * Rogue Killer.  A rogue is an instance that has a KeyPair name that belongs
    * to this provisioner but is not present in the list of workerNames
    * provided.  We can also use this to shut down all instances of everything
    * if we just pass an empty list of workers which will say to this function
-   * that all workerTypes are rouge.  Sneaky, huh?
+   * that all workerTypes are rogue.  Sneaky, huh?
    */
-  async rougeKiller(configuredWorkers) {
+  async rogueKiller(configuredWorkers) {
     assert(configuredWorkers);
     let workersKnowByAws = this.knownWorkerTypes();
 
     let unconfiguredWorkerNames = workersKnowByAws.filter(n => !_.includes(configuredWorkers, n));
 
     for (let name of unconfiguredWorkerNames) {
-      debug('killing rouge %s', name);
+      debug('killing rogue %s', name);
       await this.deleteKeyPair(name);
       await this.killByName(name);
-      debug('killed rouge %s', name);
+      debug('killed rogue %s', name);
     }
   }
 

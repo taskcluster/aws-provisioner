@@ -221,8 +221,8 @@ class Provisioner {
     try {
       await this.awsManager.ensureTags();
       debug('ensured resource tagging');
-      await this.awsManager.rougeKiller(workerNames);
-      debug('ran rouge killer');
+      await this.awsManager.rogueKiller(workerNames);
+      debug('ran rogue killer');
       await this.awsManager.zombieKiller();
       debug('ran zombie killer');
       for (let name of workerNames) {

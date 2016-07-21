@@ -1099,3 +1099,93 @@ api.declare({
     lastCheckedIn: snitch.checked_in_at,
   });
 });
+
+api.declare({
+  method: 'post',
+  route: '/worker-type/:workerType/terminate-all-instances',
+  name: 'terminateAllInstancesOfWorkerType',
+  title: 'Shutdown Every Ec2 Instance of this Worker Type',
+  stability:  base.API.stability.experimental,
+  scopes: [
+    [
+      'aws-provisioner:terminate-all-worker-type:<workerType>',
+    ],
+  ],
+  description: [
+    'WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ',
+    'Shut down every single EC2 instance associated with this workerType. ',
+    'This means every single last one.  You probably don\'t want to use ',
+    'this method, which is why it has an obnoxious name.  Don\'t even try ',
+    'to claim you didn\'t know what this method does!',
+    '',
+    '**This API end-point is experimental and may be subject to change without warning.**',
+  ].join('\n'),
+}, function (req, res) {
+  var workerType = req.params.workerType;
+
+  debug('SOMEONE IS TURNING OFF ALL ' + workerType + ' WORKERS');
+
+  var p = this.awsManager.killByName(workerType);
+
+  p = p.then(function () {
+    res.reply({
+      outcome: true,
+      message: 'You just terminated all ' + workerType + ' workers.  Feel the power!',
+    });
+  });
+
+  p = p.catch(function (err) {
+    console.error(err);
+    res.status(503).json({
+      message: 'Could not terminate all ' + workerType + ' workers.',
+    });
+  });
+
+  return p;
+
+});
+
+api.declare({
+  method: 'post',
+  route: '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
+  name: 'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
+  title: 'Shutdown Every Single Ec2 Instance Managed By This Provisioner',
+  stability:  base.API.stability.experimental,
+  scopes: [
+    [
+      'aws-provisioner:terminate-all-worker-type:*',
+    ],
+  ],
+  description: [
+    'WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ',
+    'Shut down every single EC2 instance managed by this provisioner. ',
+    'This means every single last one.  You probably don\'t want to use ',
+    'this method, which is why it has an obnoxious name.  Don\'t even try ',
+    'to claim you didn\'t know what this method does!',
+    '',
+    '**This API end-point is experimental and may be subject to change without warning.**',
+  ].join('\n'),
+}, function (req, res) {
+
+  debug('SOMEONE IS TURNING EVERYTHING OFF');
+
+  // Note that by telling the rogue killer
+  var p = this.awsManager.rogueKiller([]);
+
+  p = p.then(function () {
+    res.reply({
+      outcome: true,
+      message: 'You just turned absolutely everything off.  Feel the power!',
+    });
+  });
+
+  p = p.catch(function (err) {
+    console.error(err, err.stack);
+    res.status(503).json({
+      message: 'Could not shut down everything',
+    });
+  });
+
+  return p;
+
+});
