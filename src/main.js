@@ -138,8 +138,8 @@ let load = base.loader({
   },
 
   api: {
-    requires: ['cfg', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator', 'publisher', 'influx'],
-    setup: async ({cfg, WorkerType, AmiSet, Secret, ec2, stateContainer, validator, publisher, influx}) => {
+    requires: ['cfg', 'awsManager', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator', 'publisher', 'influx'],
+    setup: async ({cfg, awsManager, WorkerType, AmiSet, Secret, ec2, stateContainer, validator, publisher, influx}) => {
 
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
 
@@ -159,6 +159,7 @@ let load = base.loader({
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
           ec2: ec2,
           stateContainer: stateContainer,
+          awsManager: awsManager,
         },
         validator: validator,
         authBaseUrl: cfg.taskcluster.authBaseUrl,

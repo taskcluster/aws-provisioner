@@ -1120,29 +1120,23 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, function (req, res) {
-  var workerType = req.params.workerType;
+}, async function (req, res) {
+  let workerType = req.params.workerType;
 
   debug('SOMEONE IS TURNING OFF ALL ' + workerType + ' WORKERS');
 
-  var p = this.awsManager.killByName(workerType);
-
-  p = p.then(function () {
-    res.reply({
+  try {
+    await this.awsManager.killByName(workerType);
+    return res.reply({
       outcome: true,
       message: 'You just terminated all ' + workerType + ' workers.  Feel the power!',
     });
-  });
-
-  p = p.catch(function (err) {
-    console.error(err);
+  } catch (err) {
+    debug(err.stack || err);
     res.status(503).json({
       message: 'Could not terminate all ' + workerType + ' workers.',
     });
-  });
-
-  return p;
-
+  }
 });
 
 api.declare({
@@ -1165,27 +1159,21 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, function (req, res) {
+}, async function (req, res) {
 
   debug('SOMEONE IS TURNING EVERYTHING OFF');
 
   // Note that by telling the rogue killer
-  var p = this.awsManager.rogueKiller([]);
-
-  p = p.then(function () {
-    res.reply({
+  try {
+    await this.awsManager.rogueKiller([]);
+    return res.reply({
       outcome: true,
       message: 'You just turned absolutely everything off.  Feel the power!',
     });
-  });
-
-  p = p.catch(function (err) {
-    console.error(err, err.stack);
-    res.status(503).json({
+  } catch (err) {
+    debug(err.stack || err);
+    return res.status(503).json({
       message: 'Could not shut down everything',
     });
-  });
-
-  return p;
-
+  }
 });

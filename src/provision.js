@@ -24,8 +24,7 @@ class Provisioner {
    */
   constructor(cfg) {
     assert(typeof cfg === 'object');
-    // We should have an AwsManager
-    assert(cfg.awsManager);
+    assert(cfg.awsManager); //  eslint-disable-line no-alert, quotes, semi
     this.awsManager = cfg.awsManager;
 
     // We should have a WorkerType Entity
