@@ -296,11 +296,6 @@ class Provisioner {
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
 
-    // We'll only consider the first 400 requests.  Any that are dropped on the
-    // floor will be computed on the next iteration and have an equal chance of
-    // being submitted
-    forSpawning = forSpawning.slice(0, 400);
-
     // Let's find the unique worker types in the list of requests to make
     let toSpawnWorkerTypes = _.intersection(forSpawning.map(x => x.workerType.workerType));
 
@@ -315,6 +310,11 @@ class Provisioner {
     }
 
     forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType) === -1);
+
+    // We'll only consider the first 400 requests.  Any that are dropped on the
+    // floor will be computed on the next iteration and have an equal chance of
+    // being submitted
+    forSpawning = forSpawning.slice(0, 400);
 
     while (forSpawning.length > 0 && attemptsLeft-- > 0) {
       let toSpawn = forSpawning.shift();
