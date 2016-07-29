@@ -1004,7 +1004,11 @@ api.declare({
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
-  scopes: [['aws-provisioner:view-worker-type:<workerType>']],
+  scopes: [
+    ['aws-provisioner:view-worker-type:<workerType>'],
+    ['aws-provisioner:manage-worker-type:<workerType>'],
+  ],
+  deferAuth: true,
   stability:  base.API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
@@ -1016,6 +1020,10 @@ api.declare({
 }, async function (req, res) {
   let workerType;
   let workerState;
+
+  if (!req.satisfies({workerType: req.params.workerType})) {
+    return;
+  }
 
   try {
     workerType = await this.WorkerType.load({workerType: req.params.workerType});
@@ -1111,6 +1119,7 @@ api.declare({
       'aws-provisioner:terminate-all-worker-type:<workerType>',
     ],
   ],
+  deferAuth: true,
   description: [
     'WARNING: YOU ALMOST CERTAINLY DO NOT WANT TO USE THIS ',
     'Shut down every single EC2 instance associated with this workerType. ',
@@ -1122,6 +1131,10 @@ api.declare({
   ].join('\n'),
 }, async function (req, res) {
   let workerType = req.params.workerType;
+
+  if (!req.satisfies({workerType})) {
+    return;
+  }
 
   debug('SOMEONE IS TURNING OFF ALL ' + workerType + ' WORKERS');
 
