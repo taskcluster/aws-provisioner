@@ -21,12 +21,13 @@ module.exports = async function (ec2, ami) {
     result = await ec2.describeImages(request).promise();
     debug('loaded information about %s', ami);
   } catch (err) {
-    debug('did not find %s', ami);
+    debug('describe ami images for %s failed', ami);
     return false;
   }
 
   if (result.data.Images.length === 0) {
-    throw new Error('Image does not exist');
+    debug('did not find %s', ami);
+    return false;
   } else if (result.data.Images.length > 1) {
     debug(result.data);
     throw new Error('Image returned more than one result');

@@ -418,7 +418,6 @@ api.declare({
       missing: missing,
     });
   }
-
   input.lastModified = modDate;
 
   if (!req.satisfies({workerType: workerType})) { return undefined; }
