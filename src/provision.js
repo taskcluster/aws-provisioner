@@ -1,4 +1,4 @@
-let log = require('./log')
+let log = require('./log');
 let debug = log.debugCompat('aws-provisioner:provision');
 let assert = require('assert');
 let WatchDog = require('./watchdog');
