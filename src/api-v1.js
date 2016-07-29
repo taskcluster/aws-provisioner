@@ -1004,7 +1004,10 @@ api.declare({
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
-  scopes: [['aws-provisioner:view-worker-type:<workerType>']],
+  scopes: [
+    ['aws-provisioner:view-worker-type:<workerType>'],
+    ['aws-provisioner:manage-worker-type:<workerType>'],
+  ],
   stability:  base.API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
