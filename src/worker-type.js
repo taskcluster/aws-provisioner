@@ -6,7 +6,6 @@ let assert = require('assert');
 let lodash = require('lodash');
 let util = require('util');
 let slugid = require('slugid');
-let keyPairs = require('./key-pairs');
 let _ = require('lodash');
 
 const KEY_CONST = 'worker-type';
@@ -226,7 +225,7 @@ WorkerType = WorkerType.configure({
     item.owner = '** WRITE THIS **';
     return item;
   },
-  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+  context: ['provisionerId', 'provisionerBaseUrl'],
 });
 
 /**
@@ -361,8 +360,7 @@ WorkerType.prototype.capacityOfType = function(instanceType) {
  */
 WorkerType.prototype.createLaunchSpec = function(bid) {
   assert(bid);
-  return WorkerType.createLaunchSpec(bid,
-      this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl, this.pubKey, this.workerType);
+  return WorkerType.createLaunchSpec(bid, this, this.provisionerId, this.provisionerBaseUrl, this.workerType);
 };
 
 /**
@@ -373,10 +371,8 @@ WorkerType.prototype.createLaunchSpec = function(bid) {
 WorkerType.prototype.testLaunchSpecs = function() {
   return WorkerType.testLaunchSpecs(
       this,
-      this.keyPrefix,
       this.provisionerId,
       this.provisionerBaseUrl,
-      this.pubKey,
       this.workerType);
 };
 
@@ -386,17 +382,15 @@ WorkerType.prototype.testLaunchSpecs = function() {
  * so that we can create and test launch specifications before inserting
  * them into Azure.
  */
-WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
+WorkerType.createLaunchSpec = function(bid, worker, provisionerId, provisionerBaseUrl, workerName) {
   // These are the keys which are only applicable to a given region.
   assert(bid, 'must specify a bid');
   assert(bid.region, 'bid must specify a region');
   assert(bid.type, 'bid must specify a type');
   assert(bid.zone, 'bid must specify an availability zone');
   assert(worker, 'must provide a worker object');
-  assert(keyPrefix, 'must provide key prefix');
   assert(provisionerId, 'must provide provisioner id');
   assert(provisionerBaseUrl, 'must provide provisioner base url');
-  assert(pubKey, 'must provide public key data');
   assert(workerName, 'must provide a worker name');
 
   // Find the region objects, assert if region is not found
@@ -483,7 +477,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   }
 
   // Set the KeyPair, InstanceType and availability zone correctly
-  config.launchSpec.KeyName = keyPairs.createKeyPairName(keyPrefix, pubKey, workerName);
+  config.launchSpec.KeyName = `${provisionerId}-ssh-key`;
   config.launchSpec.InstanceType = bid.type;
 
   // We want to make sure that we overwrite the least that we need
@@ -587,12 +581,10 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
+WorkerType.testLaunchSpecs = function(worker, provisionerId, provisionerBaseUrl, workerName) {
   assert(worker);
-  assert(keyPrefix);
   assert(provisionerId);
   assert(provisionerBaseUrl);
-  assert(pubKey);
   assert(workerName);
   let errors = [];
   let launchSpecs = {};
@@ -612,10 +604,8 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
         let x = WorkerType.createLaunchSpec(
             bid,
             worker,
-            keyPrefix,
             provisionerId,
             provisionerBaseUrl,
-            pubKey,
             workerName);
         launchSpecs[region][type] = x;
       } catch (e) {

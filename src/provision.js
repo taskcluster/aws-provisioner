@@ -337,6 +337,8 @@ class Provisioner {
       }
     }
 
+    await this.awsManager.saveSpotRequestIdCache();
+
     let duration = new Date() - allProvisionerStart;
     debug('running all provisioning iterations took ' + duration + 'ms');
     this.reportAllProvisioningIterationDuration({
