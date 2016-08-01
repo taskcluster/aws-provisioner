@@ -112,9 +112,8 @@ class AwsManager {
     this.__availableAZ = {};
 
     // Let's keep a cache of all the spot request id to region/worker type mappings
-    // to avoid needing to load it *every* time from azure.  Shape:
-    // {srid: {region: 'us-west-2', workerType: 'cli}, ...}
-    this.__spotRequestIdCache = {};
+    // to avoid needing to load it *every* time from azure
+    this.__spotRequestIdCache = [];
 
     // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
@@ -131,7 +130,7 @@ class AwsManager {
       let rawJson = this.spotRequestContainer.read('spot-requests');
       this.__spotRequestIdCache = JSON.parse(rawJson);
     } catch (err) {
-      this.__spotRequestIdCache = {};
+      this.__spotRequestIdCache = [];
       return;
     }
   }
@@ -139,7 +138,29 @@ class AwsManager {
   async saveSpotRequestIdCache() {
     console.log('Saving spot request info');
     console.dir(this.__spotRequestIdCache);
+    this.__spotRequestIdCache = this.__spotRequestIdCache.filter(sr => {
+      let diff = Date.now() - sr.created;
+      // If we've known about this SR for more than 5 days, evict it, otherwise
+      // keep it.  5 days is a good amount since we force kill things even if
+      // they're running after 4 days.  This lets us have a full extra day
+      if (diff > 1000 * 60 * 60 * 24 * 5) {
+        return false;
+      }
+      return true;
+    });
+
     return this.spotRequestContainer.write('spot-requests', JSON.stringify(this.__spotRequestIdCache));
+  }
+
+  /**
+   * Simplify how we access stored spot request ids
+   */
+  async workerTypeForResource(srid) {
+    let found = this.__spotRequestIdCache.filter(x => x.id === srid);
+    if (found.length !== 1) {
+      return null;
+    }
+    return found[0].workerType;
   }
 
   /**
@@ -908,22 +929,22 @@ class AwsManager {
 
     let tags = {};
 
-    let x = (y, id) => {
-      if (!tags[y.Region]) {
-        tags[y.Region] = {};
+    let x = (resource, id) => {
+      if (!tags[resource.Region]) {
+        tags[resource.Region] = {};
       }
 
-      if (!tags[y.Region][y.WorkerType]) {
-        tags[y.Region][y.WorkerType] = {
+      if (!tags[resource.Region][resource.WorkerType]) {
+        tags[resource.Region][resource.WorkerType] = {
           data: [
-            {Key: 'Name', Value: y.WorkerType},
+            {Key: 'Name', Value: resource.WorkerType},
             {Key: 'Owner', Value: this.provisionerId},
-            {Key: 'WorkerType', Value: this.provisionerId + '/' + y.WorkerType},
+            {Key: 'WorkerType', Value: this.provisionerId + '/' + resource.WorkerType},
           ],
           ids: [id],
         };
       } else {
-        tags[y.Region][y.WorkerType].ids.push(id);
+        tags[resource.Region][resource.WorkerType].ids.push(id);
       }
     };
 
@@ -934,6 +955,8 @@ class AwsManager {
     for (let r of requestsWithoutTags) {
       x(r, r.SpotInstanceRequestId);
     }
+    
+    console.dir(tags);
 
     let tagPromises = [];
     for (let region of Object.keys(tags)) {
@@ -1103,10 +1126,12 @@ class AwsManager {
       submitted: new Date(),
     };
 
-    this.__spotRequestIdCache[spotReq.SpotInstanceRequestId] = {
+    this.__spotRequestIdCache.push({
+      id: spotReq.SpotInstanceRequestId,
       region: bid.region,
       workerType: launchInfo.workerType,
-    };
+      created: Date.now(),
+    });
 
     log.info({
       srid: spotReq.SpotInstanceRequestId,
@@ -1136,16 +1161,6 @@ class AwsManager {
 
     this._trackNewSpotRequest(info);
     return info;
-  }
-
-  /**
-   * Simplify how we access stored spot request ids
-   */
-  async workerTypeForSRID(srid) {
-    if (!this.__spotRequestIdCache[srid]) {
-      return null;
-    }
-    return this.__spotRequestIdCache[srid].workerType;
   }
 
   /**
