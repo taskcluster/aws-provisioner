@@ -84,12 +84,13 @@ function dateForInflux(thingy) {
  *      submit data points to an influx instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, SpotRequest, influx) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
     assert(pubKey);
     assert(maxInstanceLife);
+    assert(SpotRequest);
     assert(influx);
 
     this.ec2 = ec2;
@@ -97,11 +98,8 @@ class AwsManager {
     this.keyPrefix = keyPrefix;
     this.pubKey = pubKey;
     this.maxInstanceLife = maxInstanceLife;
+    this.SpotRequest = SpotRequest;
     this.influx = influx;
-
-    // Known keypairs are tracked so that we don't have to retreive the list of
-    // all known key pairs on every iteration.
-    this.__knownKeyPairs = [];
 
     // The responses of the EC2 Api's view of state
     this.__apiState = {
@@ -129,6 +127,12 @@ class AwsManager {
 
     // Store the available availability zone
     this.__availableAZ = {};
+
+    // Let's keep a cache of all the spot request id to region/worker type mappings
+    // to avoid needing to load it *every* time from azure.  Shape:
+    // {srid: {region: 'us-west-2', workerType: 'cli}, ...}
+    this.__spotRequestIdCache = {};
+
 
     // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
@@ -197,10 +201,6 @@ class AwsManager {
           ec2.describeInstances({
             Filters: [
               {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
                 Name: 'instance-state-name',
                 Values: ['running', 'pending'],
               },
@@ -210,9 +210,6 @@ class AwsManager {
           ec2.describeSpotInstanceRequests({
             Filters: [
               {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
                 Name: 'state',
                 Values: ['open'],
               },
@@ -221,10 +218,6 @@ class AwsManager {
           // Dead instances
           ec2.describeInstances({
             Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
               {
                 Name: 'instance-state-name',
                 Values: ['shutting-down', 'terminated', 'stopping'],
@@ -235,9 +228,6 @@ class AwsManager {
           ec2.describeSpotInstanceRequests({
             Filters: [
               {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
                 Name: 'state',
                 Values: ['cancelled', 'failed', 'closed', 'active'],
               },
@@ -268,7 +258,15 @@ class AwsManager {
         // Now let's classify them
         for (let reservation of response[0].data.Reservations) {
           for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            // We want to be able to transition from old (key name) to the new
+            // system based on spot request ids
+            let workerType;
+            try {
+              workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            } catch (err) {
+              log.error(err, 'unable to load worker type from cache, falling back to keyname');
+              workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            }
             // Maybe use objFilter here
             let filtered = instance;
             filtered.Region = region;
@@ -282,7 +280,15 @@ class AwsManager {
         // and make new requests for their pending tasks
         let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+          // We want to be able to transition from old (key name) to the new
+          // system based on spot request ids
+          let workerType;
+          try {
+            workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          } catch (err) {
+            log.error(err, 'unable to load worker type from cache, falling back to keyname');
+            workerType = this.parseKeyPairName(request.KeyName).workerType;
+          }
           let filtered = request;
           filtered.Region = region;
           filtered.WorkerType = workerType;
@@ -301,7 +307,15 @@ class AwsManager {
         // Put the dead instances into the dead state object
         for (let reservation of response[2].data.Reservations) {
           for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            // We want to be able to transition from old (key name) to the new
+            // system based on spot request ids
+            let workerType;
+            try {
+              workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            } catch (err) {
+              log.error(err, 'unable to load worker type from cache, falling back to keyname');
+              workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            }
             // Maybe use objFilter here
             let filtered = instance;
             filtered.Region = region;
@@ -314,7 +328,15 @@ class AwsManager {
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+          // We want to be able to transition from old (key name) to the new
+          // system based on spot request ids
+          let workerType;
+          try {
+            workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          } catch (err) {
+            log.error(err, 'unable to load worker type from cache, falling back to keyname');
+            workerType = this.parseKeyPairName(request.KeyName).workerType;
+          }
           // Maybe use objFilter here
           let filtered = request;
           filtered.Region = region;
@@ -1094,6 +1116,17 @@ class AwsManager {
       submitted: new Date(),
     };
 
+    await SpotRequest.create({
+      id: spotReq.SpotInstanceRequestId,
+      region: bid.region,
+      workerType: bid.workerType,
+    });
+
+    this.__spotRequestIdCache[spotReq.SpotInstanceRequestId] = {
+      region: bid.region,
+      workerType: bid.workerType,
+    };
+
     this.reportSpotRequestsSubmitted({
       provisionerId: this.provisionerId,
       region: info.bid.region,
@@ -1119,6 +1152,20 @@ class AwsManager {
     return info;
   }
 
+  /**
+   * Simplify how we access stored spot request ids
+   */
+  async workerTypeForSRID(srid) {
+    if (!this.__spotRequestIdCache[srid]) {
+      // If not, let's load from azure, cache it then return the value
+      let loadedValue = await this.SpotRequest.load({id: srid});
+      this.__spotRequestIdCache[srid] = {
+        workerType: loadedValue.workerType,
+        region: loadedValue.region,
+      };
+    }
+    return this.__spotRequestIdCache[srid].workerType;
+  }
   /**
    * wrapper for brevity
    */
@@ -1154,40 +1201,7 @@ class AwsManager {
    * we'll end up having to track which regions the workerName is enabled in.
    */
   async createKeyPair(workerName) {
-    assert(workerName);
-
-    let keyName = this.createKeyPairName(workerName);
-
-    if (_.includes(this.__knownKeyPairs, keyName)) {
-      // Short circuit checking for a key but return
-      // a promise so this cache is invisible to the
-      // calling function from a non-cached instance
-      return;
-    }
-
-    await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
-        Filters: [
-          {
-            Name: 'key-name',
-            Values: [keyName],
-          },
-        ],
-      }).promise();
-
-      // Since we're using a filter to look for *only* this
-      // key pair, the only possibility is 0 or 1 results
-      if (!keyPairs.data.KeyPairs[0]) {
-        debug('creating key pair %s', keyName);
-        await ec2.importKeyPair({
-          KeyName: keyName,
-          PublicKeyMaterial: this.pubKey,
-        }).promise();
-        debug('created key pair %s', keyName);
-      }
-    }));
-
-    this.__knownKeyPairs.push(keyName);
+    return Promise.reject(new Error('No more key pairs!'));
   }
 
   /**
@@ -1195,32 +1209,7 @@ class AwsManager {
    * more and you shouldn't run it until you've turned everything off.
    */
   async deleteKeyPair(workerName) {
-    assert(workerName);
-
-    let keyName = this.createKeyPairName(workerName);
-
-    debug('deleting %s', keyName);
-    await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
-        Filters: [
-          {
-            Name: 'key-name',
-            Values: [keyName],
-          },
-        ],
-      }).promise();
-
-      // Since we're using a filter to look for *only* this
-      // key pair, the only possibility is 0 or 1 results
-      if (keyPairs.data.KeyPairs[0]) {
-        await ec2.deleteKeyPair({
-          KeyName: keyName,
-        });
-      }
-    }));
-    debug('deleted %s', keyName);
-
-    this.__knownKeyPairs = this.__knownKeyPairs.filter(k => k !== keyName);
+    return Promise.reject(new Error('No more key pairs!'));
   }
 
   /**
@@ -1238,7 +1227,6 @@ class AwsManager {
 
     for (let name of unconfiguredWorkerNames) {
       debug('killing rogue %s', name);
-      await this.deleteKeyPair(name);
       await this.killByName(name);
       debug('killed rogue %s', name);
     }
