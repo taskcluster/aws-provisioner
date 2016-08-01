@@ -2,6 +2,7 @@ TaskCluster AWS Provisioner
 ===========================
 
 [![Build Status](https://travis-ci.org/taskcluster/aws-provisioner.svg?branch=master)](https://travis-ci.org/taskcluster/taskcluster-aws-provisioner)
+*NOTE* Travis being green does not mean that we're good to deploy to production!
 
 The AWS Provisioner is responsible for starting Amazon EC2 instances to perform
 tasks in the TaskCluster queue.  It monitors queue lengths and uses spot
@@ -23,12 +24,15 @@ You can create your own `pulse` credentials at https://pulseguardian.mozilla.org
 You'll need to get the Azure configuration from another TaskCluster developer.
 The AWS user can be found in the shared notes in Lastpass.
 
+The unit test suite only covers the API of the provisioner.  Changes to the
+backend require manual testing.  Do not take travis status to mean that changes
+are working.
+
 ### Running Locally
 
 To run the provisioner locally, you will need a similar set of configuration.
 Then run
 
-```
 npm run compile && NODE_ENV=development DEBUG=* node lib/main.js server # just web server
 npm run compile && NODE_ENV=development DEBUG=* node lib/main.js all    # web + provisioner
 ```
@@ -40,7 +44,8 @@ running (EC2 instances, spot bids, and SSH keypairs).
 Deploying AWS Provisioner
 -------------------------
 
-AWS provisioner is automatically deployed on push to master, without waiting for CI to pass.
+AWS provisioner is automatically deployed on push to master, without waiting
+for CI to pass.
 
 
 Post Deployment Verification
