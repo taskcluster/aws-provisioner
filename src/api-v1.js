@@ -80,10 +80,8 @@ async function validateWorkerType(ctx, workerTypeName, workerType) {
   try {
     launchSpecs = ctx.WorkerType.testLaunchSpecs(
         workerType,
-        ctx.keyPrefix,
         ctx.provisionerId,
         ctx.provisionerBaseUrl,
-        ctx.pubKey,
         workerType);
     debug(`generated launch specifications for ${workerTypeName}`);
   } catch (err) {

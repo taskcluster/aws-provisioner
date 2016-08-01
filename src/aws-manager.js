@@ -5,7 +5,6 @@ let assert = require('assert');
 let shuffle = require('knuth-shuffle');
 let taskcluster = require('taskcluster-client');
 let series = require('./influx-series');
-let keyPairs = require('./key-pairs');
 let _ = require('lodash');
 let delayer = require('./delayer');
 
@@ -63,18 +62,6 @@ function dateForInflux(thingy) {
  *      This is the id of this provisioner (e.g. aws-provisioner-v1').  This
  *      value is passed through to the Queue verbatim and is used to find the
  *      number of pending tasks for a given provisionerId/workerType combo
- * keyPrefix:
- *      We use a prefix on KeyPair.Name for a given instance to store metadata.
- *      The EC2 api provides for metadata to be stored in Tags, but tags are
- *      not able to be set at the time a spot request is requested.  We use
- *      this as a workaround.  This is currently the name of the worker type
- *      the instances/request is associated with as well as a hash of the ssh
- *      KeyPair key material so that we can upgrade ssh keys.
- * pubKey:
- *      public key data to be stored as the KeyPair data.  We use a single
- *      public key for all instances.  Ideally in the future we would actually
- *      use a public key that no one has the matching private key for so that
- *      we effectively disable ssh access to our machines.
  * maxInstanceLife:
  *      absolute upper bounds of instance life.  This should never be hit, but
  *      is rather a safety limit to ensure we don't have things living forever.
@@ -83,21 +70,17 @@ function dateForInflux(thingy) {
  *      submit data points to an influx instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, SpotRequest, influx) {
+  constructor(ec2, provisionerId, maxInstanceLife, spotRequestContainer, influx) {
     assert(ec2);
     assert(provisionerId);
-    assert(keyPrefix);
-    assert(pubKey);
     assert(maxInstanceLife);
-    assert(SpotRequest);
+    assert(spotRequestContainer);
     assert(influx);
 
     this.ec2 = ec2;
     this.provisionerId = provisionerId;
-    this.keyPrefix = keyPrefix;
-    this.pubKey = pubKey;
     this.maxInstanceLife = maxInstanceLife;
-    this.SpotRequest = SpotRequest;
+    this.spotRequestContainer = spotRequestContainer;
     this.influx = influx;
 
     // The responses of the EC2 Api's view of state
@@ -132,7 +115,6 @@ class AwsManager {
     // {srid: {region: 'us-west-2', workerType: 'cli}, ...}
     this.__spotRequestIdCache = {};
 
-
     // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
     this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
@@ -143,10 +125,26 @@ class AwsManager {
     this.reportAmiUsage = series.amiUsage.reporter(influx);
   }
 
+  async init(){
+    try {
+      let rawJson = this.spotRequestContainer.read('spot-requests');
+      this.__spotRequestIdCache = JSON.parse(rawJson);
+    } catch (err) {
+      this.__spotRequestIdCache = {};
+      return;
+    }
+  }
+
+  async saveSpotRequestIdCache() {
+    console.log('Saving spot request info');
+    console.dir(this.__spotRequestIdCache);
+    return this.spotRequestContainer.write('spot-requests', JSON.stringify(this.__spotRequestIdCache));
+  }
+
   /**
    * Update the state from the AWS API
    */
-  async update() {
+  async update(maxWait = 200) {
     // We fetch the living instance and spot requests separate from the dead
     // ones to make things a little easier to work with as there's really very
     // little in the provisioner which requires info on dead instances and spot
@@ -155,6 +153,7 @@ class AwsManager {
     // The choice in which bucket each instance or request should belong in
     // comes down to whether or not the resource is awaiting or currently
     // working or needs to be tidied up after
+
 
     // We want to fetch the last 30 minutes of pricing data
     let pricingStartDate = new Date();
@@ -190,7 +189,7 @@ class AwsManager {
     // would never reject or resolve.  That's why we now race a 240s timeout
     // and reject this promise if the state calls take longer than 240s
     await Promise.race([
-      delayer(240 * 1000)().then(() => {
+      delayer(maxWait * 1000)().then(() => {
         throw new Error('Timeout while updating AWS Api State');
       }),
       Promise.all(_.map(this.ec2, async (ec2, region) => {
@@ -259,12 +258,12 @@ class AwsManager {
           for (let instance of reservation.Instances) {
             // We want to be able to transition from old (key name) to the new
             // system based on spot request ids
-            let workerType;
-            try {
-              workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
-            } catch (err) {
-              log.error(err, 'unable to load worker type from cache, falling back to keyname');
-              workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            if (!instance.SpotInstanceRequestId) {
+              continue;
+            }
+            let workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            if (!workerType) {
+              continue;
             }
             // Maybe use objFilter here
             let filtered = instance;
@@ -279,14 +278,9 @@ class AwsManager {
         // and make new requests for their pending tasks
         let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
-          // We want to be able to transition from old (key name) to the new
-          // system based on spot request ids
-          let workerType;
-          try {
-            workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
-          } catch (err) {
-            log.error(err, 'unable to load worker type from cache, falling back to keyname');
-            workerType = this.parseKeyPairName(request.KeyName).workerType;
+          let workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          if (!workerType) {
+            continue;
           }
           let filtered = request;
           filtered.Region = region;
@@ -306,14 +300,12 @@ class AwsManager {
         // Put the dead instances into the dead state object
         for (let reservation of response[2].data.Reservations) {
           for (let instance of reservation.Instances) {
-            // We want to be able to transition from old (key name) to the new
-            // system based on spot request ids
-            let workerType;
-            try {
-              workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
-            } catch (err) {
-              log.error(err, 'unable to load worker type from cache, falling back to keyname');
-              workerType = this.parseKeyPairName(instance.KeyName).workerType;
+            if (!instance.SpotInstanceRequestId) {
+              continue;
+            }
+            let workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            if (!workerType) {
+              continue;
             }
             // Maybe use objFilter here
             let filtered = instance;
@@ -327,14 +319,9 @@ class AwsManager {
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
-          // We want to be able to transition from old (key name) to the new
-          // system based on spot request ids
-          let workerType;
-          try {
-            workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
-          } catch (err) {
-            log.error(err, 'unable to load worker type from cache, falling back to keyname');
-            workerType = this.parseKeyPairName(request.KeyName).workerType;
+          let workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          if (!workerType) {
+            continue;
           }
           // Maybe use objFilter here
           let filtered = request;
@@ -1064,16 +1051,15 @@ class AwsManager {
       submitted: new Date(),
     };
 
-    await SpotRequest.create({
-      id: spotReq.SpotInstanceRequestId,
-      region: bid.region,
-      workerType: bid.workerType,
-    });
-
     this.__spotRequestIdCache[spotReq.SpotInstanceRequestId] = {
       region: bid.region,
-      workerType: bid.workerType,
+      workerType: launchInfo.workerType,
     };
+
+    log.info({
+      srid: spotReq.SpotInstanceRequestId,
+      workerType: launchInfo.workerType,
+    }, 'submitted spot request');
 
     this.reportSpotRequestsSubmitted({
       provisionerId: this.provisionerId,
@@ -1105,59 +1091,9 @@ class AwsManager {
    */
   async workerTypeForSRID(srid) {
     if (!this.__spotRequestIdCache[srid]) {
-      // If not, let's load from azure, cache it then return the value
-      let loadedValue = await this.SpotRequest.load({id: srid});
-      this.__spotRequestIdCache[srid] = {
-        workerType: loadedValue.workerType,
-        region: loadedValue.region,
-      };
+      return null;
     }
     return this.__spotRequestIdCache[srid].workerType;
-  }
-  /**
-   * wrapper for brevity
-   */
-  createPubKeyHash() {
-    return keyPairs.createPubKeyHash(this.pubKey);
-  }
-
-  /**
-   * wrapper for brevity
-   */
-  createKeyPairName(workerName) {
-    return keyPairs.createKeyPairName(this.keyPrefix, this.pubKey, workerName);
-  }
-
-  /**
-   * wrapper for brevity
-   */
-  parseKeyPairName(name) {
-    return keyPairs.parseKeyPairName(name);
-  }
-
-  /**
-   * We use KeyPair names to determine ownership and workerType in the EC2
-   * world because we can't tag SpotRequests until they've mutated into
-   * Instances.  This sucks and all, but hey, what else can we do?  This method
-   * checks which regions have the required KeyPair already and creates the
-   * KeyPair in regions which do not already have it.  Note that the
-   * __knownKeyPair cache should never become shared, since we rely on it not
-   * surviving restarts in the case that we start running this manager in
-   * another region.  If we didn't dump the cache, we could create the key in
-   * one region but not the new one that we add.  TODO: Look into what happens
-   * when we add a region to the list of allowed regions... I suspect that
-   * we'll end up having to track which regions the workerName is enabled in.
-   */
-  async createKeyPair(workerName) {
-    return Promise.reject(new Error('No more key pairs!'));
-  }
-
-  /**
-   * Delete a KeyPair when it's no longer needed.  This method does nothing
-   * more and you shouldn't run it until you've turned everything off.
-   */
-  async deleteKeyPair(workerName) {
-    return Promise.reject(new Error('No more key pairs!'));
   }
 
   /**
