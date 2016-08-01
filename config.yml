@@ -7,6 +7,7 @@ defaults:
     workerTypeTableName: DevWorkerTypes
     amiSetTableName: DevAmiSets
     secretTableName: DevWorkerSecrets
+    spotRequestTableName: DevSpotRequests
     workerStateTableName: DevWorkerState
     awsInstancePubkey: !env AWS_INSTANCE_PUBKEY
     awsKeyPrefix: "aws-provisioner-dev-managed:"
@@ -64,6 +65,7 @@ production:
     workerTypeTableName: WorkerTypes
     amiSetTableName: AmiSets
     secretTableName: Secrets
+    spotRequestTableName: SpotRequests
     workerStateTableName: WorkerState
     publishMetaData: true
     statsComponent: aws-provisioner-v1
