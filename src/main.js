@@ -13,6 +13,7 @@ let base = require('taskcluster-base');
 let workerType = require('./worker-type');
 let secret = require('./secret');
 let amiSet = require('./ami-set');
+let spotRequest = require('./resource-to-tag').SpotRequest;
 let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
@@ -82,6 +83,17 @@ let load = base.loader({
         credentials: cfg.taskcluster.credentials,
       });
       return Secret;
+    },
+  },
+  
+  SpotRequest: {
+    requires: ['cfg'],
+    setup: async ({cfg}) => {
+      return spotRequest.setup({
+        account: cfg.azure.account,
+        table: cfg.app.spotRequestTableName,
+        credentials: cfg.taskcluster.credentials,
+      });
     },
   },
 
@@ -237,14 +249,15 @@ let load = base.loader({
   },
 
   awsManager: {
-    requires: ['cfg', 'ec2', 'influx'],
-    setup: ({cfg, ec2, influx}) => {
+    requires: ['cfg', 'ec2', 'influx', 'SpotRequest'],
+    setup: ({cfg, ec2, influx, SpotRequest}) => {
       return new AwsManager(
         ec2,
         cfg.app.id,
         cfg.app.awsKeyPrefix,
         cfg.app.awsInstancePubkey,
         cfg.app.maxInstanceLife,
+        SpotRequest,
         influx
       );
     },

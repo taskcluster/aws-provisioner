@@ -224,10 +224,6 @@ class Provisioner {
       debug('ran rogue killer');
       await this.awsManager.zombieKiller();
       debug('ran zombie killer');
-      for (let name of workerNames) {
-        await this.awsManager.createKeyPair(name);
-      }
-      debug('all key pairs created');
     } catch (err) {
       debug('failure running a housekeeping task');
       debug(err);
