@@ -4,11 +4,10 @@ defaults:
     iterationInterval: 10000
     maxInstanceLife: '- 96 hours'
     id: aws-provisioner-dev
-    workerTypeTableName: DevWorkerTypes
-    amiSetTableName: DevAmiSets
-    secretTableName: DevWorkerSecrets
-    spotRequestTableName: DevSpotRequests
-    workerStateTableName: DevWorkerState
+    workerTypeTableName: DevWorkerTypes2
+    amiSetTableName: DevAmiSets2
+    secretTableName: DevWorkerSecrets2
+    workerStateTableName: DevWorkerState2
     awsInstancePubkey: !env AWS_INSTANCE_PUBKEY
     awsKeyPrefix: "aws-provisioner-dev-managed:"
     statsComponent: aws-provisioner-dev
@@ -65,7 +64,6 @@ production:
     workerTypeTableName: WorkerTypes
     amiSetTableName: AmiSets
     secretTableName: Secrets
-    spotRequestTableName: SpotRequests
     workerStateTableName: WorkerState
     publishMetaData: true
     statsComponent: aws-provisioner-v1
