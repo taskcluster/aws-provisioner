@@ -1,7 +1,6 @@
 let log = require('./log');
 let debug = log.debugCompat('aws-provisioner:provision');
 let assert = require('assert');
-let WatchDog = require('./watchdog');
 let taskcluster = require('taskcluster-client');
 let delayer = require('./delayer');
 let shuffle = require('knuth-shuffle');
@@ -10,9 +9,6 @@ let rp = require('request-promise');
 let _ = require('lodash');
 
 let series = require('./influx-series');
-
-const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
-const MAX_FAILURES = 15;
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -47,14 +43,6 @@ class Provisioner {
     assert(cfg.influx);
     this.influx = cfg.influx;
 
-    // We need a deadman's snitch API key
-    assert(cfg.dmsApiKey);
-    this.dmsApiKey = cfg.dmsApiKey;
-
-    // We need a URL to hit
-    assert(cfg.iterationSnitch);
-    this.iterationSnitch = cfg.iterationSnitch;
-
     this.reportProvisioningIteration = series.provisionerIteration.reporter(this.influx);
     this.reportAllProvisioningIterationDuration = series.allProvisioningIterationDuration.reporter(this.influx);
 
@@ -76,123 +64,12 @@ class Provisioner {
       killRateMultiplier: 4,
       emptyComboBias: 0.95,
     });
-
-    // This is the number of milliseconds to wait between completed provisioning runs
-    assert(cfg.provisionIterationInterval);
-    assert(typeof cfg.provisionIterationInterval === 'number');
-    assert(!isNaN(cfg.provisionIterationInterval));
-    this.provisionIterationInterval = cfg.provisionIterationInterval;
-
-    this.__provRunId = 0;
-
-    this.__keepRunning = false;
-    this.__watchDog = new WatchDog(MAX_PROVISION_ITERATION);
-    this.__stats = {
-      runs: 0,
-      consecFail: 0,
-    };
-  }
-
-  /**
-   * Start running a provisioner.
-   */
-  async run() {
-    this.__keepRunning = true;
-
-    this.__watchDog.on('expired', () => {
-      debug('[alert-operator] provisioning iteration exceeded max time');
-      process.exit(1); //eslint-disable-line no-process-exit
-    });
-
-    this.__watchDog.start();
-
-    const d = delayer(this.provisionIterationInterval);
-
-    try {
-      do {
-        debug('starting iteration %d, consecutive failures %d',
-              this.__stats.runs, this.__stats.consecFail);
-
-        // If we don't do this, we'll have an uncaught exception
-        this.__watchDog.touch();
-
-        // We should make sure that we're not just permanently failing
-        // We also don't want to
-        if (this.__stats.consecFail > MAX_FAILURES) {
-          debug('exiting because there have been too many failures');
-          process.exit(1); //eslint-disable-line no-process-exit
-        }
-
-        let outcome;
-
-        this.__stats.runs++;
-
-        // Do the iterations
-        try {
-          debug('about to run provisioning for each worker type');
-          await this.runAllProvisionersOnce();
-          debug('about to run provisioning for each worker type');
-          this.__stats.consecFail = 0;
-          outcome = 'succeeded';
-
-        } catch (err) {
-          this.__stats.consecFail++;
-          outcome = 'failed';
-          debug('[alert-operator] provisioning iteration failure');
-          if (err.stack) {
-            debug(err.stack);
-          }
-        }
-
-        // Report on the iteration
-        debug('provisioning iteration %s', outcome);
-        debug('scheduling next iteration in %sms',
-            this.provisionIterationInterval);
-        // Hit the deadmans snitch URL to say that the iteration worked
-        debug('hitting deadmans snitch');
-        try {
-          let result = await rp.get(this.iterationSnitch, {
-            auth: {
-              username: this.dmsApiKey,
-              password: '',
-              sendImmediately: true,
-            },
-          });
-        } catch (err) {
-          console.log(err.stack || err);
-        }
-        debug('hit deadmans snitch');
-
-        // And delay for the next one so we don't overwhelm EC2
-        await d();
-
-      } while (this.__keepRunning && !process.env.PROVISION_ONCE);
-      this.__watchDog.stop();
-    } catch (err) {
-      debug('error trying to run all provisioners once, exiting');
-      debug(err);
-      if (err.stack) {
-        debug(err.stack);
-      }
-      process.exit(1); //eslint-disable-line no-process-exit
-    }
-  }
-
-  /**
-   * Stop launching new provisioner iterations but don't
-   * end the current one
-   */
-  stop() {
-    this.__keepRunning = false;
-    this.__watchDog.stop();
-    this.__stats.runs = 0;
-    this.__stats.consecFail = 0;
   }
 
   /**
    * Run provisioners for all known worker types once
    */
-  async runAllProvisionersOnce() {
+  async runAllProvisionersOnce(watchdog, state) {
     let allProvisionerStart = new Date();
     let workerTypes;
     debug('loading worker types');
@@ -306,7 +183,7 @@ class Provisioner {
       try {
         debug('spawning a %s', toSpawn.workerType.workerType);
         await this.spawn(toSpawn.workerType, toSpawn.bid);
-        this.__watchDog.touch();
+        watchDog.touch();
         debug('spawned a %s', toSpawn.workerType.workerType);
         await d();
       } catch (err) {

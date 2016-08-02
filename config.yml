@@ -1,7 +1,7 @@
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
-    iterationInterval: 10000
+    iterationInterval: 10
     maxInstanceLife: '- 96 hours'
     id: aws-provisioner-dev
     workerTypeTableName: DevWorkerTypes
@@ -68,7 +68,7 @@ production:
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
-    iterationInterval: 75000
+    iterationInterval: 75
     allowedRegions: !env:list ALLOWED_REGIONS
   server:
     publicUrl: https://aws-provisioner.taskcluster.net

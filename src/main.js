@@ -20,6 +20,7 @@ let v1 = require('./api-v1');
 let series = require('./influx-series');
 let azure = require('azure-storage');
 let Container = require('./container');
+let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
   debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
@@ -263,19 +264,42 @@ let load = base.loader({
         taskcluster: cfg.taskcluster,
         influx: influx,
         awsManager: awsManager,
-        provisionIterationInterval: cfg.app.iterationInterval,
-        dmsApiKey: cfg.deadmanssnitch.api.key,
-        iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
+        //provisionIterationInterval: cfg.app.iterationInterval,
+        //dmsApiKey: cfg.deadmanssnitch.api.key,
+        //iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
         stateContainer: stateContainer,
       });
 
-      try {
-        provisioner.run();
-      } catch (err) {
-        debug('[alert-operator] Error: ' + err.stack || err);
-      }
+      //return provisioner;
+      let i = new Iterate({
+        maxIterationTime: 1000 * 60 * 10,
+        watchDog: 1000 * 60 * 10,
+        maxFailures: 15,
+        waitTime: cfg.app.iterationInterval,
+        dmsConfig: {
+          apiKey: cfg.deadmanssnitch.api.key,
+          snitchUrl: cfg.deadmanssnitch.iterationSnitch,
+        },
+        handler: async (watchdog, state) => {
+          await provisioner.runAllProvisionersOnce();
+        },
+      });
+      i.start();
+      return new Promise((res, rej) => {
+        i.on('started', () => {
+          res();
+        })
 
-      return provisioner;
+        i.on('error', err => {
+          log.fatal(err);
+          log.fatal('exiting');
+          process.exit(1);
+          // Just in case we somehow get here due to a delay in process.exit
+          rej(err);
+        });
+      });
+      
+      //TODO the handler roughly should be provisioner.runAllProvisionersOnce();
     },
   },
 
