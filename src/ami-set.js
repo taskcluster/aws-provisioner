@@ -32,6 +32,7 @@ let AmiSet = base.Entity.configure({
     lastModified: base.Entity.types.Date,
 
   },
+  context: ['ec2'],
 });
 
 /**
