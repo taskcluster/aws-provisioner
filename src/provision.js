@@ -13,6 +13,7 @@ let series = require('./influx-series');
 
 const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 const MAX_FAILURES = 15;
+const MAX_PROVISIONING_TIME = 3 * 60 * 1000; // 3 minutes
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
@@ -296,12 +297,8 @@ class Provisioner {
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
 
-    // We'll only consider the first 400 requests.  Any that are dropped on the
-    // floor will be computed on the next iteration and have an equal chance of
-    // being submitted
-    forSpawning = forSpawning.slice(0, 400);
-
-    while (forSpawning.length > 0 && attemptsLeft-- > 0) {
+    let start = (new Date()).getTime();
+    while (forSpawning.length > 0 && attemptsLeft-- > 0 && (new Date()).getTime() - start < MAX_PROVISIONING_TIME) {
       let toSpawn = forSpawning.shift();
       try {
         debug('spawning a %s', toSpawn.workerType.workerType);
