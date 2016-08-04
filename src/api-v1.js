@@ -491,37 +491,45 @@ api.declare({
     return;
   }
 
-  // Create amiSet
   let amiSet;
-  try {
-    amiSet = await this.AmiSet.create({
-      id: id,
-      amis: input.amis,
-      lastModified: new Date(),
-    });
-  } catch (err) {
-    // We only catch EntityAlreadyExists errors
-    if (!err || err.code !== 'EntityAlreadyExists') {
-      throw err;
-    }
-    amiSet = await this.AmiSet.load({id});
+  let invalidAmis = await this.AmiSet.validate(this, input);
 
-    // Check if it matches the existing amiSet
-    let match = [
-      'amis',
-    ].every((key) => {
-      return _.isEqual(amiSet[key], input[key]);
-    });
-
-    // If we don't have a match we return 409, otherwise we continue as this is
-    // is an idempotent operation.
-    if (!match) {
-      res.status(409).json({
-        error: 'AMI Set already exists with different definition',
+  if (invalidAmis.length === 0) {
+    try {
+      amiSet = await this.AmiSet.create({
+        id: id,
+        amis: input.amis,
+        lastModified: new Date(),
       });
-      return;
+    } catch (err) {
+      // We only catch EntityAlreadyExists errors
+      if (!err || err.code !== 'EntityAlreadyExists') {
+        throw err;
+      }
+      amiSet = await this.AmiSet.load({id});
+
+      // Check if it matches the existing amiSet
+      let match = [
+        'amis',
+      ].every((key) => {
+        return _.isEqual(amiSet[key], input[key]);
+      });
+
+      // If we don't have a match we return 409, otherwise we continue as this is
+      // is an idempotent operation.
+      if (!match) {
+        res.status(409).json({
+          error: 'AMI Set already exists with different definition',
+        });
+        return;
+      }
     }
-  }
+  } else {
+    res.status(400).json({
+      message: id + ' contains invalid AMIs',
+    });
+    return;
+  };
   res.reply({outcome: 'success'});
   return;
 
@@ -558,6 +566,33 @@ api.declare({
 });
 
 api.declare({
+  method: 'get',
+  route: '/validate-ami-set/:id',
+  name: 'validateAmiSet',
+  title: 'Validate AMI Set',
+  stability:  base.API.stability.stable,
+  description: [
+    'Check if AMIs of given AMI set is still valid.',
+  ].join('\n'),
+}, async function (req, res) {
+  let id = req.params.id;
+
+  try {
+    let amiSet = await this.AmiSet.load({id});
+    return res.reply(await this.AmiSet.validate(this, amiSet));
+  } catch (err) {
+    if (err.code === 'ResourceNotFound') {
+      res.status(404).json({
+        error: err.code,
+        message: id + ' not found',
+      });
+    } else {
+      throw err;
+    }
+  };
+});
+
+api.declare({
   method: 'post',
   route: '/ami-set/:id/update',
   name: 'updateAmiSet',
@@ -589,11 +624,19 @@ api.declare({
   }
 
   let loadedAmiSet = await this.AmiSet.load({id});
+  let invalidAmis = await this.AmiSet.validate(this, loadedAmiSet);
 
-  await loadedAmiSet.modify(function(amiSet) {
-    // We know that data that gets to here is valid per-schema
-    amiSet.amis = input.amis;
-  });
+  if (invalidAmis.length === 0) {
+    await loadedAmiSet.modify(function(amiSet) {
+      amiSet.amis = input.amis;
+    });
+  } else {
+    res.status(400).json({
+      error: 400,
+      message: id + ' contains invalid AMIs',
+    });
+    return;
+  }
   return res.reply(loadedAmiSet.json());
 });
 

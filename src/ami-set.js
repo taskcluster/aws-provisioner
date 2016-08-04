@@ -1,4 +1,7 @@
 let base = require('taskcluster-base');
+let debug = require('debug')('aws-provisioner:AmiSet');
+let amiExists = require('./check-for-ami');
+let getVirtualizationType = require('./get-virtualization-type');
 
 const KEY_CONST = 'ami-set';
 
@@ -39,6 +42,7 @@ let AmiSet = base.Entity.configure({
  * Load the names of all the known Amis
  */
 AmiSet.listAmiSets = async function () {
+
   let names = [];
 
   await base.Entity.scan.call(this, {}, {
@@ -48,6 +52,49 @@ AmiSet.listAmiSets = async function () {
   });
 
   return names;
+};
+
+/**
+ * Checks if the AMIs from the amiSet are valid or not.
+ */
+
+async function checkAmi(ctx, region, ami, vtype) {
+  let request;
+  let missing = [];
+  let virtualizationType = '';
+
+  if (ami) {
+    request = {
+      ImageIds: [ami],
+    };
+    let exists = await amiExists(ctx.ec2[region], ami);
+    if (exists) {
+      virtualizationType = await getVirtualizationType(ctx.ec2[region], ami);
+      if (virtualizationType !== vtype) {
+        missing.push({imageId: ami, region: region, virtualizationType: virtualizationType});
+      }
+    } else {
+      missing.push({imageId: ami, region: region, virtualizationType: virtualizationType});
+    };
+  }
+  return missing;
+};
+
+AmiSet.validate = async function (ctx, amiSet) {
+  let missing = [];
+  let exists = false;
+
+  await Promise.all(amiSet.amis.map(async (def) => {
+
+    if (def.hvm) {
+      missing = missing.concat(await checkAmi(ctx, def.region, def.hvm, 'hvm'));
+    }
+    if (def.pv) {
+      missing = missing.concat(await checkAmi(ctx, def.region, def.pv, 'paravirtual'));
+    }
+  }));
+
+  return missing;
 };
 
 /**
