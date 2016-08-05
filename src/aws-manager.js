@@ -800,7 +800,6 @@ class AwsManager {
         reasons.push(new Error(`${r.launchSpec.ImageId} not found in ${r.region}`));
       }
 
-
       try {
         await this.ec2[r.region].requestSpotInstance({
           DryRun: true,
@@ -824,7 +823,6 @@ class AwsManager {
 
     return canLaunch;
   }
-
 
   /**
    * Count the capacity of this workerType that are in the states specified
