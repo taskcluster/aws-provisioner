@@ -8,6 +8,7 @@ let series = require('./influx-series');
 let keyPairs = require('./key-pairs');
 let _ = require('lodash');
 let delayer = require('./delayer');
+let amiExists = require('./check-for-ami');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -770,6 +771,57 @@ class AwsManager {
     }
 
     return workerTypes;
+  }
+
+  /**
+   * Decide whether the passed-in worker type is able to run
+   */
+  async workerTypeCanLaunch(worker) {
+    let canLaunch = true;
+    let reasons = []; // List of reasons why a worker type cannot launch
+
+    let launchSpecs;
+
+    // We return early here because if we can't even test launch specs,
+    // then there's no point in continuing
+    try {
+      let launchSpecs = worker.testLaunchSpecs();
+    } catch (err) {
+      canLaunch = false;
+      log.error({err}, 'cannot launch');
+      return false;
+    }
+
+    for (let r of worker.regions) {
+      let exists = await amiExists(this.ec2[r.region], r.launchSpec.ImageId);
+      // TODO: is this the right object to pass in for the ec2 value?
+      if (!exists) {
+        canLaunch = false;
+        reasons.push(new Error(`${r.launchSpec.ImageId} not found in ${r.region}`));
+      }
+
+      try {
+        await this.ec2[r.region].requestSpotInstance({
+          DryRun: true,
+          Type: 'one-time',
+          LaunchSpecification: launchSpecs[r.region],
+          SpotPrice: '0.1',
+        }).promise();
+      } catch (err) {
+        if (err.code !== 'DryRunOperation') {
+          canLaunch = false;
+          reasons.push(err);
+        }
+      }
+    }
+
+    if (!canLaunch) {
+      for (let x = 0; x < reasons.length; x++) {
+        log.error({err: reasons[x]}, 'cannot launch reason ' + x);
+      }
+    }
+
+    return canLaunch;
   }
 
   /**
