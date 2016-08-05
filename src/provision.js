@@ -111,7 +111,7 @@ class Provisioner {
     try {
       do {
         debug('starting iteration %d, consecutive failures %d',
-              this.__stats.runs, this.__stats.consecFail);
+            this.__stats.runs, this.__stats.consecFail);
 
         // If we don't do this, we'll have an uncaught exception
         this.__watchDog.touch();
@@ -275,7 +275,7 @@ class Provisioner {
         debug('destroying %d for %s', capToKill, worker.workerType);
         try {
           await this.awsManager.killCapacityOfWorkerType(
-                worker, capToKill, ['pending', 'spotReq']);
+              worker, capToKill, ['pending', 'spotReq']);
         } catch (killCapErr) {
           debug('[alert-operator] error running the capacity killer');
           debug(killCapErr.stack || killCapErr);
@@ -295,6 +295,21 @@ class Provisioner {
     // We want to shuffle up the bids so that we don't prioritize
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
+
+    // Let's find the unique worker types in the list of requests to make
+    let toSpawnWorkerTypes = _.intersection(forSpawning.map(x => x.workerType.workerType));
+
+    let disabled = [];
+    for (let toTest of workerTypes.filter(x => toSpawnWorkerTypes.indexOf(x) !== -1)) {
+      // Consider iterating over a list where we filter out those worker types
+      // which don't have outstanding requests
+      let canLaunch = await this.awsManager.workerTypeCanLaunch(toTest);
+      if (!canLaunch) {
+        disabled.push(toTest.workerType);
+      }
+    }
+
+    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType) === -1);
 
     // We'll only consider the first 400 requests.  Any that are dropped on the
     // floor will be computed on the next iteration and have an equal chance of
