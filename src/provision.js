@@ -224,10 +224,6 @@ class Provisioner {
       debug('ran rogue killer');
       await this.awsManager.zombieKiller();
       debug('ran zombie killer');
-      for (let name of workerNames) {
-        await this.awsManager.createKeyPair(name);
-      }
-      debug('all key pairs created');
     } catch (err) {
       debug('failure running a housekeeping task');
       debug(err);
@@ -340,6 +336,8 @@ class Provisioner {
         forSpawning.push(toSpawn);
       }
     }
+
+    await this.awsManager.saveSpotRequestIdCache();
 
     let duration = new Date() - allProvisionerStart;
     debug('running all provisioning iterations took ' + duration + 'ms');

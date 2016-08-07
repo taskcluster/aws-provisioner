@@ -31,6 +31,26 @@ let load = base.loader({
     setup: ({profile}) => base.config(profile),
   },
 
+  spotRequestContainer: {
+    requires: ['cfg', 'profile'],
+    setup: async ({cfg, profile}) => {
+      // Azure Storage doesn't have promises, but we're using it in so few
+      // places it doesn't make sense to write a full promise wrapper.
+      // Instead, we'll just wrap as needed.
+      // TODO: Use ExponentialRetryPolicyFilter
+      let containerName = `spot-requests-${profile}`;
+      let container = await Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, containerName);
+      return container;
+    },
+  },
+
+  srcontclean: {
+    requires: ['spotRequestContainer'],
+    setup: async ({spotRequestContainer}) => {
+      await spotRequestContainer.remove('spot-requests');
+    },
+  },
+
   stateContainer: {
     requires: ['cfg', 'profile'],
     setup: async ({cfg, profile}) => {
@@ -38,8 +58,9 @@ let load = base.loader({
       // places it doesn't make sense to write a full promise wrapper.
       // Instead, we'll just wrap as needed.
       // TODO: Use ExponentialRetryPolicyFilter
-      let container = `worker-state-${profile}`;
-      return Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, container);
+      let containerName = `worker-state-${profile}`;
+      let container = await Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, containerName);
+      return container;
     },
   },
 
@@ -51,10 +72,8 @@ let load = base.loader({
         table: cfg.app.workerTypeTableName,
         credentials: cfg.taskcluster.credentials,
         context: {
-          keyPrefix: cfg.app.awsKeyPrefix,
           provisionerId: cfg.app.id,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
-          pubKey: cfg.app.awsInstancePubkey,
         },
       });
       return WorkerType;
@@ -84,7 +103,7 @@ let load = base.loader({
       return Secret;
     },
   },
-
+  
   validator: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
@@ -151,8 +170,6 @@ let load = base.loader({
           AmiSet: AmiSet,
           Secret: Secret,
           publisher: publisher,
-          keyPrefix: cfg.app.awsKeyPrefix,
-          pubKey: cfg.app.awsInstancePubkey,
           provisionerId: cfg.app.id,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
           reportInstanceStarted: reportInstanceStarted,
@@ -237,16 +254,17 @@ let load = base.loader({
   },
 
   awsManager: {
-    requires: ['cfg', 'ec2', 'influx'],
-    setup: ({cfg, ec2, influx}) => {
-      return new AwsManager(
+    requires: ['cfg', 'ec2', 'influx', 'spotRequestContainer'],
+    setup: async ({cfg, ec2, influx, spotRequestContainer}) => {
+      let awsManager = new AwsManager(
         ec2,
         cfg.app.id,
-        cfg.app.awsKeyPrefix,
-        cfg.app.awsInstancePubkey,
         cfg.app.maxInstanceLife,
+        spotRequestContainer,
         influx
       );
+      await awsManager.init();
+      return awsManager;
     },
   },
 
