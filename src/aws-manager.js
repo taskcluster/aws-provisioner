@@ -115,6 +115,9 @@ class AwsManager {
     // to avoid needing to load it *every* time from azure
     this.__spotRequestIdCache = [];
 
+    // These are instance ids that we *know* aren't ours, so let's never consider them.
+    this.__unmanagedInstances = [];
+
     // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
     this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
@@ -127,40 +130,158 @@ class AwsManager {
 
   async init(){
     try {
-      let rawJson = this.spotRequestContainer.read('spot-requests');
-      this.__spotRequestIdCache = JSON.parse(rawJson);
+      let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
+      let data = JSON.parse(rawJson);
+      this.__spotRequestIdCache = data.managedSpotRequests;
+      this.__unmanagedInstances = data.unmanagedInstances;
     } catch (err) {
+      if (err.code !== 'BlobNotFound') {
+        throw err;
+      }
       this.__spotRequestIdCache = [];
-      return;
+      this.__unmanagedInstances = [];
     }
   }
 
-  async saveSpotRequestIdCache() {
-    console.log('Saving spot request info');
-    console.dir(this.__spotRequestIdCache);
-    this.__spotRequestIdCache = this.__spotRequestIdCache.filter(sr => {
-      let diff = Date.now() - sr.created;
-      // If we've known about this SR for more than 5 days, evict it, otherwise
+  async saveAwsManagerInternalState() {
+    // We use this for both of the current internal caches... let's just use
+    // the same code for both
+    function expire(item) {
+      let diff = Date.now() - item.created;
+      // If we've known about this for more than 5 days, evict it, otherwise
       // keep it.  5 days is a good amount since we force kill things even if
       // they're running after 4 days.  This lets us have a full extra day
       if (diff > 1000 * 60 * 60 * 24 * 5) {
         return false;
       }
       return true;
-    });
+    }
 
-    return this.spotRequestContainer.write('spot-requests', JSON.stringify(this.__spotRequestIdCache));
+    this.__spotRequestIdCache = this.__spotRequestIdCache.filter(expire);
+    this.__unmanagedInstances = this.__unmanagedInstance.filter(expire);
+
+    let data = JSON.stringify({
+      managedSpotRequests: this.__spotRequestIdCache,
+      unmanagedInstances: this.__unmanagedInstances,
+    }, null, 2);
+
+    return this.spotRequestContainer.write('internal-provisioner-data', data);
   }
 
   /**
    * Simplify how we access stored spot request ids
    */
-  async workerTypeForResource(srid) {
-    let found = this.__spotRequestIdCache.filter(x => x.id === srid);
-    if (found.length !== 1) {
+  async workerTypeForResource(region, srid, instanceId) {
+    assert(typeof region === 'string');
+    assert(typeof srid === 'string');
+    if (instanceId) {
+      assert(typeof instanceId === 'string');
+    }
+
+    // First, we should check to see if we have the mapping of
+    // SpotInstanceRequestId in memory (which we persist to an azure blob
+    // storage blob)
+    let found = this.__spotRequestIdCache.filter(x => x.id === srid && x.region === region);
+    if (found.length === 1) {
+      return found[0].workerType;
+    } else if (found.length > 1) {
+      throw new Error(`We have multiple results for the SRID (${srid}) but should have one`);
+    }
+
+    // If we have no instance ID at this point, we cannot do any further
+    // checking to see which WorkerType this belongs to.  As well, since
+    // unfulfilled spot request don't cost us money, we're not worried about
+    // rouges costing money.
+    if (!instanceId) {
       return null;
     }
-    return found[0].workerType;
+
+    // If we're here, we have not found a result.  This means that we should
+    // try to load the UserData if we can.  We do this because there's a chance
+    // that an instance becomes 'rouge'.  That state is where an instance keeps
+    // running but does not belong to any worker type.  In an ideal world, the
+    // provisioner would have its own credentials and its own set of instances
+    // and anything in the account would be owned by the provisioner.  If this
+    // were the case, we wouldn't need this since we could just kill all
+    // instances which aren't in the SRID->WorkerType map that we use above.
+
+    // First, let's double check to see if we know that this is definiately
+    // unmanaged
+    for (let x of this.__unmanagedInstances) {
+      if (x.instanceId === instanceId && x.region === region) {
+        return null;
+      }
+    }
+    
+    // Next, we know that it's not known to be unmanaged, so let's check if
+    // it's managed by us or just an arbitrary instance
+    let workerType;
+    workerType = await this.getWorkerTypeFromUserData(region, instanceId);
+    if (!workerType) {
+      this.__unmanagedInstances.push({
+        region,
+        instanceId,
+        created: Date.now(),
+      }); 
+      /*log.error({
+        srid,
+        instanceId,
+        region,
+      }, 'could not retreive WorkerType from UserData, ignoring');*/
+      return null;
+    }
+
+    // Now we know how this instance maps back to a worker type, let's add it
+    // to the faster cache to avoid having to look up user data again.
+    this.__spotRequestIdCache.push({
+      id: srid,
+      region: region,
+      workerType: workerType,
+      created: Date.now(),
+    });
+
+    return workerType;
+  }
+
+  /**
+   * With best effort, try to map an instance ID in a region back to the worker
+   * type it's for, but only if it's the same provisioner we're operating with.
+   * Failures in the underlying EC2 calls will not be bubbled, rather will log
+   * and ignore.  An unknown worker type will have a `null` return value.
+   */
+  async getWorkerTypeFromUserData(region, instanceId) {
+    assert(typeof region === 'string');
+    assert(typeof instanceId === 'string');
+    let rawUserData;
+    try {
+      rawUserData = await this.ec2[region].describeInstanceAttribute({
+        Attribute: 'userData',
+        InstanceId: instanceId,
+      }).promise();
+    } catch(err) {
+      // Log it, but move on... this is a best effort service
+      log.error({
+        err,
+        instanceId,
+        region,
+      }, 'looking up user data of instance');
+      return null;
+    }
+
+    // Any failures related to formatting are a sign that this is not a provisioner
+    // owned instance, so we should just ignore it
+    try {
+      let userData = JSON.parse(new Buffer(rawUserData.data.UserData.Value, 'base64'));
+      if (userData.workerType && userData.provisionerId === this.provisionerId) {
+        return userData.workerType;
+      }
+      return null;
+    } catch(err) {
+      // All errors mean that the data was in an unexpected format.  Even a
+      // failure in the EC2 call is treated this way because this is a best
+      // effort service.  We'll just try again next time.
+      return null;
+    }
   }
 
   /**
@@ -283,7 +404,7 @@ class AwsManager {
             if (!instance.SpotInstanceRequestId) {
               continue;
             }
-            let workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            let workerType = await this.workerTypeForResource(region, instance.SpotInstanceRequestId, instance.InstanceId);
             if (!workerType) {
               continue;
             }
@@ -300,7 +421,7 @@ class AwsManager {
         // and make new requests for their pending tasks
         let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
-          let workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          let workerType = await this.workerTypeForResource(region, request.SpotInstanceRequestId);
           if (!workerType) {
             continue;
           }
@@ -325,7 +446,7 @@ class AwsManager {
             if (!instance.SpotInstanceRequestId) {
               continue;
             }
-            let workerType = await this.workerTypeForSRID(instance.SpotInstanceRequestId);
+            let workerType = await this.workerTypeForResource(region, instance.SpotInstanceRequestId, instance.InstanceId);
             if (!workerType) {
               continue;
             }
@@ -341,7 +462,7 @@ class AwsManager {
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = await this.workerTypeForSRID(request.SpotInstanceRequestId);
+          let workerType = await this.workerTypeForResource(region, request.SpotInstanceRequestId);
           if (!workerType) {
             continue;
           }
