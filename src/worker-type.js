@@ -477,6 +477,8 @@ WorkerType.createLaunchSpec = function(bid, worker, provisionerId, provisionerBa
   }
 
   // Set the KeyPair, InstanceType and availability zone correctly
+  // Note: src/aws-manager.js also uses this name for the key pair.
+  // if you change this here, change it there.
   config.launchSpec.KeyName = `${provisionerId}-ssh-key`;
   config.launchSpec.InstanceType = bid.type;
 

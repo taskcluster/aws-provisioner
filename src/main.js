@@ -148,7 +148,7 @@ let load = base.loader({
             }
           },
         };
-        ec2conf.logger = awsDebugLoggerBridge;
+        //ec2conf.logger = awsDebugLoggerBridge;
         ec2[region] = new aws.EC2(ec2conf);
       }
 
@@ -264,6 +264,7 @@ let load = base.loader({
         influx
       );
       await awsManager.init();
+      await awsManager.update(60 * 15);
       return awsManager;
     },
   },
