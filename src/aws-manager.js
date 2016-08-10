@@ -115,9 +115,6 @@ class AwsManager {
     // to avoid needing to load it *every* time from azure
     this.__spotRequestIdCache = [];
 
-    // These are instance ids that we *know* aren't ours, so let's never consider them.
-    this.__unmanagedInstances = [];
-
     // Set up influxdb reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
     this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
@@ -133,13 +130,11 @@ class AwsManager {
       let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
       let data = JSON.parse(rawJson);
       this.__spotRequestIdCache = data.managedSpotRequests;
-      this.__unmanagedInstances = data.unmanagedInstances;
     } catch (err) {
       if (err.code !== 'BlobNotFound') {
         throw err;
       }
       this.__spotRequestIdCache = [];
-      this.__unmanagedInstances = [];
     }
   }
 
@@ -158,11 +153,9 @@ class AwsManager {
     }
 
     this.__spotRequestIdCache = this.__spotRequestIdCache.filter(expire);
-    this.__unmanagedInstances = this.__unmanagedInstance.filter(expire);
 
     let data = JSON.stringify({
       managedSpotRequests: this.__spotRequestIdCache,
-      unmanagedInstances: this.__unmanagedInstances,
     }, null, 2);
 
     fs.writeFileSync('internal-data.json', data);
@@ -172,27 +165,41 @@ class AwsManager {
   /**
    * Simplify how we access stored spot request ids
    */
-  async workerTypeForResource(region, srid, instanceId) {
+  async workerTypeForResource(resource, region) {
+    assert(typeof resource === 'object');
     assert(typeof region === 'string');
-    assert(typeof srid === 'string');
-    if (instanceId) {
-      assert(typeof instanceId === 'string');
-    }
+
+    let srid = resource.SpotInstanceRequestId;
+    let instanceId = resource.InstanceId;
 
     // First, we should check to see if we have the mapping of
     // SpotInstanceRequestId in memory (which we persist to an azure blob
-    // storage blob)
+    // storage blob).  If this item is in that cache, we can be sure that the
+    // provisioner both owns it because it created it, and also which worker
+    // type, since we add that information to the cache when we add the id.
     let found = this.__spotRequestIdCache.filter(x => x.id === srid && x.region === region);
     if (found.length === 1) {
       return found[0].workerType;
     } else if (found.length > 1) {
-      throw new Error(`We have multiple results for the SRID (${srid}) but should have one`);
+      let firstX = found[0].workerType;
+      // making a wasted comparison of the first is probably faster than
+      // slicing the array
+      for (let x of found) {
+        if (firstX !== x.workerType) {
+          let err = new Error('Multiple worker type possiblities found');
+          log.error({err, workerTypesFound: found.map(x => x.workerType)}, 'found too many');
+          throw err;
+        }
+      }
     }
-
+ 
     // If we have no instance ID at this point, we cannot do any further
     // checking to see which WorkerType this belongs to.  As well, since
     // unfulfilled spot request don't cost us money, we're not worried about
     // rouges costing money.
+    // TODO: Consider using DescribeTags with filters to see if this instance
+    // or spot request has already been tagged.  Also tag things as part of
+    // requestSpotInstance
     if (!instanceId) {
       return null;
     }
@@ -206,30 +213,20 @@ class AwsManager {
     // were the case, we wouldn't need this since we could just kill all
     // instances which aren't in the SRID->WorkerType map that we use above.
 
-    // First, let's double check to see if we know that this is definiately
-    // unmanaged
-    for (let x of this.__unmanagedInstances) {
-      if (x.instanceId === instanceId && x.region === region) {
-        return null;
-      }
-    }
-    
-    // Next, we know that it's not known to be unmanaged, so let's check if
-    // it's managed by us or just an arbitrary instance
-    let workerType;
-    workerType = await this.getWorkerTypeFromUserData(region, instanceId);
+    let workerType = await this.getWorkerTypeFromUserData(region, instanceId);
     if (!workerType) {
-      this.__unmanagedInstances.push({
-        region,
-        instanceId,
-        created: Date.now(),
-      }); 
-      /*log.error({
-        srid,
-        instanceId,
-        region,
-      }, 'could not retreive WorkerType from UserData, ignoring');*/
-      return null;
+      // If we're here, we know that this is a managed instance.  We could either
+      // return the workerType to add that metadata to the internal picture of state,
+      // but since the desired outcome of that would be to have the rogue killer
+      // kill it, why not just short circuit that and kill it here.  We should
+      // have both a spot request id and an instance id here, but since it's so
+      // simple to make allowances for if we ever did ondemand, let's just do it
+      let i = [];
+      if (instanceId) i.push(instanceId);
+      let r = [];
+      if (srid) r.push(srid);
+      await this.killCancel(region, i, r);
+      log.info('killed a rogue instance while determining worker type');
     }
 
     // Now we know how this instance maps back to a worker type, let's add it
@@ -332,6 +329,11 @@ class AwsManager {
     // We had an issue where the EC2 api would freeze up on these api calls and
     // would never reject or resolve.  That's why we now race a 240s timeout
     // and reject this promise if the state calls take longer than 240s
+    //
+    // Note: src/worker-type.js also uses this name for the key pair.  If you
+    // change this value here, make sure you change it there as well.
+    let sshKeyName = this.provisionerId + '-ssh-key';
+
     await Promise.race([
       delayer(maxWait * 1000)().then(() => {
         throw new Error('Timeout while updating AWS Api State');
@@ -346,6 +348,10 @@ class AwsManager {
                 Name: 'instance-state-name',
                 Values: ['running', 'pending'],
               },
+              {
+                Name: 'key-name',
+                Values: [sshKeyName],
+              }
             ],
           }).promise(),
           // Living spot requests
@@ -354,6 +360,10 @@ class AwsManager {
               {
                 Name: 'state',
                 Values: ['open'],
+              },
+              {
+                Name: 'launch.key-name',
+                Values: [sshKeyName],
               },
             ],
           }).promise(),
@@ -364,6 +374,10 @@ class AwsManager {
                 Name: 'instance-state-name',
                 Values: ['shutting-down', 'terminated', 'stopping'],
               },
+              {
+                Name: 'key-name',
+                Values: [sshKeyName],
+              }
             ],
           }).promise(),
           // Dead spot requests
@@ -372,6 +386,10 @@ class AwsManager {
               {
                 Name: 'state',
                 Values: ['cancelled', 'failed', 'closed', 'active'],
+              },
+              {
+                Name: 'launch.key-name',
+                Values: [sshKeyName],
               },
             ],
           }).promise(),
@@ -405,7 +423,7 @@ class AwsManager {
             if (!instance.SpotInstanceRequestId) {
               continue;
             }
-            let workerType = await this.workerTypeForResource(region, instance.SpotInstanceRequestId, instance.InstanceId);
+            let workerType = await this.workerTypeForResource(instance, region);
             if (!workerType) {
               continue;
             }
@@ -422,7 +440,7 @@ class AwsManager {
         // and make new requests for their pending tasks
         let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
-          let workerType = await this.workerTypeForResource(region, request.SpotInstanceRequestId);
+          let workerType = await this.workerTypeForResource(request, region);
           if (!workerType) {
             continue;
           }
@@ -447,7 +465,7 @@ class AwsManager {
             if (!instance.SpotInstanceRequestId) {
               continue;
             }
-            let workerType = await this.workerTypeForResource(region, instance.SpotInstanceRequestId, instance.InstanceId);
+            let workerType = await this.workerTypeForResource(instance, region);
             if (!workerType) {
               continue;
             }
@@ -463,7 +481,7 @@ class AwsManager {
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = await this.workerTypeForResource(region, request.SpotInstanceRequestId);
+          let workerType = await this.workerTypeForResource(request, region);
           if (!workerType) {
             continue;
           }
@@ -1027,8 +1045,6 @@ class AwsManager {
       x(r, r.SpotInstanceRequestId);
     }
     
-    console.dir(tags);
-
     let tagPromises = [];
     for (let region of Object.keys(tags)) {
       for (let workerType of Object.keys(tags[region])) {
