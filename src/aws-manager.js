@@ -129,8 +129,10 @@ class AwsManager {
     try {
       let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
       let data = JSON.parse(rawJson);
-      this.__spotRequestIdCache = data.managedSpotRequests;
-      this.__internalState = data.internallyTrackedSpotRequests;
+      // This is mainly for debugging
+      fs.writeFileSync('internal-data.json', data);
+      this.__spotRequestIdCache = data.managedSpotRequests || []; 
+      this.__internalState = data.internallyTrackedSpotRequests || [];
     } catch (err) {
       if (err.code !== 'BlobNotFound') {
         throw err;
@@ -157,8 +159,8 @@ class AwsManager {
     this.__spotRequestIdCache = this.__spotRequestIdCache.filter(expire);
 
     let data = JSON.stringify({
-      managedSpotRequests: this.__spotRequestIdCache,
-      internallyTrackedSpotRequests: this.__internalState,
+      managedSpotRequests: this.__spotRequestIdCache || [],
+      internallyTrackedSpotRequests: this.__internalState || [],
     }, null, 2);
 
     fs.writeFileSync('internal-data.json', data);
