@@ -28,7 +28,7 @@ process.on('unhandledRejection', err => {
 let load = base.loader({
   cfg: {
     requires: ['profile'],
-    setup: ({profile}) => base.config(profile),
+    setup: ({profile}) => base.config({profile}),
   },
 
   stateContainer: {
