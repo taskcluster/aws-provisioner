@@ -1,3 +1,5 @@
+---
+
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
@@ -102,6 +104,7 @@ test:
     publishMetaData: false
     statsComponent: aws-provisioner-test
     awsKeyPrefix: "aws-provisioner-test-managed:"
+    awsInstancePubkey: 'fake-pubkey'
     allowedRegions:
       - 'us-west-2'
   server:

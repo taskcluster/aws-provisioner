@@ -5,7 +5,8 @@ defaults:
     secretAccessKey:    '...'
     region:             us-west-2
   # Taskcluster credentials with
-  # - "auth:azure-table-access:jungle/DevWorkerTypes"
+  # - "auth:azure-table-access:jungle/TestWorkerTypes"
+  # - "auth:azure-table-access:jungle/TestWorkerSecrets"
   taskcluster:
     credentials:
       clientId:         '...'
