@@ -29,7 +29,7 @@ describe('secrets api', () => {
   beforeEach(async () => {
     await main('tableCleaner', {process: 'tableCleaner', profile: 'test'});
   });
-  
+
   it('should be able to create a secret (idempotent)', async () => {
     await client.createSecret(token, secretToAdd);
     await client.createSecret(token, secretToAdd);

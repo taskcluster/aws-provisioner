@@ -108,8 +108,8 @@ test:
     allowedRegions:
       - 'us-west-2'
   server:
-    publicUrl: https://localhost:60407
-    port: !env:number PORT
+    publicUrl: http://localhost:60407
+    port: 60407
   azure:
     account: jungle
   deadmanssnitch:
