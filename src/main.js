@@ -47,6 +47,16 @@ let load = base.loader({
     },
   },
 
+  monitor: {
+    requires: ['process', 'profile', 'cfg'],
+    setup: ({process, profile, cfg}) => base.monitor({
+      project: 'aws-provisioner',
+      credentials: cfg.taskcluster.credentials,
+      mock: profile === 'test',
+      process,
+    }),
+  },
+
   WorkerType: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
@@ -100,8 +110,8 @@ let load = base.loader({
   },
 
   publisher: {
-    requires: ['cfg', 'validator', 'influx'],
-    setup: async ({cfg, validator, influx}) => {
+    requires: ['cfg', 'validator', 'monitor'],
+    setup: async ({cfg, validator, monitor}) => {
       let publisher = await exchanges.setup({
         credentials: cfg.pulse,
         exchangePrefix: cfg.app.exchangePrefix,
@@ -109,9 +119,7 @@ let load = base.loader({
         referencePrefix: 'aws-provisioner/v1/exchanges.json',
         publish: cfg.app.publishMetaData,
         aws: cfg.aws,
-        drain: influx,
-        component: cfg.app.statsComponent,
-        process: 'server',
+        monitor: monitor.prefix('publisher'),
       });
 
       return publisher;
@@ -146,9 +154,9 @@ let load = base.loader({
 
   api: {
     requires: ['cfg', 'awsManager', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator',
-               'publisher', 'influx'],
+               'publisher', 'influx', 'monitor'],
     setup: async ({cfg, awsManager, WorkerType, AmiSet, Secret, ec2, stateContainer, validator,
-                   publisher, influx}) => {
+                   publisher, influx, monitor}) => {
 
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
 
@@ -176,8 +184,7 @@ let load = base.loader({
         baseUrl: cfg.server.publicUrl + '/v1',
         referencePrefix: 'aws-provisioner/v1/api.json',
         aws: cfg.aws,
-        component: cfg.app.statsComponent,
-        drain: influx,
+        monitor: monitor.prefix('api'),
       });
 
       return router;
@@ -244,22 +251,23 @@ let load = base.loader({
   },
 
   awsManager: {
-    requires: ['cfg', 'ec2', 'influx'],
-    setup: ({cfg, ec2, influx}) => {
+    requires: ['cfg', 'ec2', 'influx', 'monitor'],
+    setup: ({cfg, ec2, influx, monitor}) => {
       return new AwsManager(
         ec2,
         cfg.app.id,
         cfg.app.awsKeyPrefix,
         cfg.app.awsInstancePubkey,
         cfg.app.maxInstanceLife,
-        influx
+        influx,
+        monitor.prefix('awsManager')
       );
     },
   },
 
   provisioner: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'influx'],
-    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, influx}) => {
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'influx', 'monitor'],
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, influx, monitor}) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
       let provisioner = new provision.Provisioner({
@@ -269,6 +277,7 @@ let load = base.loader({
         provisionerId: cfg.app.id,
         taskcluster: cfg.taskcluster,
         influx: influx,
+        monitor: monitor.prefix('provisioner'),
         awsManager: awsManager,
         stateContainer: stateContainer,
       });

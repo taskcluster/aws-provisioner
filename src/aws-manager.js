@@ -83,13 +83,14 @@ function dateForInflux(thingy) {
  *      submit data points to an influx instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
     assert(pubKey);
     assert(maxInstanceLife);
     assert(influx);
+    assert(monitor);
 
     this.ec2 = ec2;
     this.provisionerId = provisionerId;
@@ -97,6 +98,7 @@ class AwsManager {
     this.pubKey = pubKey;
     this.maxInstanceLife = maxInstanceLife;
     this.influx = influx;
+    this.monitor = monitor;
 
     // Known keypairs are tracked so that we don't have to retreive the list of
     // all known key pairs on every iteration.
