@@ -285,9 +285,6 @@ class Provisioner {
     const d = delayer(500);
     const longD = delayer(2000);
 
-    // We want to have a maximum number of attempts
-    let attemptsLeft = forSpawning.length * 2;
-
     // We want to shuffle up the bids so that we don't prioritize
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
@@ -305,37 +302,49 @@ class Provisioner {
       }
     }
 
-    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType) === -1);
+    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType.workerType) === -1);
 
-    // We'll only consider the first 400 requests.  Any that are dropped on the
-    // floor will be computed on the next iteration and have an equal chance of
-    // being submitted
-    forSpawning = forSpawning.slice(0, 400);
-
-    while (forSpawning.length > 0 && attemptsLeft-- > 0) {
-      let toSpawn = forSpawning.shift();
-      try {
-        debug('spawning a %s', toSpawn.workerType.workerType);
-        await this.spawn(toSpawn.workerType, toSpawn.bid);
-        this.__watchDog.touch();
-        debug('spawned a %s', toSpawn.workerType.workerType);
-        await d();
-      } catch (err) {
-        try {
-          await longD();
-        } catch (longWaitErr) {
-          debug(longWaitErr);
-          debug(longWaitErr.stack);
-        }
-        debug('error spawning %s with bid %j, reinserting into list of bids to make',
-            toSpawn.workerType.workerType, toSpawn.bid);
-        debug(err);
-        if (err.stack) {
-          debug(err.stack);
-        }
-        forSpawning.push(toSpawn);
+    let byRegion = {};
+    for (let x of forSpawning) {
+      assert(x.bid && x.bid.region);
+      let r = x.bid.region;
+      if (!byRegion[r]) {
+        byRegion[r] = [x];
+      } else {
+        byRegion[r].push(x);
       }
     }
+
+    log.info('submitting all spawn requests');
+
+    await Promise.all(_.map(byRegion, async(toSpawn, region) => {
+      let rLog = log.child({region});
+      rLog.info('submitting spot requests in region');
+      let inRegion = byRegion[region];
+      inRegion = inRegion.slice(0, 400);
+
+      for (let toSpawn of inRegion) {
+        try {
+          rLog.info({
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+          }, 'submitting spot request');
+
+          await this.spawn(toSpawn.workerType, toSpawn.bid);
+          await d();
+          rLog.info({
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+          }, 'finished submitting spot request');
+        } catch (err) {
+          rLog.err({
+            err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+          }, 'finished submitting spot request');
+        }
+      }
+
+      rLog.info('finished submitting spot requests in region');
+    }));
+
+    log.info('submitted all spawn requests');
 
     await this.awsManager.saveAwsManagerInternalState();
 
