@@ -264,7 +264,6 @@ let load = base.loader({
         influx
       );
       await awsManager.init();
-      await awsManager.update(60 * 15);
       return awsManager;
     },
   },

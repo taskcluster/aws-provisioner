@@ -7,7 +7,7 @@ let taskcluster = require('taskcluster-client');
 let series = require('./influx-series');
 let _ = require('lodash');
 let delayer = require('./delayer');
-let fs = require('fs');
+//let fs = require('fs');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -130,7 +130,7 @@ class AwsManager {
       let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
       let data = JSON.parse(rawJson);
       // This is mainly for debugging
-      fs.writeFileSync('internal-data.json', data);
+      //fs.writeFileSync('internal-data.json', data);
       this.__spotRequestIdCache = data.managedSpotRequests || []; 
       this.__internalState = data.internallyTrackedSpotRequests || [];
     } catch (err) {
@@ -163,7 +163,7 @@ class AwsManager {
       internallyTrackedSpotRequests: this.__internalState || [],
     }, null, 2);
 
-    fs.writeFileSync('internal-data.json', data);
+    //fs.writeFileSync('internal-data.json', data);
     return this.spotRequestContainer.write('internal-provisioner-data', data);
   }
 
@@ -275,6 +275,7 @@ class AwsManager {
     // owned instance, so we should just ignore it
     try {
       let userData = JSON.parse(new Buffer(rawUserData.data.UserData.Value, 'base64'));
+      console.log(userData);
       if (userData.workerType && userData.provisionerId === this.provisionerId) {
         return userData.workerType;
       }
@@ -283,6 +284,10 @@ class AwsManager {
       // All errors mean that the data was in an unexpected format.  Even a
       // failure in the EC2 call is treated this way because this is a best
       // effort service.  We'll just try again next time.
+      log.warn({
+        err,
+        rawUserData,
+      }, 'could not parse userdata');
       return null;
     }
   }
