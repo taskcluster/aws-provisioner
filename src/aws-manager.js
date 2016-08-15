@@ -142,20 +142,13 @@ class AwsManager {
   }
 
   async saveAwsManagerInternalState() {
-    // We use this for both of the current internal caches... let's just use
-    // the same code for both
-    function expire(item) {
-      let diff = Date.now() - item.created;
-      // If we've known about this for more than 5 days, evict it, otherwise
-      // keep it.  5 days is a good amount since we force kill things even if
-      // they're running after 4 days.  This lets us have a full extra day
-      if (diff > 1000 * 60 * 60 * 24 * 5) {
-        return false;
-      }
-      return true;
-    }
+    // Expire spot requests ids from state after 5 days, ensuring an extra day
+    // after force kill
+    const stateExpiration = 1000 * 60 * 60 * 24 * 5;
 
-    this.__spotRequestIdCache = this.__spotRequestIdCache.filter(expire);
+    this.__spotRequestIdCache = this.__spotRequestIdCache.filter(i => {
+      return Date.now() - i.created < stateExpiration
+    });
 
     let data = JSON.stringify({
       managedSpotRequests: this.__spotRequestIdCache || [],
@@ -166,7 +159,9 @@ class AwsManager {
   }
 
   /**
-   * Simplify how we access stored spot request ids
+   * Given a resource (Instance or SpotInstanceRequest ec2 data type) and a
+   * region, determine using a variety of means to see if we can map the
+   * resource to a WorkerType.
    */
   async workerTypeForResource(resource, region) {
     assert(typeof resource === 'object');
