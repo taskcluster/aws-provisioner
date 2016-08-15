@@ -125,7 +125,7 @@ class AwsManager {
     this.reportAmiUsage = series.amiUsage.reporter(influx);
   }
 
-  async init(){
+  async init() {
     try {
       let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
       let data = JSON.parse(rawJson);
@@ -182,7 +182,9 @@ class AwsManager {
     // type, since we add that information to the cache when we add the id.
     let found = this.__spotRequestIdCache.filter(x => x.id === srid && x.region === region);
     if (found.length === 1) {
-      return found[0].workerType;
+      let workerType = found[0].workerType;
+      log.info({workerType}, 'found workerType in spotRequestIdCache');
+      return workerType;
     } else if (found.length > 1) {
       let firstX = found[0].workerType;
       // making a wasted comparison of the first is probably faster than
@@ -195,6 +197,47 @@ class AwsManager {
         }
       }
     }
+
+    // Next, let's test if the instance has already had tags applied.  We
+    // cannot rely on tags being there because there is a two-step process for
+    // tagging, however, we can assume that if an instance has the right tag
+    // that it's correct and is how we should categorise things.  Since we only
+    // tag on the following iteration, we might get into the situation where a
+    // resource is created, forgotten about, then untagged.  For these cases,
+    // we'll continue later on and use the instanceId checks when the request
+    // turns into an instance.
+    if (resource.TagSet) {
+      let owned = false;
+      let workerType;
+      for (let tag of resource.TagSet) {
+        if (owned && workerType) {
+          break; // we already have what we need
+        }
+        switch (tag.Key) {
+          case 'Owner':
+            if (tag.Value === this.provisionerId) {
+              owned = true;
+            }
+            break;
+          case 'Name':
+            workerType = tag.Value;
+            break;
+          default:
+            break;
+        }
+      }
+
+      if (owned && name) {
+        this.__spotRequestIdCache.push({
+          id: srid,
+          region: region,
+          workerType: workerType,
+          created: Date.now(),
+        });
+        log.info({workerType}, 'found workerType in resource.TagSet');
+        return name;
+      }
+    }
  
     // If we have no instance ID at this point, we cannot do any further
     // checking to see which WorkerType this belongs to.  As well, since
@@ -204,6 +247,7 @@ class AwsManager {
     // or spot request has already been tagged.  Also tag things as part of
     // requestSpotInstance
     if (!instanceId) {
+      log.info({srid}, 'gave up finding workerType for non-instance');
       return null;
     }
 
@@ -225,11 +269,15 @@ class AwsManager {
       // have both a spot request id and an instance id here, but since it's so
       // simple to make allowances for if we ever did ondemand, let's just do it
       let i = [];
-      if (instanceId) i.push(instanceId);
+      if (instanceId) {
+        i.push(instanceId);
+      }
       let r = [];
-      if (srid) r.push(srid);
+      if (srid) {
+        r.push(srid);
+      }
       await this.killCancel(region, i, r);
-      log.info('killed a rogue instance while determining worker type');
+      log.info({i, r}, 'killed a rogue instance while determining worker type');
     }
 
     // Now we know how this instance maps back to a worker type, let's add it
@@ -241,6 +289,7 @@ class AwsManager {
       created: Date.now(),
     });
 
+    log.info({workerType}, 'found workerType from instance UserData');
     return workerType;
   }
 
@@ -259,7 +308,7 @@ class AwsManager {
         Attribute: 'userData',
         InstanceId: instanceId,
       }).promise();
-    } catch(err) {
+    } catch (err) {
       // Log it, but move on... this is a best effort service
       log.error({
         err,
@@ -278,7 +327,7 @@ class AwsManager {
         return userData.workerType;
       }
       return null;
-    } catch(err) {
+    } catch (err) {
       // All errors mean that the data was in an unexpected format.  Even a
       // failure in the EC2 call is treated this way because this is a best
       // effort service.  We'll just try again next time.
@@ -302,7 +351,6 @@ class AwsManager {
     // The choice in which bucket each instance or request should belong in
     // comes down to whether or not the resource is awaiting or currently
     // working or needs to be tidied up after
-
 
     // We want to fetch the last 30 minutes of pricing data
     let pricingStartDate = new Date();
@@ -359,7 +407,7 @@ class AwsManager {
               {
                 Name: 'key-name',
                 Values: [sshKeyName],
-              }
+              },
             ],
           }).promise(),
           // Living spot requests
@@ -385,7 +433,7 @@ class AwsManager {
               {
                 Name: 'key-name',
                 Values: [sshKeyName],
-              }
+              },
             ],
           }).promise(),
           // Dead spot requests
