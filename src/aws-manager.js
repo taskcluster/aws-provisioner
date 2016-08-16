@@ -1289,7 +1289,11 @@ class AwsManager {
     // We should monitor logs for something like this pattern:
     // "The image id '[ami-33333333]' does not exist"
     let clientToken = slugid.nice();
-    log.info({ClientToken: clientToken, bid:bid}, 'aws api client token');
+    log.info({
+      ClientToken: clientToken,
+      bid,
+      launchInfo,
+    }, 'aws api client token');
 
     log.debug('requesting spot instance');
     let spotRequest = await this.ec2[bid.region].requestSpotInstances({

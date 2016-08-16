@@ -735,9 +735,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         .filter(r => _.includes(managedRegions, r.region))
         .map(r => r.region);
 
-    // Instead of interleaving debug() calls, let's instead join all of these
-    // into one single debug call
-    let priceDebugLog = [];
+    let priceTrace = [];
 
     for (let region of regions) {
       for (let type of types) {
@@ -750,15 +748,21 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             let potentialBid = pricingData[region][type][zone];
             let bias = biaser.getBias(region, zone, type);
             let potentialPrice = potentialBid / uf[type] * bias;
-            priceDebugLog.push(util.format('%s %s/%s/%s has a bias of %d',
-                  this.workerType, region, zone, type, bias));
             assert(typeof potentialBid === 'number');
             assert(typeof potentialPrice === 'number');
             if (!cheapestPrice) {
               // If we don't already have a cheapest price, that means we
               // should just take the first one we see
-              priceDebugLog.push(util.format('%s no existing price, picking %s/%s/%s: %d(%d)',
-                    this.workerType, region, zone, type, potentialPrice, potentialBid));
+              priceTrace.push({
+                outcome: 'first-possibility',
+                action: 'selected',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+                bias,
+              });
               cheapestPrice = potentialPrice;
               cheapestRegion = region;
               cheapestType = type;
@@ -767,10 +771,16 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
               cheapestBias = bias;
             } else if (potentialPrice < cheapestPrice) {
               // If we find that we have a cheaper option, let's switch to it
-              priceDebugLog.push(util.format('%s cheapest was %s/%s/%s: %d(%d), now is %s/%s/%s: %d(%d)',
-                    this.workerType,
-                    cheapestRegion, cheapestZone, cheapestType, cheapestPrice, cheapestBid,
-                    region, zone, type, potentialPrice, potentialBid));
+              priceTrace.push({
+                outcome: 'cheaper',
+                action: 'selected',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+                bias,
+              });
               cheapestPrice = potentialPrice;
               cheapestRegion = region;
               cheapestType = type;
@@ -778,11 +788,17 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
               cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
               cheapestBias = bias;
             } else {
-              // If this option is not first and not cheapest, we'll
-              // ignore it but tell the logs that we did
-              priceDebugLog.push(util.format('%s is not picking %s/%s/%s: %d(%d)',
-                    this.workerType,
-                    region, zone, type, potentialPrice, potentialBid));
+              // If we're cheaper here, we'll ignore this option.
+              priceTrace.push({
+                outcome: 'more-expensive',
+                action: 'ignored',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+                bias,
+              });
             }
           } catch (err) {
             console.log(err);
@@ -803,11 +819,18 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     if (cheapestPrice < this.minPrice) {
       let oldCheapestBid = cheapestBid;
       cheapestBid = Math.ceil(this.minPrice / uf[cheapestType] * 1000000) / 1000000;
-      priceDebugLog.push(util.format('%s price was too low %d --> %d',
-            this.workerType, oldCheapestBid, cheapestBid));
+      priceTrace.push({
+        outcome: 'too-low',
+        action: 'increased',
+        from: oldCheapestBid,
+        to: cheapestBid,
+      });
     }
 
-    debug(priceDebugLog.join('\n'));
+    log.info({
+      workerType: this.workerType,
+      priceTrace: priceTrace,
+    }, 'found a price');
 
     // Probably unneeded but I'm being paranoid
     assert(typeof cheapestBid === 'number', 'bid must be a number');
