@@ -268,8 +268,10 @@ class AwsManager {
       if (srid) {
         r.push(srid);
       }
-      await this.killCancel(region, i, r);
-      log.info({i, r}, 'killed a rogue instance while determining worker type');
+      try {
+        await this.killCancel(region, i, r);
+        log.info({i, r}, 'killed a rogue instance while determining worker type');
+      } catch (err) { }
     }
 
     // Now we know how this instance maps back to a worker type, let's add it
