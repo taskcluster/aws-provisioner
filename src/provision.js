@@ -15,18 +15,38 @@ const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 const MAX_FAILURES = 15;
 
 /**
+ *
  * This is a function so that we can hack on the exact ordering of spot
  * requests that need to be submitted for each region.  The input is a list of
  * objects.  Each object has two properties, workerType which is an instance of
- * the WorkerType entity, the name is input[n].workerType.workerType.  The
- * second item is a bid.  The bids have properties region, type (InstanceType),
- * zone and some pricing information.
+ * the WorkerType entity, the name of a workertype `wt` is
+ * `wt.workerType.workerType`.  The second item is a bid.  The bids have
+ * properties region, type (InstanceType), zone and some pricing information.
  *
  * Do not edit the items in the list, just copy them into a new list.  Treat
  * them as immutable.
  */
 function orderThingsInRegion(input) {
-  return input;
+  // assemble things by workerType name
+  var byName = _.reduce(input, (res, wt) => {
+    var name = wt.workerType.workerType;
+    (res[name] || (res[name] = [])).push(wt);
+    return res
+  }, {});
+  var names = _.keys(byName).sort();
+
+  // pop items in a round-robin order
+  var output = [];
+  do {
+    _.forEach(names, name => {
+      var thing = byName[name].pop();
+      if (thing) {
+        output.push(thing);
+      }
+    });
+  } while (output.length < input.length);
+
+  return output;
 }
 
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
