@@ -526,6 +526,9 @@ class AwsManager {
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
+          if (!request.SpotInstanceRequestId) {
+            continue;
+          }
           let workerType = await this.workerTypeForResource(request, region);
           if (!workerType) {
             continue;

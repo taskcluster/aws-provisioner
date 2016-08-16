@@ -147,7 +147,7 @@ let load = base.loader({
         let awsDebugLoggerBridge = {
           write: x => {
             for (let y of x.split('\n')) {
-              ec2log.trace(y);
+              ec2log.info(y);
             }
           },
         };
