@@ -14,6 +14,21 @@ let series = require('./influx-series');
 const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 const MAX_FAILURES = 15;
 
+/**
+ * This is a function so that we can hack on the exact ordering of spot
+ * requests that need to be submitted for each region.  The input is a list of
+ * objects.  Each object has two properties, workerType which is an instance of
+ * the WorkerType entity, the name is input[n].workerType.workerType.  The
+ * second item is a bid.  The bids have properties region, type (InstanceType),
+ * zone and some pricing information.
+ *
+ * Do not edit the items in the list, just copy them into a new list.  Treat
+ * them as immutable.
+ */
+function orderThingsInRegion(input) {
+  return input;
+}
+
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
 class Provisioner {
@@ -286,12 +301,6 @@ class Provisioner {
       }
     }
 
-    const d = delayer(500);
-    const longD = delayer(2000);
-
-    // We want to have a maximum number of attempts
-    let attemptsLeft = forSpawning.length * 2;
-
     // We want to shuffle up the bids so that we don't prioritize
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
@@ -309,37 +318,53 @@ class Provisioner {
       }
     }
 
-    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType) === -1);
+    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType.workerType) === -1);
 
-    // We'll only consider the first 400 requests.  Any that are dropped on the
-    // floor will be computed on the next iteration and have an equal chance of
-    // being submitted
-    forSpawning = forSpawning.slice(0, 400);
-
-    while (forSpawning.length > 0 && attemptsLeft-- > 0) {
-      let toSpawn = forSpawning.shift();
-      try {
-        debug('spawning a %s', toSpawn.workerType.workerType);
-        await this.spawn(toSpawn.workerType, toSpawn.bid);
-        this.__watchDog.touch();
-        debug('spawned a %s', toSpawn.workerType.workerType);
-        await d();
-      } catch (err) {
-        try {
-          await longD();
-        } catch (longWaitErr) {
-          debug(longWaitErr);
-          debug(longWaitErr.stack);
-        }
-        debug('error spawning %s with bid %j, reinserting into list of bids to make',
-            toSpawn.workerType.workerType, toSpawn.bid);
-        debug(err);
-        if (err.stack) {
-          debug(err.stack);
-        }
-        forSpawning.push(toSpawn);
+    let byRegion = {};
+    for (let x of forSpawning) {
+      assert(x.bid && x.bid.region);
+      let r = x.bid.region;
+      if (!byRegion[r]) {
+        byRegion[r] = [x];
+      } else {
+        byRegion[r].push(x);
       }
     }
+
+    log.info('submitting all spawn requests');
+
+    await Promise.all(_.map(byRegion, async(toSpawn, region) => {
+      let rLog = log.child({region});
+      rLog.info('submitting spot requests in region');
+      let inRegion = orderThingsInRegion(byRegion[region]);
+
+      let endLoopAt = new Date();
+      endLoopAt.setMinutes(endLoopAt.getMinutes() + 5);
+      log.debug({inRegion: inRegion || 'empty, darn', endLoopAt}, 'about to do a loop');
+      while (new Date() < endLoopAt && inRegion.length > 0) {
+        log.info('asking to spawn instance');
+        let toSpawn = inRegion.shift();
+
+        try {
+          rLog.info({
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
+          }, 'submitting spot request');
+
+          await this.spawn(toSpawn.workerType, toSpawn.bid);
+          rLog.info({
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
+          }, 'finished submitting spot request');
+        } catch (err) {
+          rLog.error({
+            err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
+          }, 'finished submitting spot request');
+        }
+      }
+
+      rLog.info('finished submitting spot requests in region');
+    }));
+
+    log.info('submitted all spawn requests');
 
     let duration = new Date() - allProvisionerStart;
     debug('running all provisioning iterations took ' + duration + 'ms');
@@ -359,7 +384,6 @@ class Provisioner {
 
     let launchInfo = workerType.createLaunchSpec(bid);
 
-    debug('creating secret %s', launchInfo.securityToken);
     await this.Secret.create({
       token: launchInfo.securityToken,
       workerType: workerType.workerType,
@@ -368,8 +392,6 @@ class Provisioner {
       expiration: taskcluster.fromNow('40 minutes'),
     });
     debug('created secret %s', launchInfo.securityToken);
-
-    debug('requestion spot instance with launch info %j and bid %j', launchInfo, bid);
 
     return this.awsManager.requestSpotInstance(launchInfo, bid);
   };

@@ -121,15 +121,18 @@ let load = base.loader({
       for (let region of cfg.app.allowedRegions) {
         let ec2conf = cfg.aws;
         ec2conf.region = region;
-        let s3Debugger = debugModule('aws-sdk:' + process);
+        let ec2log = log.child({
+          region,
+          ec2log: true, // for doing things like bunyan -c "!this.ec2log"
+        });
         let awsDebugLoggerBridge = {
           write: x => {
             for (let y of x.split('\n')) {
-              s3Debugger(y);
+              ec2log.info(y);
             }
           },
         };
-        ec2conf.logger = awsDebugLoggerBridge;
+        //ec2conf.logger = awsDebugLoggerBridge;
         ec2[region] = new aws.EC2(ec2conf);
       }
 
