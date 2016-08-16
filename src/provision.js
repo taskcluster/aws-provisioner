@@ -325,6 +325,13 @@ class Provisioner {
         debug('spawned a %s', toSpawn.workerType.workerType);
         await d();
       } catch (err) {
+        // Don't retry aws-sdk errors that can't be retried
+        if (err.retryable === false) {
+          // Remove all requests for given workerType, as this must mean something is wrong with the
+          // launchSpecification...
+          forSpawning = forSpawning.filter(x => x.workerType.workerType !== toSpawn.workerType.workerType);
+        }
+        
         try {
           await longD();
         } catch (longWaitErr) {
