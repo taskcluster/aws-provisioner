@@ -14,6 +14,21 @@ let series = require('./influx-series');
 const MAX_PROVISION_ITERATION = 1000 * 60 * 10; // 10 minutes
 const MAX_FAILURES = 15;
 
+/**
+ * This is a function so that we can hack on the exact ordering of spot
+ * requests that need to be submitted for each region.  The input is a list of
+ * objects.  Each object has two properties, workerType which is an instance of
+ * the WorkerType entity, the name is input[n].workerType.workerType.  The
+ * second item is a bid.  The bids have properties region, type (InstanceType),
+ * zone and some pricing information.
+ *
+ * Do not edit the items in the list, just copy them into a new list.  Treat
+ * them as immutable.
+ */
+function orderThingsInRegion(input) {
+  return input;
+}
+
 // Docs for Ec2: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html
 
 class Provisioner {
@@ -317,10 +332,13 @@ class Provisioner {
     await Promise.all(_.map(byRegion, async(toSpawn, region) => {
       let rLog = log.child({region});
       rLog.info('submitting spot requests in region');
-      let inRegion = byRegion[region];
-      //inRegion = inRegion.slice(0, 400);
+      let inRegion = orderThingsInRegion(byRegion[region]);
 
-      for (let toSpawn of inRegion) {
+      let endLoopAt = new Date();
+      endLoopAt.setMinutes(endLoopAt.getMinutes() + 5);
+      while (new Date() < endLoopAt && inRegion.length > 0) {
+        let toSpawn = inRegion.shift();
+
         try {
           rLog.info({
             workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
