@@ -139,6 +139,8 @@ class AwsManager {
       this.__spotRequestIdCache = [];
       //this.__internalState = [];
     }
+
+
   }
 
   async saveAwsManagerInternalState() {
@@ -294,6 +296,7 @@ class AwsManager {
   async getWorkerTypeFromUserData(region, instanceId) {
     assert(typeof region === 'string');
     assert(typeof instanceId === 'string');
+    log.info({region, instanceId}, 'getting user data');
     let rawUserData;
     try {
       rawUserData = await this.ec2[region].describeInstanceAttribute({
