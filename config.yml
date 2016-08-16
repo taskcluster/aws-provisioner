@@ -52,6 +52,7 @@ defaults:
     secretAccessKey: !env AWS_SECRET_ACCESS_KEY
     region: us-west-2
     apiVersion: 2014-01-01
+    maxRetries: 10
 
   deadmanssnitch:
     api:

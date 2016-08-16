@@ -8,6 +8,7 @@ let series = require('./influx-series');
 let _ = require('lodash');
 let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
+let slugid = require('slugid');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -178,7 +179,6 @@ class AwsManager {
     let found = this.__spotRequestIdCache.filter(x => x.id === srid && x.region === region);
     if (found.length === 1) {
       let workerType = found[0].workerType;
-      log.info({workerType}, 'found workerType in spotRequestIdCache');
       return workerType;
     } else if (found.length > 1) {
       let firstX = found[0].workerType;
@@ -229,7 +229,6 @@ class AwsManager {
           workerType: workerType,
           created: Date.now(),
         });
-        log.info({workerType}, 'found workerType in resource.TagSet');
         return name;
       }
     }
@@ -242,7 +241,7 @@ class AwsManager {
     // or spot request has already been tagged.  Also tag things as part of
     // requestSpotInstance
     if (!instanceId) {
-      log.info({srid}, 'gave up finding workerType for non-instance');
+      log.warn({srid}, 'gave up finding workerType for non-instance');
       return null;
     }
 
@@ -283,8 +282,6 @@ class AwsManager {
       workerType: workerType,
       created: Date.now(),
     });
-
-    log.info({workerType}, 'found workerType from instance UserData');
     return workerType;
   }
 
@@ -1291,22 +1288,28 @@ class AwsManager {
 
     // We should monitor logs for something like this pattern:
     // "The image id '[ami-33333333]' does not exist"
-    let spotRequest;
+    let clientToken = slugid.nice();
+    log.info({ClientToken: clientToken, bid:bid}, 'aws api client token');
 
-    debug('requesting spot instance');
-    spotRequest = await this.ec2[bid.region].requestSpotInstances({
+    log.debug('requesting spot instance');
+    let spotRequest = await this.ec2[bid.region].requestSpotInstances({
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchInfo.launchSpec,
       SpotPrice: bid.price.toString(),
+      ClientToken: clientToken,
     }).promise();
-    debug('requested spot instance');
 
     let spotReq = spotRequest.data.SpotInstanceRequests[0];
 
-    debug('submitted spot request %s for $%d for %s in %s/%s for %s',
-      spotReq.SpotInstanceRequestId, bid.price, launchInfo.workerType, bid.region, bid.zone, bid.type);
-    debug('Used this userdata: %j', launchInfo.userData);
+    log.info({
+      srid: spotReq.SpotInstanceRequestId,
+      price: bid.price,
+      workerType: launchInfo.workerType,
+      region: bid.region,
+      zone: bid.zone,
+      instanceType: bid.type,
+    }, 'submitted spot request');
 
     let info = {
       workerType: launchInfo.workerType,
