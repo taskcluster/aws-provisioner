@@ -130,14 +130,14 @@ class AwsManager {
     try {
       let data = await this.spotRequestContainer.read('internal-provisioner-data');
       // This is mainly for debugging
-      this.__spotRequestIdCache = data.managedSpotRequests || []; 
-      this.__internalState = data.internallyTrackedSpotRequests || [];
+      this.__spotRequestIdCache = data.spotIdCache || []; 
+      //this.__internalState = data.internallyTrackedSpotRequests || [];
     } catch (err) {
       if (err.code !== 'BlobNotFound') {
         throw err;
       }
       this.__spotRequestIdCache = [];
-      this.__internalState = [];
+      //this.__internalState = [];
     }
   }
 
@@ -151,8 +151,8 @@ class AwsManager {
     });
 
     let data = {
-      managedSpotRequests: this.__spotRequestIdCache || [],
-      internallyTrackedSpotRequests: this.__internalState || [],
+      spotIdCache: this.__spotRequestIdCache || [],
+      //internallyTrackedSpotRequests: this.__internalState || [],
     };
 
     return this.spotRequestContainer.write('internal-provisioner-data', data);
