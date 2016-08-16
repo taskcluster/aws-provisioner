@@ -128,8 +128,7 @@ class AwsManager {
 
   async init() {
     try {
-      let rawJson = await this.spotRequestContainer.read('internal-provisioner-data');
-      let data = JSON.parse(rawJson);
+      let data = await this.spotRequestContainer.read('internal-provisioner-data');
       // This is mainly for debugging
       this.__spotRequestIdCache = data.managedSpotRequests || []; 
       this.__internalState = data.internallyTrackedSpotRequests || [];
@@ -151,10 +150,10 @@ class AwsManager {
       return Date.now() - i.created < stateExpiration;
     });
 
-    let data = JSON.stringify({
+    let data = {
       managedSpotRequests: this.__spotRequestIdCache || [],
       internallyTrackedSpotRequests: this.__internalState || [],
-    }, null, 2);
+    };
 
     return this.spotRequestContainer.write('internal-provisioner-data', data);
   }
