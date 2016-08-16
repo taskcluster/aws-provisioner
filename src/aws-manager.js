@@ -147,7 +147,7 @@ class AwsManager {
     const stateExpiration = 1000 * 60 * 60 * 24 * 5;
 
     this.__spotRequestIdCache = this.__spotRequestIdCache.filter(i => {
-      return Date.now() - i.created < stateExpiration
+      return Date.now() - i.created < stateExpiration;
     });
 
     let data = JSON.stringify({

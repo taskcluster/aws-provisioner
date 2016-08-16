@@ -326,17 +326,17 @@ class Provisioner {
       for (let toSpawn of inRegion) {
         try {
           rLog.info({
-            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
           }, 'submitting spot request');
 
           await this.spawn(toSpawn.workerType, toSpawn.bid);
           await d();
           rLog.info({
-            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+            workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
           }, 'finished submitting spot request');
         } catch (err) {
           rLog.err({
-            err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
+            err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
           }, 'finished submitting spot request');
         }
       }
