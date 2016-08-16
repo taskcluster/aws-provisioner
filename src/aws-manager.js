@@ -314,7 +314,6 @@ class AwsManager {
     // owned instance, so we should just ignore it
     try {
       let userData = JSON.parse(new Buffer(rawUserData.data.UserData.Value, 'base64'));
-      console.log(userData);
       if (userData.workerType && userData.provisionerId === this.provisionerId) {
         return userData.workerType;
       }
