@@ -202,36 +202,14 @@ class AwsManager {
     // resource is created, forgotten about, then untagged.  For these cases,
     // we'll continue later on and use the instanceId checks when the request
     // turns into an instance.
-    if (resource.TagSet) {
-      let owned = false;
-      let workerType;
-      for (let tag of resource.TagSet) {
-        if (owned && workerType) {
-          break; // we already have what we need
-        }
-        switch (tag.Key) {
-          case 'Owner':
-            if (tag.Value === this.provisionerId) {
-              owned = true;
-            }
-            break;
-          case 'Name':
-            workerType = tag.Value;
-            break;
-          default:
-            break;
-        }
-      }
-
-      if (owned && name) {
-        this.__spotRequestIdCache.push({
-          id: srid,
-          region: region,
-          workerType: workerType,
-          created: Date.now(),
-        });
-        return name;
-      }
+    let tag = _.find(resource.Tags || [], {Key: 'WorkerType'});
+    if (tag && _.startsWith(tag, this.provisionerId + '/')) {
+      this.__spotRequestIdCache.push({
+        id: srid,
+        region: region,
+        workerType: tag.substr(this.provisionerId.length + 1),
+        created: Date.now(),
+      });
     }
  
     // If we have no instance ID at this point, we cannot do any further
