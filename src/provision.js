@@ -336,7 +336,9 @@ class Provisioner {
 
       let endLoopAt = new Date();
       endLoopAt.setMinutes(endLoopAt.getMinutes() + 5);
+      log.debug({inRegion: inRegion || 'empty, darn', endLoopAt}, 'about to do a loop');
       while (new Date() < endLoopAt && inRegion.length > 0) {
+        log.info('asking to spawn instance');
         let toSpawn = inRegion.shift();
 
         try {

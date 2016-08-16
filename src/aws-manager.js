@@ -241,7 +241,6 @@ class AwsManager {
     // or spot request has already been tagged.  Also tag things as part of
     // requestSpotInstance
     if (!instanceId) {
-      log.warn({srid}, 'gave up finding workerType for non-instance');
       return null;
     }
 
@@ -1291,7 +1290,7 @@ class AwsManager {
     log.info({
       ClientToken: clientToken,
       bid,
-      launchInfo,
+      workerType: launchInfo.workerType,
     }, 'aws api client token');
 
     log.debug('requesting spot instance');
