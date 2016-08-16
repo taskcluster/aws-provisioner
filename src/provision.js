@@ -163,8 +163,6 @@ class Provisioner {
         }
         debug('hit deadmans snitch');
 
-        // And delay for the next one so we don't overwhelm EC2
-        await d();
 
       } while (this.__keepRunning && !process.env.PROVISION_ONCE);
       this.__watchDog.stop();
@@ -282,9 +280,6 @@ class Provisioner {
       }
     }
 
-    const d = delayer(500);
-    const longD = delayer(2000);
-
     // We want to shuffle up the bids so that we don't prioritize
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
@@ -330,12 +325,11 @@ class Provisioner {
           }, 'submitting spot request');
 
           await this.spawn(toSpawn.workerType, toSpawn.bid);
-          await d();
           rLog.info({
             workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
           }, 'finished submitting spot request');
         } catch (err) {
-          rLog.err({
+          rLog.error({
             err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid
           }, 'finished submitting spot request');
         }
@@ -366,7 +360,6 @@ class Provisioner {
 
     let launchInfo = workerType.createLaunchSpec(bid);
 
-    debug('creating secret %s', launchInfo.securityToken);
     await this.Secret.create({
       token: launchInfo.securityToken,
       workerType: workerType.workerType,
@@ -375,8 +368,6 @@ class Provisioner {
       expiration: taskcluster.fromNow('40 minutes'),
     });
     debug('created secret %s', launchInfo.securityToken);
-
-    debug('requestion spot instance with launch info %j and bid %j', launchInfo, bid);
 
     return this.awsManager.requestSpotInstance(launchInfo, bid);
   };
