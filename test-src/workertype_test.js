@@ -131,7 +131,7 @@ describe('worker type', function() {
     });
     ** THESE TESTS ABOVE SHOULD WORK */
 
-    it.skip('should create valid user data', function() {
+    it('should create valid user data', function() {
       var wType = makeWorkerType({
         lastModified: new Date(),
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
