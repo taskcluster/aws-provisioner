@@ -61,7 +61,7 @@ describe('provisioner worker type api', () => {
     await stateContainer.remove(id);
   });
 
-  it.skip('should be able to create a worker (idempotent)', async () => {
+  it('should be able to create a worker (idempotent)', async () => {
     debug('### Create workerType');
     await client.createWorkerType(id, workerTypeDefinition);
 
@@ -69,7 +69,7 @@ describe('provisioner worker type api', () => {
     await client.createWorkerType(id, workerTypeDefinition);
   });
 
-  it.skip('should be able to update a worker', async () => {
+  it('should be able to update a worker', async () => {
     debug('### Load workerType');
     await client.createWorkerType(id, workerTypeDefinition);
 

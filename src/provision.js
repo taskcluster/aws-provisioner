@@ -31,7 +31,7 @@ function orderThingsInRegion(input) {
   var byName = _.reduce(input, (res, wt) => {
     var name = wt.workerType.workerType;
     (res[name] || (res[name] = [])).push(wt);
-    return res
+    return res;
   }, {});
   var names = _.keys(byName).sort();
 
