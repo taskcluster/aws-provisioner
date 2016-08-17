@@ -1,7 +1,7 @@
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
-    iterationInterval: 10000
+    iterationInterval: 10
     maxInstanceLife: '- 96 hours'
     id: aws-provisioner-dev
     workerTypeTableName: DevWorkerTypes2
@@ -69,7 +69,7 @@ production:
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
-    iterationInterval: 75000
+    iterationInterval: 75
     allowedRegions: !env:list ALLOWED_REGIONS
   server:
     publicUrl: https://aws-provisioner.taskcluster.net
@@ -105,11 +105,8 @@ test:
     allowedRegions:
       - 'us-west-2'
   server:
-    publicUrl: https://localhost:60407
-    port: !env:number PORT
-    env: test
-    forceSSL: false
-    trustProxy: false
+    publicUrl: http://localhost:60407
+    port: 60407
   azure:
     account: jungle
   deadmanssnitch:

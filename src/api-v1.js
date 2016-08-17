@@ -1,5 +1,4 @@
 let log = require('./log');
-let debug = log.debugCompat('routes:v1');
 let base = require('taskcluster-base');
 let taskcluster = require('taskcluster-client');
 let amiExists = require('./check-for-ami');
@@ -85,15 +84,12 @@ async function validateWorkerType(ctx, workerTypeName, workerType) {
         ctx.provisionerBaseUrl,
         ctx.pubKey,
         workerType);
-    debug(`generated launch specifications for ${workerTypeName}`);
   } catch (err) {
     // We don't want to handle other things breaking, just badly formed worker
     // types
-    debug(`could not generate launch specifications for ${workerTypeName}`);
     if (err && err.code !== 'InvalidLaunchSpecifications') {
       throw err;
     }
-    reasons.concat(err.reasons);
   }
 
   await Promise.all(_.map(launchSpecs, async (region, regionName) => {
@@ -113,10 +109,8 @@ async function validateWorkerType(ctx, workerTypeName, workerType) {
           LaunchSpecification: launchSpec,
           SpotPrice: '1', // Only since this is a DryRun:true call
         }).promise();
-        debug(`did DryRun of requesting spot instance for ${workerTypeName}`);
       } catch (err) {
         if (err.code !== 'DryRunOperation') {
-          debug(`could not do a DryRun of requesting spot instance for ${workerTypeName}`);
           reasons.push(err);
         }
       }
@@ -145,7 +139,6 @@ async function validateWorkerType(ctx, workerTypeName, workerType) {
   // Finally, let's verify that the image for this workerType exists in EC2
 
   if (reasons.length > 0) {
-    debug('Found errors with ' + workerTypeName);
     let e = new Error('Refusing to create an invalid worker type');
     e.reasons = reasons;
     throw e;
@@ -208,35 +201,26 @@ api.declare({
     'included here.  The list is unordered.',
   ].join('\n'),
 }, async function (req, res) {
-  try {
-    // gather workerType information
-    let workerTypes = [];
-    await this.WorkerType.scan({}, {
-      handler: (item) => workerTypes.push(item),
-    });
+  // gather workerType information
+  let workerTypes = [];
+  await this.WorkerType.scan({}, {
+    handler: (item) => workerTypes.push(item),
+  });
 
-    // now gather worker state information for each one, in parallel
-    let result = await Promise.all(workerTypes.map(async (workerType) => {
-      let workerState;
-      try {
-        workerState = await this.stateContainer.read(workerType.workerType);
-      } catch (err) {
-        if (err.code !== 'BlobNotFound') {
-          throw err;
-        }
+  // now gather worker state information for each one, in parallel
+  let result = await Promise.all(workerTypes.map(async (workerType) => {
+    let workerState;
+    try {
+      workerState = await this.stateContainer.read(workerType.workerType);
+    } catch (err) {
+      if (err.code !== 'BlobNotFound') {
+        throw err;
       }
-      return workerTypeSummary(workerType, workerState);
-    }));
-
-    return res.reply(result);
-  } catch (err) {
-    debug('error listing workertypes');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
     }
-    throw err;
-  }
+    return workerTypeSummary(workerType, workerState);
+  }));
+
+  return res.reply(result);
 });
 
 api.declare({
@@ -412,7 +396,6 @@ api.declare({
     }
   }));
   if (missing.length > 0) {
-    debug(missing);
     return res.status(400).json({
       message: 'ami does not exist',
       missing: missing,
@@ -540,11 +523,6 @@ api.declare({
     if (err.code === 'ResourceNotFound') {
       res.status(204).end();
     } else {
-      debug('unknown error deleting ' + workerType);
-      debug(err);
-      if (err.stack) {
-        debug(err.stack);
-      }
       throw err;
     }
   }
@@ -566,17 +544,8 @@ api.declare({
   ].join('\n'),
 }, async function (req, res) {
 
-  try {
-    let list = await this.WorkerType.listWorkerTypes();
-    return res.reply(list);
-  } catch (err) {
-    debug('error listing workertypes');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
-    throw err;
-  }
+  let list = await this.WorkerType.listWorkerTypes();
+  return res.reply(list);
 });
 
 api.declare({
@@ -717,18 +686,8 @@ api.declare({
     'Return a list of AMI sets names.',
   ].join('\n'),
 }, async function (req, res) {
-
-  try {
-    let list = await this.AmiSet.listAmiSets();
-    return res.reply(list);
-  } catch (err) {
-    debug('error listing amiSets');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
-    throw err;
-  }
+  let list = await this.AmiSet.listAmiSets();
+  return res.reply(list);
 });
 
 api.declare({
@@ -758,11 +717,6 @@ api.declare({
     if (err.code === 'ResourceNotFound') {
       res.status(204).end();
     } else {
-      debug('unknown error deleting AMI Set ' + id);
-      debug(err);
-      if (err.stack) {
-        debug(err.stack);
-      }
       throw err;
     }
   }
@@ -872,11 +826,6 @@ api.declare({
     if (err.code === 'ResourceNotFound') {
       res.status(404).end();
     } else {
-      debug('error getting secret ' + token);
-      debug(err);
-      if (err.stack) {
-        debug(err.stack);
-      }
       throw err;
     }
   }
@@ -910,11 +859,6 @@ api.declare({
 
     return res.status(204).end();
   } catch (err) {
-    debug('error reporting instance %s start with token %s', instanceId, token);
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
     throw err;
   }
 });
@@ -945,11 +889,6 @@ api.declare({
     if (err.code === 'ResourceNotFound') {
       res.status(204).end();
     } else {
-      debug('error removing a secret');
-      debug(err);
-      if (err.stack) {
-        debug(err.stack);
-      }
       throw err;
     }
   }
@@ -1092,8 +1031,6 @@ api.declare({
   let endpoint = 'https://api.deadmanssnitch.com/v1/snitches/';
   endpoint += url.parse(this.iterationSnitch).pathname.split('/').slice(-1);
 
-  debug('Getting status of snitch from: ' + endpoint);
-
   let snitch = await rp.get(endpoint, {
     auth: {
       username: this.dmsApiKey,
@@ -1136,7 +1073,7 @@ api.declare({
     return;
   }
 
-  debug('SOMEONE IS TURNING OFF ALL ' + workerType + ' WORKERS');
+  log.warn({workerType}, 'SOMEONE IS TURNING OFF ALL RESOURCES OF ONE WORKERTYPE');
 
   try {
     await this.awsManager.killByName(workerType);
@@ -1145,7 +1082,6 @@ api.declare({
       message: 'You just terminated all ' + workerType + ' workers.  Feel the power!',
     });
   } catch (err) {
-    debug(err.stack || err);
     res.status(503).json({
       message: 'Could not terminate all ' + workerType + ' workers.',
     });
@@ -1174,7 +1110,7 @@ api.declare({
   ].join('\n'),
 }, async function (req, res) {
 
-  debug('SOMEONE IS TURNING EVERYTHING OFF');
+  log.warn('SOMEONE IS TURNING EVERYTHING OFF');
 
   // Note that by telling the rogue killer
   try {
@@ -1184,7 +1120,6 @@ api.declare({
       message: 'You just turned absolutely everything off.  Feel the power!',
     });
   } catch (err) {
-    debug(err.stack || err);
     return res.status(503).json({
       message: 'Could not shut down everything',
     });

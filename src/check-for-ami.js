@@ -1,5 +1,4 @@
 let log = require('./log');
-let debug = log.debugCompat('aws-provisioner:lib:check-for-ami');
 let assert = require('assert');
 
 /**
@@ -19,22 +18,24 @@ module.exports = async function (ec2, ami) {
   let result;
   try {
     result = await ec2.describeImages(request).promise();
-    debug('loaded information about %s', ami);
   } catch (err) {
-    debug('did not find %s', ami);
     return false;
   }
 
   if (result.data.Images.length === 0) {
     throw new Error('Image does not exist');
   } else if (result.data.Images.length > 1) {
-    debug(result.data);
-    throw new Error('Image returned more than one result');
+    let err = new Error('Image returned more than one result');
+    err.images = result.data.Images;
+    throw err;
   }
 
   if (result.data.Images[0].ImageId === ami) {
     return true;
   } else {
-    throw new Error('api returned incorrect ami for search parameters');
+    let err = new Error('api returned incorrect ami for search parameters');
+    err.requested = ami;
+    err.received = result.data.Images[0].ImageId;
+    throw err;
   }
 };

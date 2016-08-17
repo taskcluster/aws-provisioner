@@ -1,7 +1,5 @@
 let log = require('./log');
-let debug = log.debugCompat('aws-provisioner:aws-manager');
 let assert = require('assert');
-//let objFilter = require('../lib/objFilter');
 let shuffle = require('knuth-shuffle');
 let taskcluster = require('taskcluster-client');
 let series = require('./influx-series');
@@ -183,16 +181,19 @@ class AwsManager {
     // It would be better to do it by classification than by region for
     // better concurrency, but this is easier and not too slow considering
     // the 75s iteration frequency
-    debug('updating aws state for all regions');
+    log.info('starting state update for all regions');
     // We had an issue where the EC2 api would freeze up on these api calls and
     // would never reject or resolve.  That's why we now race a 240s timeout
     // and reject this promise if the state calls take longer than 240s
+    //
+    // NOTE: Now that we're using lib-iterate, we probably don't *need* this
+    // second Promise.race, but I'd like to keep it in because I'm paranoid
     await Promise.race([
       delayer(240 * 1000)().then(() => {
         throw new Error('Timeout while updating AWS Api State');
       }),
       Promise.all(_.map(this.ec2, async (ec2, region) => {
-        debug('running aws state promises in %s', region);
+        let rLog = log.child({region});
         let response = await Promise.all([
           // Living instances
           ec2.describeInstances({
@@ -264,7 +265,7 @@ class AwsManager {
             ],
           }).promise(),
         ]);
-        debug('ran aws state promises in %s', region);
+        rLog.info('ran all state promises for region');
 
         // Now let's classify them
         for (let reservation of response[0].data.Reservations) {
@@ -295,9 +296,10 @@ class AwsManager {
         }
 
         // Submit request to kill stalled requests
-        debug('killing stalled instances and spot requests in %s', region);
         await this.killCancel(region, [], stalledSRIds);
-        debug('killed stalled instances and spot requests in %s', region);
+        if (stalledSRIds.length > 0) {
+          rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
+        }
 
         // Put the dead instances into the dead state object
         for (let reservation of response[2].data.Reservations) {
@@ -310,7 +312,6 @@ class AwsManager {
             deadState.instances.push(filtered);
           }
         };
-        debug('put dead state instances into deadState variable in %s', region);
 
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
@@ -322,26 +323,31 @@ class AwsManager {
           filtered.WorkerType = workerType;
           deadState.requests.push(filtered);
         }
-        debug('put dead state requests into deadState variable in %s', region);
 
         // Find all the available availability zones
-        debug('categorizing availability zones in %s', region);
         availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
-        debug('categorized availability zones in %s', region);
 
         // Find the max prices
-        debug('finding max prices in %s', region);
         allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
-        debug('found max prices in %s', region);
+        rLog.info('found maximum prices');
       })),
     ]);
-    debug('updated aws state for all regions');
+    log.info('finished state update for all regions');
 
     // Assign all of the new state objects to the properties of this aws manager
     this.__availableAZ = availableAZ;
     this.__pricing = allPricingHistory;
     this.__apiState = apiState;
     this.__deadState = deadState;
+
+    let allZones = [];
+    for (let r of _.keys(availableAZ)) {
+      Array.prototype.push.apply(allZones, availableAZ[r]);
+    }
+    allZones.sort();
+    log.info({
+      zones: allZones,
+    }, 'available availability zones');
 
     // Figure out what's changed between this and the last iteration
     let stateDifferences = this._compareStates(this.__apiState, this.__previousApiState, this.__deadState);
@@ -350,6 +356,7 @@ class AwsManager {
     // We want to make sure that our internal state is always up to date when
     // we fetch the updated state
     this._reconcileInternalState();
+    log.info('finished all aws state update operations');
   }
 
   /**
@@ -416,13 +423,18 @@ class AwsManager {
     killWhen.setMinutes(killWhen.getMinutes() + 20);
 
     if (killWhen < now) {
-      debug(`killing spot request ${sr.SpotInstanceRequestId}, not fulfilled in 20 minutes`);
       return true;
     }
 
     // We've found a spot price floor
     if (sr.Status.Code === 'price-too-low') {
-      debug('found a canceled spot request, submitting pricing floor');
+      log.info({
+        region: sr.Region,
+        az: sr.LaunchSpecification.Placement.AvailabilityZone,
+        instanceType: sr.LaunchSpecification.InstanceType,
+        price: parseFloat(sr.SpotPrice, 10),
+      }, 'found new spot request floor');
+
       this.reportSpotPriceFloorFound({
         region: sr.Region,
         az: sr.LaunchSpecification.Placement.AvailabilityZone,
@@ -434,7 +446,6 @@ class AwsManager {
     }
 
     if (_.includes(stalledStates, sr.Status.Code)) {
-      debug('spot request %s stalled, bad state %s', sr.SpotInstanceRequestId, sr.Status.Code);
       return true;
     } else {
       return false;
@@ -516,7 +527,6 @@ class AwsManager {
         instanceId: request.InstanceId,
         time: dateForInflux(request.Status.UpdateTime),
       });
-      debug('spot request %j fulfilled!', request);
     };
 
     // We want to figure out what happened to each of the spot requests which are
@@ -553,7 +563,6 @@ class AwsManager {
           statusCode: request.Status.Code,
           statusMsg: request.Status.Message,
         });
-        debug('spot request %j did something else', request);
       }
     }
 
@@ -570,7 +579,6 @@ class AwsManager {
       }
 
       if (requestAwaiting.iterationCount++ > MAX_ITERATIONS_FOR_STATE_RESOLUTION) {
-        debug('dropping spot request on the floor');
         keepInTheList = false;
       }
 
@@ -608,7 +616,6 @@ class AwsManager {
       });
 
       if (instance.StateReason.Code === 'Server.SpotInstanceTermination') {
-        debug('We have a spot price floor!');
         // Let's figure out what we set the price to;
         let price;
 
@@ -633,8 +640,6 @@ class AwsManager {
             price: price,
             reason: 'instance-spot-killed',
           });
-        } else {
-          debug('Could not find a price for a spot-price killed instance');
         }
       }
     };
@@ -644,10 +649,8 @@ class AwsManager {
     for (let instance of differences.instances) {
       // Using StateReason instead of StateTransitionReason
       if (instance.StateReason && instance.StateReason.Code) {
-        debug('found a terminated instance which has a termination reason');
         plotInstanceDeath(instance, new Date().toISOString());
       } else {
-        debug('found a terminated instance which awaits a termination reason');
         this.__awaitingStateReason.push({
           id: instance.InstanceId,
           time: new Date().toISOString(),
@@ -665,7 +668,6 @@ class AwsManager {
             keepItInTheList = false;
             // Notice how we're plotting the newly fetched instance since it's
             // the one that's going to have the StateReason
-            debug('found an instance awaiting reason to plot');
             plotInstanceDeath(instanceMightHave, instanceAwaiting.time);
           }
         }
@@ -674,7 +676,6 @@ class AwsManager {
       // We don't want to track this stuff forever!
       if (instanceAwaiting.iterationCount++ > MAX_ITERATIONS_FOR_STATE_RESOLUTION) {
         keepItInTheList = false;
-        debug('exceeded the number of iterations awaiting reason');
       }
 
       return keepItInTheList;
@@ -789,7 +790,7 @@ class AwsManager {
       let launchSpecs = worker.testLaunchSpecs();
     } catch (err) {
       canLaunch = false;
-      log.error({err}, 'cannot launch');
+      log.error({err, workerType: worker.workerType}, 'cannot launch');
       return false;
     }
 
@@ -1008,11 +1009,6 @@ class AwsManager {
       // We want to print out some info!
       if (_.includes(allKnownSrIds, request.request.SpotInstanceRequestId)) {
         // Now that it's shown up, we'll remove it from the internal state
-        debug('Spot request %s for %s/%s/%s took %d seconds to show up in API',
-              request.request.SpotInstanceRequestId, request.request.Region,
-              request.request.LaunchSpecification.Placement.AvailabilityZone,
-              request.request.LaunchSpecification.InstanceType,
-              (now - request.submitted) / 1000);
         this.reportEc2ApiLag({
           provisionerId: this.provisionerId,
           region: request.request.Region,
@@ -1024,31 +1020,24 @@ class AwsManager {
           lag: (now - request.submitted) / 1000,
         });
         return false;
-      } else {
-        debug('Spot request %s for %s/%s/%s still not in api after %d seconds',
-              request.request.SpotInstanceRequestId, request.request.Region,
-              request.request.LaunchSpecification.Placement.AvailabilityZone,
-              request.request.LaunchSpecification.InstanceType,
-              (now - request.submitted) / 1000);
+      } else if (now - request.submitted >= 15 * 60 * 1000) {
         // We want to track spot requests which aren't in the API yet for a
         // maximum of 15 minutes.  Any longer and we'd risk tracking these
         // forever, which could bog down the system
 
-        if (now - request.submitted >= 15 * 60 * 1000) {
-          this.reportEc2ApiLag({
-            provisionerId: this.provisionerId,
-            region: request.request.Region,
-            az: request.request.LaunchSpecification.Placement.AvailabilityZone,
-            instanceType: request.request.LaunchSpecification.InstanceType,
-            workerType: request.request.WorkerType,
-            id: request.request.SpotInstanceRequestId,
-            didShow: 1,
-            lag: (now - request.submitted) / 1000,
-          });
-          return false;
-        } else {
-          return true;
-        }
+        this.reportEc2ApiLag({
+          provisionerId: this.provisionerId,
+          region: request.request.Region,
+          az: request.request.LaunchSpecification.Placement.AvailabilityZone,
+          instanceType: request.request.LaunchSpecification.InstanceType,
+          workerType: request.request.WorkerType,
+          id: request.request.SpotInstanceRequestId,
+          didShow: 1,
+          lag: (now - request.submitted) / 1000,
+        });
+        return false;
+      } else {
+        return true;
       }
     });
   }
@@ -1072,13 +1061,12 @@ class AwsManager {
     // We should monitor logs for something like this pattern:
     // "The image id '[ami-33333333]' does not exist"
     let clientToken = slugid.nice();
-    log.info({
+    log.trace({
       ClientToken: clientToken,
       bid,
       workerType: launchInfo.workerType,
     }, 'aws api client token');
 
-    log.debug('requesting spot instance');
     let spotRequest = await this.ec2[bid.region].requestSpotInstances({
       InstanceCount: 1,
       Type: 'one-time',
@@ -1189,12 +1177,11 @@ class AwsManager {
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (!keyPairs.data.KeyPairs[0]) {
-        debug('creating key pair %s', keyName);
         await ec2.importKeyPair({
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
         }).promise();
-        debug('created key pair %s', keyName);
+        log.info({region, keyName}, 'created key pair');
       }
     }));
 
@@ -1210,7 +1197,6 @@ class AwsManager {
 
     let keyName = this.createKeyPairName(workerName);
 
-    debug('deleting %s', keyName);
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
       let keyPairs = await ec2.describeKeyPairs({
         Filters: [
@@ -1227,9 +1213,9 @@ class AwsManager {
         await ec2.deleteKeyPair({
           KeyName: keyName,
         });
+        log.info({region, keyName}, 'deleted key pair');
       }
     }));
-    debug('deleted %s', keyName);
 
     this.__knownKeyPairs = this.__knownKeyPairs.filter(k => k !== keyName);
   }
@@ -1248,10 +1234,11 @@ class AwsManager {
     let unconfiguredWorkerNames = workersKnowByAws.filter(n => !_.includes(configuredWorkers, n));
 
     for (let name of unconfiguredWorkerNames) {
-      debug('killing rogue %s', name);
       await this.deleteKeyPair(name);
       await this.killByName(name);
-      debug('killed rogue %s', name);
+    }
+    if (unconfiguredWorkerNames.length > 0) {
+      log.info({rogueWorkerTypes: unconfiguredWorkerNames}, 'killed rogues');
     }
   }
 
@@ -1284,10 +1271,7 @@ class AwsManager {
 
       let requests = apiRequests.slice().concat(intRequests);
 
-      debug('killing %s in region %s by name in states %j', name, region, states);
       await this.killCancel(region, instances, requests);
-      debug('killed %s in region %s by name in states %j', name, region, states);
-
     }));
   }
 
@@ -1318,18 +1302,24 @@ class AwsManager {
     let promises = [];
 
     if (i.length > 0) {
-      debug('terminating instances: %j', i);
-      await this.ec2[region].terminateInstances({
+      promises.push(this.ec2[region].terminateInstances({
         InstanceIds: i,
-      }).promise();
-      debug('terminated instances: %j', i);
+      }).promise());
     }
     if (r.length > 0) {
-      debug('cancelling spot instance requests: %j', r);
-      await this.ec2[region].cancelSpotInstanceRequests({
+      promises.push(this.ec2[region].cancelSpotInstanceRequests({
         SpotInstanceRequestIds: r,
-      }).promise();
-      debug('cancelled spot instance requests: %j', r);
+      }).promise());
+    }
+
+    await Promise.all(promises);
+
+    if (i.length + r.length > 0) {
+      log.info({
+        instances: i,
+        requests: r,
+        region: region,
+      }, 'killed instances and cancelled spot requests in region');
     }
   }
 
@@ -1352,7 +1342,6 @@ class AwsManager {
     }
 
     let capacity = this.capacityForType(workerType, states);
-    debug('trying to find %d to kill out of %d capacity', count, capacity);
     let capToKill = 0;
 
     // Set up the storage for storing instance and sr ids by
@@ -1398,14 +1387,18 @@ class AwsManager {
       }
     }
 
+    log.info({
+      workerType: workerType.workerType,
+      states,
+      countRequested: count,
+      countAbleToKill: capToKill,
+    }, 'trying to kill capacity');
+
     for (let region of Object.keys(toKill)) {
       let i = toKill[region].instances;
       let r = toKill[region].requests;
       if (i.length + r.length > 0) {
-        debug('asking to kill up to %d capacity of %s in states %j in %s\nInstances: %j\nRequests: %j',
-            capToKill, workerType.workerType, states, region, i, r);
         await this.killCancel(region, i, r);
-        debug('request to kill %d of %s submitted', capToKill, workerType.workerType);
       }
     }
   }
@@ -1437,9 +1430,8 @@ class AwsManager {
     }
 
     for (let region of Object.keys(zombies)) {
-      debug('killing zombie instances in %s: %j', region, zombies[region]);
       await this.killCancel(region, zombies[region]);
-      debug('killed zombie instances in %s: %j', region, zombies[region]);
+      log.info('killed zombies');
     }
   }
 

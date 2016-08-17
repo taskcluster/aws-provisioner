@@ -7,6 +7,7 @@
     "compile": "rm -rf lib/ test/ && babel-compile -p taskcluster src:lib test-src:test",
     "pretest": "npm run compile",
     "lint": "eslint src/*.js test-src/*.js",
+    "lintfix": "eslint --fix src/*.js test-src/*.js",
     "test": "npm run lint && npm run compile && mocha test/*_test.js"
   },
   "bin": {
@@ -40,7 +41,8 @@
     "source-map-support": "^0.4.0",
     "taskcluster-base": "^2.1.0",
     "taskcluster-client": "^1.0.1",
-    "taskcluster-lib-log": "^1.0.1",
+    "taskcluster-lib-iterate": "^1.0.2",
+    "taskcluster-lib-log": "^1.0.3",
     "taskcluster-lib-stats": "https://registry.npmjs.org/taskcluster-lib-stats/-/taskcluster-lib-stats-0.8.8.tgz",
     "uuid": "^2.0.2"
   },

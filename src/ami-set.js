@@ -1,5 +1,4 @@
 let base = require('taskcluster-base');
-let debug = require('debug')('aws-provisioner:AmiSet');
 
 const KEY_CONST = 'ami-set';
 
@@ -41,20 +40,11 @@ let AmiSet = base.Entity.configure({
 AmiSet.listAmiSets = async function () {
   let names = [];
 
-  try {
-    await base.Entity.scan.call(this, {}, {
-      handler: function(item) {
-        names.push(item.id);
-      },
-    });
-  } catch (err) {
-    debug('error listing Ami sets');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
-    throw err;
-  }
+  await base.Entity.scan.call(this, {}, {
+    handler: function(item) {
+      names.push(item.id);
+    },
+  });
 
   return names;
 };
