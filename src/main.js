@@ -273,7 +273,6 @@ let load = base.loader({
         provisionerId: cfg.app.id,
         taskcluster: cfg.taskcluster,
         influx: influx,
-        monitor: monitor.prefix('provisioner'),
         awsManager: awsManager,
         provisionIterationInterval: cfg.app.iterationInterval,
         dmsApiKey: cfg.deadmanssnitch.api.key,
