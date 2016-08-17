@@ -13,7 +13,15 @@ module.exports.lag = (monitor, series, provisionerId, region, az,
     didShow,
     lag,
   });
-  monitor.measure(`${region}.${az}.${instanceType}.${workerType}.lag`, lag);
+  monitor.measure(`${region}.lag`, lag);
+  monitor.measure(`${region}.${az}.${instanceType}.lag`, lag);
+  if (didShow) {
+    monitor.count(`overall.didshow`, 1);
+    monitor.count(`${region}.${az}.${instanceType}.didshow`, 1);
+  } else {
+    monitor.count(`overall.noshow`, 1);
+    monitor.count(`${region}.${az}.${instanceType}.noshow`, 1);
+  }
 };
 
 module.exports.spotRequestSubmitted = (monitor, series, provisionerId,
@@ -29,9 +37,13 @@ module.exports.spotRequestSubmitted = (monitor, series, provisionerId,
     price: bid.truePrice,  // ugh, naming!
     bias: bid.bias,
   });
-  monitor.measure(`${region}.${az}.${instanceType}.${workerType}.spot.bid`, bid.price);
-  monitor.measure(`${region}.${az}.${instanceType}.${workerType}.spot.price`, bid.truePrice);
-  monitor.measure(`${region}.${az}.${instanceType}.${workerType}.spot.bias`, bid.bias);
+  monitor.measure('overall.price-per-capacity-unit', bid.truePrice);
+  monitor.measure(`${region}.${az}.${instanceType}.overall.spot.bid`, bid.price);
+  monitor.measure(`${region}.${az}.${instanceType}.overall.spot.price`, bid.truePrice);
+  monitor.measure(`${region}.${az}.${instanceType}.overall.spot.bias`, bid.bias);
+  monitor.measure(`${region}.${az}.${instanceType}.worker.${workerType}.spot.bid`, bid.price);
+  monitor.measure(`${region}.${az}.${instanceType}.worker.${workerType}.spot.price`, bid.truePrice);
+  monitor.measure(`${region}.${az}.${instanceType}.worker.${workerType}.spot.bias`, bid.bias);
 };
 
 module.exports.spotRequestFulfilled = (monitor, series, provisionerId, region, az,
@@ -46,7 +58,12 @@ module.exports.spotRequestFulfilled = (monitor, series, provisionerId, region, a
     instanceId,
     time,
   });
-  monitor.measure(`${region}.${az}.${instanceType}.${workerType}.spot.filled`, time);
+  monitor.count('overall.spot.died.count', 1);
+  monitor.measure('overall.spot.died.time', time);
+  monitor.count(`${region}.${az}.${instanceType}.overall.spot.filled.count`, 1);
+  monitor.measure(`${region}.${az}.${instanceType}.overall.spot.filled.time`, time);
+  monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.spot.filled.count`, 1);
+  monitor.measure(`${region}.${az}.${instanceType}.worker.${workerType}.spot.filled.time`, time);
 };
 
 module.exports.spotRequestDied = (monitor, series, provisionerId, region, az,
@@ -65,7 +82,9 @@ module.exports.spotRequestDied = (monitor, series, provisionerId, region, az,
     statusCode,
     statusMsg,
   });
-  monitor.count(`${region}.${az}.${instanceType}.${workerType}.spot.died`);
+  monitor.count('overall.spot.died.count', 1);
+  monitor.count(`${region}.${az}.${instanceType}.overall.spot.died`, 1);
+  monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.spot.died`, 1);
 };
 
 module.exports.instanceTerminated = (monitor, series, provisionerId, region, az,
@@ -87,7 +106,9 @@ module.exports.instanceTerminated = (monitor, series, provisionerId, region, az,
     stateChangeCode,
     stateChangeMsg,
   });
-  monitor.count(`${region}.${az}.${instanceType}.${workerType}.instance.terminated`);
+  monitor.count('overall.instance.terminated', 1);
+  monitor.count(`${region}.${az}.${instanceType}.overall.instance.terminated`, 1);
+  monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.instance.terminated`, 1);
 };
 
 module.exports.spotFloorFound = (monitor, series, region, az, instanceType, time, price, reason) => {
@@ -99,6 +120,7 @@ module.exports.spotFloorFound = (monitor, series, region, az, instanceType, time
     price,
     reason,
   });
+  monitor.measure(`overall.spot.${instanceType}.price-floor`, price);
   monitor.measure(`${region}.${az}.${instanceType}.price-floor`, price);
 };
 
@@ -111,5 +133,6 @@ module.exports.amiUsage = (monitor, series, provisionerId, region, az, instanceT
     instanceType,
     workerType,
   });
-  monitor.count(`${region}.${az}.${instanceType}.${workerType}.ami.${ami}`);
+  monitor.count(`${region}.ami.${ami}`, 1);
+  monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.ami.${ami}`, 1);
 };
