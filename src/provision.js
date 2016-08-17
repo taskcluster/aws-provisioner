@@ -140,7 +140,7 @@ class Provisioner {
 
     let forSpawning = [];
 
-    for (let worker of workerTypes) {
+    await Promise.all(workerTypes.map(async worker => {
       let wtLog = log.child({workerType: worker.workerType});
       let change = await this.changeForType(worker);
       wtLog.info({change}, 'determined change');
@@ -153,8 +153,8 @@ class Provisioner {
         let state = this.awsManager.stateForStorage(worker.workerType);
         await this.stateContainer.write(worker.workerType, state);
         wtLog.info('wrote state to azure');
-      } catch (stateWriteErr) {
-        wtLog.warn(stateWriteErr, 'error writing state to azure');
+      } catch (err) {
+        wtLog.error(err, 'error writing state to azure');
       }
 
       if (change > 0) {
@@ -170,7 +170,7 @@ class Provisioner {
         let capToKill = -change;
         await this.awsManager.killCapacityOfWorkerType(worker, capToKill, ['pending', 'spotReq']);
       }
-    }
+    }));
 
     // There's nothing to do if we have no bids
     if (forSpawning.length === 0) {
