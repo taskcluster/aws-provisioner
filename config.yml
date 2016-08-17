@@ -1,3 +1,5 @@
+---
+
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
@@ -102,14 +104,12 @@ test:
     publishMetaData: false
     statsComponent: aws-provisioner-test
     awsKeyPrefix: "aws-provisioner-test-managed:"
+    awsInstancePubkey: 'fake-pubkey'
     allowedRegions:
       - 'us-west-2'
   server:
-    publicUrl: https://localhost:60407
-    port: !env:number PORT
-    env: test
-    forceSSL: false
-    trustProxy: false
+    publicUrl: http://localhost:60407
+    port: 60407
   azure:
     account: jungle
   deadmanssnitch:

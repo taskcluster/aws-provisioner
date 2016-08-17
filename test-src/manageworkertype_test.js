@@ -24,7 +24,7 @@ describe('provisioner worker type api', () => {
 
   let WorkerType;
   let stateContainer;
-  
+
   let client;
 
   let testWorkerType = makeWorkerType({
