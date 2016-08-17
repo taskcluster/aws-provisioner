@@ -50,7 +50,7 @@ let load = base.loader({
   monitor: {
     requires: ['process', 'profile', 'cfg'],
     setup: ({process, profile, cfg}) => base.monitor({
-      project: 'aws-provisioner',
+      project: cfg.app.id,
       credentials: cfg.taskcluster.credentials,
       mock: profile === 'test',
       process,

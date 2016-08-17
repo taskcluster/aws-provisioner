@@ -4,6 +4,7 @@ let shuffle = require('knuth-shuffle');
 let taskcluster = require('taskcluster-client');
 let series = require('./influx-series');
 let keyPairs = require('./key-pairs');
+let monitors = require('./monitors');
 let _ = require('lodash');
 let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
@@ -81,6 +82,9 @@ function dateForInflux(thingy) {
  * influx:
  *      Instance of a taskcluster-base.stats.Influx class which is used to
  *      submit data points to an influx instance
+ * monitor:
+ *      Instance of a taskcluster-base.monitor which is used to
+ *      submit data points to a statsum instance
  */
 class AwsManager {
   constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor) {
@@ -131,7 +135,7 @@ class AwsManager {
     // Store the available availability zone
     this.__availableAZ = {};
 
-    // Set up influxdb reporters
+    // Set up influxdb and lib-monitor reporters
     this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
     this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
     this.reportSpotRequestsFulfilled = series.spotRequestsFulfilled.reporter(influx);
@@ -430,21 +434,16 @@ class AwsManager {
 
     // We've found a spot price floor
     if (sr.Status.Code === 'price-too-low') {
-      log.info({
-        region: sr.Region,
-        az: sr.LaunchSpecification.Placement.AvailabilityZone,
-        instanceType: sr.LaunchSpecification.InstanceType,
-        price: parseFloat(sr.SpotPrice, 10),
-      }, 'found new spot request floor');
-
-      this.reportSpotPriceFloorFound({
-        region: sr.Region,
-        az: sr.LaunchSpecification.Placement.AvailabilityZone,
-        instanceType: sr.LaunchSpecification.InstanceType,
-        time: dateForInflux(new Date()),
-        price: parseFloat(sr.SpotPrice, 10),
-        reason: 'spot-request-price-too-low',
-      });
+      monitors.spotFloorFound(
+        this.monitor,
+        this.reportSpotPriceFloorFound,
+        sr.Region,
+        sr.LaunchSpecification.Placement.AvailabilityZone,
+        sr.LaunchSpecification.InstanceType,
+        dateForInflux(new Date()),
+        parseFloat(sr.SpotPrice, 10),
+        'spot-request-price-too-low'
+      );
     }
 
     if (_.includes(stalledStates, sr.Status.Code)) {
@@ -519,16 +518,18 @@ class AwsManager {
     let plotSpotFulfilment = (request) => {
       // Once we go from open -> active with a status of fulfilled we can log this
       // spot request as successfully fulfilled.  This does not imply that
-      this.reportSpotRequestsFulfilled({
-        provisionerId: this.provisionerId,
-        region: request.Region,
-        az: request.LaunchSpecification.Placement.AvailabilityZone,
-        instanceType: request.LaunchSpecification.InstanceType,
-        workerType: request.WorkerType,
-        id: request.SpotInstanceRequestId,
-        instanceId: request.InstanceId,
-        time: dateForInflux(request.Status.UpdateTime),
-      });
+      monitors.spotRequestFulfilled(
+        this.monitor,
+        this.reportSpotRequestsFulfilled,
+        this.provisionerId,
+        request.Region,
+        request.LaunchSpecification.Placement.AvailabilityZone,
+        request.LaunchSpecification.InstanceType,
+        request.WorkerType,
+        request.SpotInstanceRequestId,
+        request.InstanceId,
+        dateForInflux(request.Status.UpdateTime)
+      );
     };
 
     // We want to figure out what happened to each of the spot requests which are
@@ -552,19 +553,21 @@ class AwsManager {
         // of bid amount here in their own special series for use in trying to
         // figure out what to bid.  We could use refused spot bids as a lower
         // limit for bids
-        this.reportSpotRequestsDied({
-          provisionerId: this.provisionerId,
-          region: request.Region,
-          az: request.LaunchSpecification.Placement.AvailabilityZone,
-          instanceType: request.LaunchSpecification.InstanceType,
-          workerType: request.WorkerType,
-          id: request.SpotInstanceRequestId,
-          time: dateForInflux(request.Status.UpdateTime),
-          bid: parseFloat(request.SpotPrice, 10),
-          state: request.State,
-          statusCode: request.Status.Code,
-          statusMsg: request.Status.Message,
-        });
+        monitors.spotRequestDied(
+          this.monitor,
+          this.reportSpotRequestsDied,
+          this.provisionerId,
+          request.Region,
+          request.LaunchSpecification.Placement.AvailabilityZone,
+          request.LaunchSpecification.InstanceType,
+          request.WorkerType,
+          request.SpotInstanceRequestId,
+          dateForInflux(request.Status.UpdateTime),
+          parseFloat(request.SpotPrice, 10),
+          request.State,
+          request.Status.Code,
+          request.Status.Message
+        );
       }
     }
 
@@ -601,21 +604,23 @@ class AwsManager {
 
     let plotInstanceDeath = (instance, time) => {
       // Let's track when the instance is shut down
-      this.reportInstanceTerminated({
-        provisionerId: this.provisionerId,
-        region: instance.Region,
-        az: instance.Placement.AvailabilityZone,
-        instanceType: instance.InstanceType,
-        workerType: instance.WorkerType,
-        id: instance.InstanceId,
-        spotRequestId: instance.SpotInstanceRequestId,
-        time: dateForInflux(time),
-        launchTime: dateForInflux(instance.LaunchTime),
-        stateCode: instance.State.Code,
-        stateMsg: instance.State.Name,
-        stateChangeCode: instance.StateReason.Code,
-        stateChangeMsg: instance.StateReason.Message,
-      });
+      monitors.instanceTerminated(
+        this.monitor,
+        this.reportInstanceTerminated,
+        this.provisionerId,
+        instance.Region,
+        instance.Placement.AvailabilityZone,
+        instance.InstanceType,
+        instance.WorkerType,
+        instance.InstanceId,
+        instance.SpotInstanceRequestId,
+        dateForInflux(time),
+        dateForInflux(instance.LaunchTime),
+        instance.State.Code,
+        instance.State.Name,
+        instance.StateReason.Code,
+        instance.StateReason.Message
+      );
 
       if (instance.StateReason.Code === 'Server.SpotInstanceTermination') {
         // Let's figure out what we set the price to;
@@ -634,14 +639,16 @@ class AwsManager {
         }
 
         if (price) {
-          this.reportSpotPriceFloorFound({
-            region: instance.Region,
-            az: instance.Placement.AvailabilityZone,
-            instanceType: instance.InstanceType,
-            time: dateForInflux(new Date()),
-            price: price,
-            reason: 'instance-spot-killed',
-          });
+          monitors.spotFloorFound(
+            this.monitor,
+            this.reportSpotPriceFloorFound,
+            instance.Region,
+            instance.Placement.AvailabilityZone,
+            instance.InstanceType,
+            dateForInflux(new Date()),
+            price,
+            'instance-spot-killed'
+          );
         }
       }
     };
@@ -1011,32 +1018,35 @@ class AwsManager {
       // We want to print out some info!
       if (_.includes(allKnownSrIds, request.request.SpotInstanceRequestId)) {
         // Now that it's shown up, we'll remove it from the internal state
-        this.reportEc2ApiLag({
-          provisionerId: this.provisionerId,
-          region: request.request.Region,
-          az: request.request.LaunchSpecification.Placement.AvailabilityZone,
-          instanceType: request.request.LaunchSpecification.InstanceType,
-          workerType: request.request.WorkerType,
-          id: request.request.SpotInstanceRequestId,
-          didShow: 0,
-          lag: (now - request.submitted) / 1000,
-        });
+        monitors.lag(
+          this.monitor,
+          this.reportEc2ApiLag,
+          this.provisionerId,
+          request.request.Region,
+          request.request.LaunchSpecification.Placement.AvailabilityZone,
+          request.request.LaunchSpecification.InstanceType,
+          request.request.WorkerType,
+          request.request.SpotInstanceRequestId,
+          0,
+          (now - request.submitted) / 1000
+        );
         return false;
       } else if (now - request.submitted >= 15 * 60 * 1000) {
         // We want to track spot requests which aren't in the API yet for a
         // maximum of 15 minutes.  Any longer and we'd risk tracking these
         // forever, which could bog down the system
-
-        this.reportEc2ApiLag({
-          provisionerId: this.provisionerId,
-          region: request.request.Region,
-          az: request.request.LaunchSpecification.Placement.AvailabilityZone,
-          instanceType: request.request.LaunchSpecification.InstanceType,
-          workerType: request.request.WorkerType,
-          id: request.request.SpotInstanceRequestId,
-          didShow: 1,
-          lag: (now - request.submitted) / 1000,
-        });
+        monitors.lag(
+          this.monitor,
+          this.reportEc2ApiLag,
+          this.provisionerId,
+          request.request.Region,
+          request.request.LaunchSpecification.Placement.AvailabilityZone,
+          request.request.LaunchSpecification.InstanceType,
+          request.request.WorkerType,
+          request.request.SpotInstanceRequestId,
+          1,
+          (now - request.submitted) / 1000
+        );
         return false;
       } else {
         return true;
@@ -1095,26 +1105,28 @@ class AwsManager {
       submitted: new Date(),
     };
 
-    this.reportSpotRequestsSubmitted({
-      provisionerId: this.provisionerId,
-      region: info.bid.region,
-      az: info.bid.zone,
-      instanceType: info.bid.type,
-      workerType: info.workerType,
-      id: info.request.SpotInstanceRequestId,
-      bid: bid.price,
-      price: bid.truePrice,  // ugh, naming!
-      bias: bid.bias,
-    });
+    monitors.spotRequestSubmitted(
+      this.monitor,
+      this.reportSpotRequestsSubmitted,
+      this.provisionerId,
+      info.bid.region,
+      info.bid.zone,
+      info.bid.type,
+      info.workerType,
+      info.request.SpotInstanceRequestId,
+      bid
+    );
 
-    this.reportAmiUsage({
-      provisionerId: this.provisionerId,
-      ami: launchInfo.launchSpec.ImageId,
-      region: info.bid.region,
-      az: info.bid.zone,
-      instanceType: info.bid.type,
-      workerType: info.workerType,
-    });
+    monitors.amiUsage(
+      this.monitor,
+      this.reportAmiUsage,
+      this.provisionerId,
+      info.bid.region,
+      info.bid.zone,
+      info.bid.type,
+      info.workerType,
+      launchInfo.launchSpec.ImageId
+    );
 
     this._trackNewSpotRequest(info);
     return info;
