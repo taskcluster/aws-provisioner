@@ -172,6 +172,11 @@ class Provisioner {
       }
     }
 
+    // There's nothing to do if we have no bids
+    if (forSpawning.length === 0) {
+      return;
+    }
+
     // We want to shuffle up the bids so that we don't prioritize
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
