@@ -1,5 +1,4 @@
 let log = require('./log');
-let debug = log.debugCompat('aws-provisioner2:biaser');
 let assert = require('assert');
 let _ = require('lodash');
 

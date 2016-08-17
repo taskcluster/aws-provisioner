@@ -1,6 +1,4 @@
 let log = require('./log');
-let debug = log.debugCompat('aws-provisioner:WorkerType');
-let debugMigrate = log.debugCompat('aws-provisioner:migrate:WorkerType');
 let base = require('taskcluster-base');
 let assert = require('assert');
 let lodash = require('lodash');
@@ -20,10 +18,8 @@ function fixUserData(x) {
     } else if (typeof x === 'object') {
       ud = lodash.deepClone(x);
     } else if (typeof x !== 'undefined') {
-      debugMigrate('[alert-operator] this userData (%j) is garbage', x);
     }
   } catch (e) {
-    debugMigrate('[alert-operator] error fixing UserData (%j) for migration %j %s', x, e, e.stack || '');
   }
   // These keys get overwriten automatically by the provisioner
   // so we don't really need them to ever be in UserData
@@ -189,8 +185,6 @@ WorkerType = WorkerType.configure({
       };
     });
 
-    debugMigrate('Updated Worker from V1 -> V2:\n%j\n-->%j', item, newWorker);
-
     return newWorker;
   },
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
@@ -251,19 +245,12 @@ WorkerType.loadAll = async function () {
   let workers = [];
 
   try {
-    debug('going to load all workers by scanning the WorkerType table');
     await base.Entity.scan.call(this, {}, {
       handler: function(item) {
         workers.push(item);
       },
     });
-    debug('loaded all workers by scanning the WorkerType table');
   } catch (err) {
-    debug('error loading all workers');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
     throw err;
   }
 
@@ -283,11 +270,6 @@ WorkerType.listWorkerTypes = async function () {
       },
     });
   } catch (err) {
-    debug('error listing worker names');
-    debug(err);
-    if (err.stack) {
-      debug(err.stack);
-    }
     throw err;
   }
 
@@ -627,7 +609,9 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     let err = new Error('Launch specifications are invalid');
     err.code = 'InvalidLaunchSpecifications';
     err.reasons = errors;
-    debug(errors.map(x => x.stack || x).join('\n'));
+    for (let reason of reasons) {
+      log.info({err: reason, workerType: worker.workerType}, 'invalid launch specification reason');
+    }
     throw err;
   }
   return launchSpecs;
@@ -666,28 +650,33 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   // capacityChange < 0  => cancel spot requests for capacityChange
   let capacityAfterChange = capacityChange + pendingCapacity + runningCapacity;
 
-  debug('%s: capacity change is %d, which will result in capacity %d',
-        this.workerType, capacityChange, capacityAfterChange);
-
   // Ensure we are within limits
+  let cLog = log.child({
+    runningCapacity,
+    pendingCapacity,
+    pendingTasks: pending,
+    idealChange: capacityChange,
+  });
+
   let newCapacityChange;
+
   if (capacityAfterChange >= this.maxCapacity) {
     // If there is more than max capacity we should always aim for maxCapacity
     newCapacityChange = this.maxCapacity - runningCapacity - pendingCapacity;
-    debug('%s: would exceed maxCapacity of %d with %d.  Using %d instead of %d as change',
-          this.workerType, this.maxCapacity, capacityAfterChange,
-          newCapacityChange, capacityChange);
+    cLog.info({
+      actualChange: newCapacityChange,
+    }, 'desired change would exceed maximum capacity');
     return newCapacityChange;
   } else if (capacityAfterChange < this.minCapacity) {
     newCapacityChange = this.minCapacity - runningCapacity - pendingCapacity;
-    debug('%s: would not have minCapacity of %d with %d.  Using %d instead of %d as change',
-          this.workerType, this.minCapacity, capacityAfterChange,
-          newCapacityChange, capacityChange);
+    cLog.info({
+      actualChange: newCapacityChange,
+    }, 'desired change would be lower than minimum capacity');
     return newCapacityChange;
   } else {
-    debug('%s: change %d is within bounds %d/%d to become %d',
-          this.workerType, capacityChange, this.minCapacity, this.maxCapacity,
-          capacityAfterChange);
+    cLog.info({
+      actualChange: capacityChange,
+    }, 'desired change is within limits');
   }
 
   // If we're not hitting limits, we should aim for the capacity change that
@@ -835,7 +824,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
       });
     }
 
-    log.info({
+    log.trace({
       workerType: this.workerType,
       priceTrace: priceTrace,
     }, 'found a price');
@@ -846,17 +835,25 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
     if (cheapestPrice <= this.maxPrice) {
       change -= this.capacityOfType(cheapestType);
-      spotBids.push({
+      let finalBid = {
         price: cheapestBid, // Ugh, awful naming!
         truePrice: cheapestPrice, // for history reasons
         region: cheapestRegion,
         type: cheapestType,
         zone: cheapestZone,
         bias: cheapestBias,
-      });
+      };
+      spotBids.push(finalBid);
+      log.trace({
+        workerType: this.workerType,
+        bid: finalBid, 
+      }, 'found bid');
     } else {
-      debug('WorkerType %s is exceeding its max price of %d with %d',
-            this.workerType, this.maxPrice, cheapestPrice);
+      log.warn({
+        workerType: this.workerType,
+        maxPrice: this.maxPrice,
+        bestPrice: cheapestPrice,
+      }, 'refusing to exceed max price');
       return spotBids;
     }
 
@@ -866,7 +863,11 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     // that we really ought to be very well aware of this, and having to make a
     // change to the provisioner is a demonstration of our knowledge of that.
     if (cheapestBid > 10) {
-      debug('[alert-operator] %s spot bid is exceptionally high...', this.workerType);
+      log.warn({
+        workerType: this.workerType,
+        bid: cheapestBid,
+        max: 10,
+      }, '[alert-operator] exceptionally high bid');
       return spotBids;
     }
   }

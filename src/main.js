@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 let log = require('./log');
-let debugModule = log.debugCompat;
-let debug = log.debugCompat('aws-provisioner:main');
 let aws = require('aws-sdk-promise');
 let _ = require('lodash');
 let path = require('path');
@@ -20,9 +18,15 @@ let v1 = require('./api-v1');
 let series = require('./influx-series');
 let azure = require('azure-storage');
 let Container = require('./container');
+let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
-  debug('[alert-operator] UNHANDLED REJECTION!\n' + err.stack || err);
+  log.fatal({err}, '[alert-operator] UNHANDLED REJECTION!');
+  /* XXX SOOON!
+  process.nextTick(() => {
+    throw err;
+  });
+  */
 });
 
 let load = base.loader({
@@ -266,19 +270,73 @@ let load = base.loader({
         taskcluster: cfg.taskcluster,
         influx: influx,
         awsManager: awsManager,
-        provisionIterationInterval: cfg.app.iterationInterval,
-        dmsApiKey: cfg.deadmanssnitch.api.key,
-        iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
         stateContainer: stateContainer,
       });
 
-      try {
-        provisioner.run();
-      } catch (err) {
-        debug('[alert-operator] Error: ' + err.stack || err);
-      }
+      let i = new Iterate({
+        maxIterationTime: 1000 * 60 * 15, // 15 minutes
+        watchDog: 1000 * 60 * 15, // 15 minutes
+        maxFailures: 1,
+        waitTime: cfg.app.iterationInterval,
+        dmsConfig: {
+          apiKey: cfg.deadmanssnitch.api.key,
+          snitchUrl: cfg.deadmanssnitch.iterationSnitch,
+        },
+        handler: async (watchdog, state) => {
+          // Store the stats somewhere
+          if (!state.stats) {
+            state.stats = {
+              runs: 0,
+              consecFail: 0,
+              overallFail: 0,
+            };
+          }
 
-      return provisioner;
+          state.stats.runs++;
+          log.info('provisioning iteration starting');
+          try {
+            await provisioner.provision();
+            state.stats.consecFail = 0;
+          } catch (err) {
+            state.stats.consecFail++;
+            state.stats.overallFail++;
+            log.warn(err, 'provisioning iteration failed');
+            throw err;
+          }
+        },
+      });
+
+      return new Promise((res, rej) => {
+        i.on('started', () => {
+          res({
+            provisioner,
+            iterate: i,
+          });
+        });
+
+        i.on('error', err => {
+          // We're pretty certain that a lib-iterate error is going to be an
+          // array of errors, but let's handle the case that the api changes to
+          // a more general one
+          if (Array.isArray(err)) {
+            for (let x of err) {
+              log.error(x, 'contributing error');
+            }
+            log.fatal(err, 'fatal error, exiting');
+          } else {
+            log.fatal(err, 'fatal error, exiting');
+          }
+          // Leave this here as it's a likely place that we'll all want to drop
+          // into the debugger
+          debugger;
+          process.exit(1);
+          // Call the rejection method to be complete and in case someone's
+          // overwriting the process.exit method
+          rej();
+        });
+
+        i.start();
+      });
     },
   },
 
