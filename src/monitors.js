@@ -68,7 +68,7 @@ module.exports.spotRequestFulfilled = (monitor, series, provisionerId, region, a
 
 module.exports.spotRequestDied = (monitor, series, provisionerId, region, az,
                                   instanceType, workerType, id, time, bid, state,
-                                  statusCode, statusMessage) => {
+                                  statusCode, statusMsg) => {
   series({
     provisionerId,
     region,
