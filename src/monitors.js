@@ -16,10 +16,10 @@ module.exports.lag = (monitor, series, provisionerId, region, az,
   monitor.measure(`${region}.lag`, lag);
   monitor.measure(`${region}.${az}.${instanceType}.lag`, lag);
   if (didShow) {
-    monitor.count(`overall.didshow`, 1);
+    monitor.count('overall.didshow', 1);
     monitor.count(`${region}.${az}.${instanceType}.didshow`, 1);
   } else {
-    monitor.count(`overall.noshow`, 1);
+    monitor.count('overall.noshow', 1);
     monitor.count(`${region}.${az}.${instanceType}.noshow`, 1);
   }
 };
