@@ -71,7 +71,7 @@ production:
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
-    iterationInterval: 75
+    iterationInterval: 10
     allowedRegions: !env:list ALLOWED_REGIONS
   server:
     publicUrl: https://aws-provisioner.taskcluster.net
