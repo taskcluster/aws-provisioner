@@ -1,7 +1,6 @@
 let subject = require('../lib/check-for-ami');
 let assume = require('assume');
 let main = require('../lib/main');
-let aws = require('aws-sdk-promise');
 
 // These tests require actual access to aws and are disabled
 describe('ami check', () => {
@@ -17,7 +16,7 @@ describe('ami check', () => {
     // to pick a new one.  I picked one from here:
     // https://aws.amazon.com/amazon-linux-ami/
     // They still have some from 2011 there... we're fine
-    let actual = await subject(ec2, 'ami-c229c0a2');
+    let actual = await subject(ec2, 'ami-c803f1a8');
     assume(actual).is.true();
   });
 

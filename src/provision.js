@@ -100,6 +100,40 @@ class Provisioner {
     });
   }
 
+  async __filterBrokenWorkers(workerTypes, forSpawning) {
+    assert(workerTypes);
+    assert(Array.isArray(workerTypes));
+    assert(forSpawning);
+    assert(Array.isArray(forSpawning));
+    // Let's find the unique worker types in the list of requests to make This
+    // is to avoid wasting time checking on worker types which we aren't even
+    // going to make an attempt on
+    let toSpawnWorkerTypes = _.intersection(forSpawning.map(x => x.workerType.workerType));
+
+    // These are the worker type names that we shouldn't even attempt
+    let disabled = [];
+
+    for (let toTest of workerTypes.filter(x => toSpawnWorkerTypes.indexOf(x.workerType) !== -1)) {
+      // Consider iterating over a list where we filter out those worker types
+      // which don't have outstanding requests
+      let canLaunch = await this.awsManager.workerTypeCanLaunch(toTest);
+      if (!canLaunch) {
+        disabled.push(toTest.workerType);
+      }
+    }
+
+    if (disabled.length > 0) {
+      let err = new Error('Found invalid worker types');
+      err.types = disabled;
+      //this.monitor.reportError(err);
+      log.warn({disabled}, 'found worker types which cannot launch, ignoring them');
+    }
+
+    console.log(disabled);
+
+    return forSpawning.filter(x => disabled.indexOf(x.workerType.workerType) === -1);
+  }
+
   /**
    * Run provisioners for all known worker types once
    */
@@ -181,25 +215,10 @@ class Provisioner {
     // any particular worker type
     forSpawning = shuffle.knuthShuffle(forSpawning);
 
-    // Let's find the unique worker types in the list of requests to make
-    let toSpawnWorkerTypes = _.intersection(forSpawning.map(x => x.workerType.workerType));
+    // Ignore all worker types which we are sure won't be launchable
+    forSpawning = await this.__filterBrokenWorkers(workerTypes, forSpawning);
 
-    let disabled = [];
-    for (let toTest of workerTypes.filter(x => toSpawnWorkerTypes.indexOf(x) !== -1)) {
-      // Consider iterating over a list where we filter out those worker types
-      // which don't have outstanding requests
-      let canLaunch = await this.awsManager.workerTypeCanLaunch(toTest);
-      if (!canLaunch) {
-        disabled.push(toTest.workerType);
-      }
-    }
-
-    if (disabled.length > 0) {
-      log.warn({disabled}, 'found worker types which cannot launch, ignoring them');
-    }
-
-    forSpawning = forSpawning.filter(x => disabled.indexOf(x.workerType.workerType) === -1);
-
+    // Bucket requests by region
     let byRegion = {};
     for (let x of forSpawning) {
       assert(x.bid && x.bid.region);

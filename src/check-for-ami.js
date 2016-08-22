@@ -6,12 +6,17 @@ let assert = require('assert');
  * the provided ec2 object in the given region
  */
 module.exports = async function (ec2, ami) {
+  assert(typeof ec2 === 'object');
+  assert(typeof ami === 'string', 'ami is not string, rather a ' + typeof ami);
+
   let request = {
-    /* Not sure why this isn't working
-    ExecutableUsers: [
-      'self',
-      'all',
-    ],*/
+    // This filter is something we do want, but unfortunately I can't seem to get
+    // it to reliably work in unit tests, so let's ignore it.
+    // ExecutableUsers: ['self', 'all'],
+    Filters: [{
+      Name: 'image-id',
+      Values: [ami],
+    }],
     ImageIds: [ami],
   };
 
@@ -19,14 +24,17 @@ module.exports = async function (ec2, ami) {
   try {
     result = await ec2.describeImages(request).promise();
   } catch (err) {
-    return false;
+    if (err.name === 'InvalidAMIID.NotFound') {
+      return false;
+    }
+    throw err;
   }
 
   if (result.data.Images.length === 0) {
-    throw new Error('Image does not exist');
+    return false;
   } else if (result.data.Images.length > 1) {
     let err = new Error('Image returned more than one result');
-    err.images = result.data.Images;
+    err.imageids = result.data.Images.map(x => x.ImageId);
     throw err;
   }
 

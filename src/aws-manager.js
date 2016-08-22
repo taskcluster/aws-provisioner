@@ -796,45 +796,55 @@ class AwsManager {
     // We return early here because if we can't even test launch specs,
     // then there's no point in continuing
     try {
-      let launchSpecs = worker.testLaunchSpecs();
+      launchSpecs = worker.testLaunchSpecs();
     } catch (err) {
       canLaunch = false;
       log.error({err, workerType: worker.workerType}, 'cannot launch');
       return false;
     }
 
-    for (let r of worker.regions) {
-      let exists = await amiExists(this.ec2[r.region], r.launchSpec.ImageId);
-      // TODO: is this the right object to pass in for the ec2 value?
-      if (!exists) {
-        canLaunch = false;
-        reasons.push(new Error(`${r.launchSpec.ImageId} not found in ${r.region}`));
-      }
+    await Promise.all(worker.regions.map(async r => {
+      await Promise.all(worker.instanceTypes.map(async t => {
+        let launchSpec = launchSpecs[r.region][t.instanceType].launchSpec;
 
-      try {
-        await this.ec2[r.region].requestSpotInstance({
-          DryRun: true,
-          Type: 'one-time',
-          LaunchSpecification: launchSpecs[r.region],
-          SpotPrice: '0.1',
-        }).promise();
-      } catch (err) {
-        if (err.code !== 'DryRunOperation') {
+        // Let's make sure that the AMI exists
+        let exists = await amiExists(this.ec2[r.region], launchSpec.ImageId);
+        if (!exists) {
           canLaunch = false;
-          reasons.push(err);
+          reasons.push(new Error(`${launchSpec.ImageId} not found in ${r.region}`));
         }
-      }
-    }
 
-    if (!canLaunch) {
-      for (let x = 0; x < reasons.length; x++) {
-        log.error({err: reasons[x]}, 'cannot launch reason ' + x);
-      }
-    }
+        // Now, let's do a DryRun on all the launch specs
+        try {
+          await this.ec2[r.region].requestSpotInstances({
+            InstanceCount: 1,
+            DryRun: true,
+            Type: 'one-time',
+            LaunchSpecification: launchSpec,
+            SpotPrice: '0.1',
+            ClientToken: slugid.nice(),
+          }).promise();
+        } catch (err) {
+          if (err.code !== 'DryRunOperation') {
+            canLaunch = false;
+            reasons.push(err);
+          }
+        }
+      }))
+    }));
 
     if (canLaunch) {
-      log.info({workerType: worker.workerType}, 'worker type can launch');
+      log.debug({workerType: worker.workerType}, 'worker type can launch');
+    } else {
+      log.error({workerType: worker.workerType}, 'worker type cannot launch');
+      for (let x = 0; x < reasons.length; x++) {
+        log.error({
+          workerType: worker.workerType,
+          err: reasons[x],
+        }, 'cannot launch reason ' + x);
+      }
     }
+
     return canLaunch;
   }
 
