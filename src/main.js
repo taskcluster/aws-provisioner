@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 let log = require('./log');
-let aws = require('aws-sdk-promise');
+let aws = require('aws-sdk');
 let _ = require('lodash');
 let path = require('path');
 

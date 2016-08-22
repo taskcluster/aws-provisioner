@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "assume": "^1.2.5",
-    "aws-sdk": "^2.3.16",
-    "aws-sdk-promise": "0.0.2",
+    "aws-sdk": "^2.5.2",
     "azure-storage": "^1.0.1",
     "babel-compile": "^2.0.0",
     "babel-eslint": "^6.0.0",

@@ -1,7 +1,6 @@
 let subject = require('../lib/check-for-ami');
 let assume = require('assume');
 let main = require('../lib/main');
-let aws = require('aws-sdk-promise');
 
 // These tests require actual access to aws and are disabled
 describe('ami check', () => {

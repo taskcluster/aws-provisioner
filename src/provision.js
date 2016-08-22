@@ -6,6 +6,10 @@ let shuffle = require('knuth-shuffle');
 let Biaser = require('./biaser.js');
 let rp = require('request-promise');
 let _ = require('lodash');
+let timeoutPromise = require('./timeout-promise');
+function t (p, msg = '') {
+  return timeoutPromise(120000, p);
+}
 
 let series = require('./influx-series');
 
@@ -106,13 +110,13 @@ class Provisioner {
   async provision() {
     let allProvisionerStart = new Date();
     let workerTypes;
-    workerTypes = await this.WorkerType.loadAll();
+    workerTypes = await t(this.WorkerType.loadAll());
     log.info('loaded worker types');
     await this.awsManager.update();
     log.info('updated aws state');
 
     try {
-      await this.biaser.fetchBiasInfo(this.awsManager.availableAZ(), []);
+      await t(this.biaser.fetchBiasInfo(this.awsManager.availableAZ(), []));
       log.info('obtained bias info');
     } catch (err) {
       log.warn(err, 'error updating bias info, ignoring');
@@ -151,8 +155,8 @@ class Provisioner {
       try {
         // This does create a bunch of extra logs... darn!
         let state = this.awsManager.stateForStorage(worker.workerType);
-        await this.stateContainer.write(worker.workerType, state);
-        wtLog.info('wrote state to azure');
+        await t(this.stateContainer.write(worker.workerType, state));
+        wtLog.debug('wrote state to azure');
       } catch (err) {
         wtLog.error(err, 'error writing state to azure');
       }
@@ -275,7 +279,7 @@ class Provisioner {
   async changeForType(workerType) {
     let wtLog = log.child({workerType: workerType.workerType});
     let result;
-    result = await this.queue.pendingTasks(this.provisionerId, workerType.workerType);
+    result = await t(this.queue.pendingTasks(this.provisionerId, workerType.workerType));
     let pendingTasks = result.pendingTasks;
     wtLog.info({pendingTasks}, 'got pending tasks count');
 

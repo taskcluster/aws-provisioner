@@ -9,6 +9,7 @@ let _ = require('lodash');
 let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
 let slugid = require('slugid');
+let timeoutPromise = require('./timeout-promise');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -143,6 +144,11 @@ class AwsManager {
     this.reportInstanceTerminated = series.instanceTerminated.reporter(influx);
     this.reportSpotPriceFloorFound = series.spotPriceFloorFound.reporter(influx);
     this.reportAmiUsage = series.amiUsage.reporter(influx);
+
+    // This closure is used to actually run our promises
+    this.runec2 = function (region, method, request) {
+      return timeoutPromise.aws(240000, this.ec2[region], method, request);
+    }
   }
 
   /**
@@ -194,150 +200,145 @@ class AwsManager {
     //
     // NOTE: Now that we're using lib-iterate, we probably don't *need* this
     // second Promise.race, but I'd like to keep it in because I'm paranoid
-    await Promise.race([
-      delayer(240 * 1000)().then(() => {
-        throw new Error('Timeout while updating AWS Api State');
-      }),
-      Promise.all(_.map(this.ec2, async (ec2, region) => {
-        let rLog = log.child({region});
-        let response = await Promise.all([
-          // Living instances
-          ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['running', 'pending'],
-              },
-            ],
-          }).promise(),
-          // Living spot requests
-          ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['open'],
-              },
-            ],
-          }).promise(),
-          // Dead instances
-          ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['shutting-down', 'terminated', 'stopping'],
-              },
-            ],
-          }).promise(),
-          // Dead spot requests
-          ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['cancelled', 'failed', 'closed', 'active'],
-              },
-            ],
-          }).promise(),
-          // Available availability zones
-          ec2.describeAvailabilityZones({
-            Filters: [
-              {
-                Name: 'state',
-                Values: ['available'],
-              },
-            ],
-          }).promise(),
-          // Raw pricing data
-          ec2.describeSpotPriceHistory({
-            StartTime: pricingStartDate,
-            Filters: [
-              {
-                Name: 'product-description',
-                Values: ['Linux/UNIX'],
-              },
-            ],
-          }).promise(),
-        ]);
-        rLog.info('ran all state promises for region');
+    await Promise.all(_.map(this.ec2, async (ec2, region) => {
+      let rLog = log.child({region});
+      let response = await Promise.all([
+        // Living instances
+        this.runec2(region, 'describeInstances', {
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: ['running', 'pending'],
+            },
+          ], 
+        }),
+        // Living spot requests
+        this.runec2(region, 'describeSpotInstanceRequests', {
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: ['open'],
+            },
+          ],
+        }),
+        // Dead instances
+        this.runec2(region, 'describeInstances', {
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: ['shutting-down', 'terminated', 'stopping'],
+            },
+          ],
+        }),
+        // Dead spot requests
+        this.runec2(region, 'describeSpotInstanceRequests', {
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: ['cancelled', 'failed', 'closed', 'active'],
+            },
+          ],
+        }),
+        // Available availability zones
+        this.runec2(region, 'describeAvailabilityZones', {
+          Filters: [
+            {
+              Name: 'state',
+              Values: ['available'],
+            },
+          ],
+        }),
+        // Raw pricing data
+        this.runec2(region, 'describeSpotPriceHistory', {
+          StartTime: pricingStartDate,
+          Filters: [
+            {
+              Name: 'product-description',
+              Values: ['Linux/UNIX'],
+            },
+          ],
+        }),
+      ]);
+      rLog.info('ran all state promises for region');
 
-        // Now let's classify them
-        for (let reservation of response[0].data.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            apiState.instances.push(filtered);
-          }
-        };
-
-        // Stalled requests are those which have taken way too long to be
-        // fulfilled.  We'll consider them dead after a certain amount of time
-        // and make new requests for their pending tasks
-        let stalledSRIds = [];
-        for (let request of response[1].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          if (this._spotRequestStalled(filtered)) {
-            stalledSRIds.push(filtered.SpotInstanceRequestId);
-          } else {
-            apiState.requests.push(filtered);
-          }
-        }
-
-        // Submit request to kill stalled requests
-        await this.killCancel(region, [], stalledSRIds);
-        if (stalledSRIds.length > 0) {
-          rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
-        }
-
-        // Put the dead instances into the dead state object
-        for (let reservation of response[2].data.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            deadState.instances.push(filtered);
-          }
-        };
-
-        // Put the dead requests into the dead state object
-        let deadSpotRequests = [];
-        for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+      // Now let's classify them
+      for (let reservation of response[0].data.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
           // Maybe use objFilter here
-          let filtered = request;
+          let filtered = instance;
           filtered.Region = region;
           filtered.WorkerType = workerType;
-          deadState.requests.push(filtered);
+          apiState.instances.push(filtered);
         }
+      };
 
-        // Find all the available availability zones
-        availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+      // Stalled requests are those which have taken way too long to be
+      // fulfilled.  We'll consider them dead after a certain amount of time
+      // and make new requests for their pending tasks
+      let stalledSRIds = [];
+      for (let request of response[1].data.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        if (this._spotRequestStalled(filtered)) {
+          stalledSRIds.push(filtered.SpotInstanceRequestId);
+        } else {
+          apiState.requests.push(filtered);
+        }
+      }
 
-        // Find the max prices
-        allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
-        rLog.info('found maximum prices');
-      })),
-    ]);
+      // Submit request to kill stalled requests
+      await this.killCancel(region, [], stalledSRIds);
+      if (stalledSRIds.length > 0) {
+        rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
+      }
+
+      // Put the dead instances into the dead state object
+      for (let reservation of response[2].data.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+          // Maybe use objFilter here
+          let filtered = instance;
+          filtered.Region = region;
+          filtered.WorkerType = workerType;
+          deadState.instances.push(filtered);
+        }
+      };
+
+      // Put the dead requests into the dead state object
+      let deadSpotRequests = [];
+      for (let request of response[3].data.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        // Maybe use objFilter here
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        deadState.requests.push(filtered);
+      }
+
+      // Find all the available availability zones
+      availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+
+      // Find the max prices
+      allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
+      rLog.info('found maximum prices');
+    }));
     log.info('finished state update for all regions');
 
     // Assign all of the new state objects to the properties of this aws manager
@@ -812,12 +813,12 @@ class AwsManager {
       }
 
       try {
-        await this.ec2[r.region].requestSpotInstance({
+        await this.runec2(r.region, 'requestSpotInstance', {
           DryRun: true,
           Type: 'one-time',
           LaunchSpecification: launchSpecs[r.region],
           SpotPrice: '0.1',
-        }).promise();
+        });
       } catch (err) {
         if (err.code !== 'DryRunOperation') {
           canLaunch = false;
@@ -940,10 +941,10 @@ class AwsManager {
     let tagPromises = [];
     for (let region of Object.keys(tags)) {
       for (let workerType of Object.keys(tags[region])) {
-        tagPromises.push(this.ec2[region].createTags({
+        tagPromises.push(t(this.ec2[region].createTags({
           Tags: tags[region][workerType].data,
           Resources: tags[region][workerType].ids,
-        }).promise());
+        }).promise()));
       }
     }
 
@@ -1079,13 +1080,13 @@ class AwsManager {
       workerType: launchInfo.workerType,
     }, 'aws api client token');
 
-    let spotRequest = await this.ec2[bid.region].requestSpotInstances({
+    let spotRequest = await this.runec2(bid.region, 'requestSpotInstances', {
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchInfo.launchSpec,
       SpotPrice: bid.price.toString(),
       ClientToken: clientToken,
-    }).promise();
+    });
 
     let spotReq = spotRequest.data.SpotInstanceRequests[0];
 
@@ -1179,22 +1180,22 @@ class AwsManager {
     }
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await this.runec2(region, 'describeKeyPairs', {
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      });
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (!keyPairs.data.KeyPairs[0]) {
-        await ec2.importKeyPair({
+        await this.runec2(region, 'importKeyPair', {
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
-        }).promise();
+        });
         log.info({region, keyName}, 'created key pair');
       }
     }));
@@ -1212,21 +1213,21 @@ class AwsManager {
     let keyName = this.createKeyPairName(workerName);
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await t(ec2.describeKeyPairs({
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      }).promise());
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (keyPairs.data.KeyPairs[0]) {
-        await ec2.deleteKeyPair({
+        await t(ec2.deleteKeyPair({
           KeyName: keyName,
-        });
+        }).promise());
         log.info({region, keyName}, 'deleted key pair');
       }
     }));
@@ -1316,14 +1317,14 @@ class AwsManager {
     let promises = [];
 
     if (i.length > 0) {
-      promises.push(this.ec2[region].terminateInstances({
+      promises.push(t(this.ec2[region].terminateInstances({
         InstanceIds: i,
-      }).promise());
+      }).promise()));
     }
     if (r.length > 0) {
-      promises.push(this.ec2[region].cancelSpotInstanceRequests({
+      promises.push(t(this.ec2[region].cancelSpotInstanceRequests({
         SpotInstanceRequestIds: r,
-      }).promise());
+      }).promise()));
     }
 
     await Promise.all(promises);
