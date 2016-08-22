@@ -832,6 +832,9 @@ class AwsManager {
       }
     }
 
+    if (canLaunch) {
+      log.info({workerType: worker.workerType}, 'worker type can launch');
+    }
     return canLaunch;
   }
 
