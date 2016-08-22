@@ -1226,7 +1226,7 @@ class AwsManager {
       if (keyPairs.data.KeyPairs[0]) {
         await ec2.deleteKeyPair({
           KeyName: keyName,
-        });
+        }).promise();
         log.info({region, keyName}, 'deleted key pair');
       }
     }));
