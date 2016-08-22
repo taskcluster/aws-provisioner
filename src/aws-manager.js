@@ -9,6 +9,11 @@ let _ = require('lodash');
 let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
 let slugid = require('slugid');
+let timeoutPromise = require('./timeout-promise');
+let t = function(p) {
+  return timeoutPromise(120000, p);
+}
+
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -202,7 +207,7 @@ class AwsManager {
         let rLog = log.child({region});
         let response = await Promise.all([
           // Living instances
-          ec2.describeInstances({
+          t(ec2.describeInstances({
             Filters: [
               {
                 Name: 'key-name',
@@ -213,9 +218,9 @@ class AwsManager {
                 Values: ['running', 'pending'],
               },
             ],
-          }).promise(),
+          }).promise()),
           // Living spot requests
-          ec2.describeSpotInstanceRequests({
+          t(ec2.describeSpotInstanceRequests({
             Filters: [
               {
                 Name: 'launch.key-name',
@@ -225,9 +230,9 @@ class AwsManager {
                 Values: ['open'],
               },
             ],
-          }).promise(),
+          }).promise()),
           // Dead instances
-          ec2.describeInstances({
+          t(ec2.describeInstances({
             Filters: [
               {
                 Name: 'key-name',
@@ -238,9 +243,9 @@ class AwsManager {
                 Values: ['shutting-down', 'terminated', 'stopping'],
               },
             ],
-          }).promise(),
+          }).promise()),
           // Dead spot requests
-          ec2.describeSpotInstanceRequests({
+          t(ec2.describeSpotInstanceRequests({
             Filters: [
               {
                 Name: 'launch.key-name',
@@ -250,18 +255,18 @@ class AwsManager {
                 Values: ['cancelled', 'failed', 'closed', 'active'],
               },
             ],
-          }).promise(),
+          }).promise()),
           // Available availability zones
-          ec2.describeAvailabilityZones({
+          t(ec2.describeAvailabilityZones({
             Filters: [
               {
                 Name: 'state',
                 Values: ['available'],
               },
             ],
-          }).promise(),
+          }).promise()),
           // Raw pricing data
-          ec2.describeSpotPriceHistory({
+          t(ec2.describeSpotPriceHistory({
             StartTime: pricingStartDate,
             Filters: [
               {
@@ -269,7 +274,7 @@ class AwsManager {
                 Values: ['Linux/UNIX'],
               },
             ],
-          }).promise(),
+          }).promise()),
         ]);
         rLog.info('ran all state promises for region');
 
@@ -812,12 +817,12 @@ class AwsManager {
       }
 
       try {
-        await this.ec2[r.region].requestSpotInstance({
+        await t(this.ec2[r.region].requestSpotInstance({
           DryRun: true,
           Type: 'one-time',
           LaunchSpecification: launchSpecs[r.region],
           SpotPrice: '0.1',
-        }).promise();
+        }).promise());
       } catch (err) {
         if (err.code !== 'DryRunOperation') {
           canLaunch = false;
@@ -940,10 +945,10 @@ class AwsManager {
     let tagPromises = [];
     for (let region of Object.keys(tags)) {
       for (let workerType of Object.keys(tags[region])) {
-        tagPromises.push(this.ec2[region].createTags({
+        tagPromises.push(t(this.ec2[region].createTags({
           Tags: tags[region][workerType].data,
           Resources: tags[region][workerType].ids,
-        }).promise());
+        }).promise()));
       }
     }
 
@@ -1079,13 +1084,13 @@ class AwsManager {
       workerType: launchInfo.workerType,
     }, 'aws api client token');
 
-    let spotRequest = await this.ec2[bid.region].requestSpotInstances({
+    let spotRequest = await t(this.ec2[bid.region].requestSpotInstances({
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchInfo.launchSpec,
       SpotPrice: bid.price.toString(),
       ClientToken: clientToken,
-    }).promise();
+    }).promise());
 
     let spotReq = spotRequest.data.SpotInstanceRequests[0];
 
@@ -1179,22 +1184,22 @@ class AwsManager {
     }
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await t(ec2.describeKeyPairs({
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      }).promise());
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (!keyPairs.data.KeyPairs[0]) {
-        await ec2.importKeyPair({
+        await t(ec2.importKeyPair({
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
-        }).promise();
+        }).promise());
         log.info({region, keyName}, 'created key pair');
       }
     }));
@@ -1212,21 +1217,21 @@ class AwsManager {
     let keyName = this.createKeyPairName(workerName);
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await t(ec2.describeKeyPairs({
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      }).promise());
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (keyPairs.data.KeyPairs[0]) {
-        await ec2.deleteKeyPair({
+        await t(ec2.deleteKeyPair({
           KeyName: keyName,
-        });
+        }).promise());
         log.info({region, keyName}, 'deleted key pair');
       }
     }));
@@ -1316,14 +1321,14 @@ class AwsManager {
     let promises = [];
 
     if (i.length > 0) {
-      promises.push(this.ec2[region].terminateInstances({
+      promises.push(t(this.ec2[region].terminateInstances({
         InstanceIds: i,
-      }).promise());
+      }).promise()));
     }
     if (r.length > 0) {
-      promises.push(this.ec2[region].cancelSpotInstanceRequests({
+      promises.push(t(this.ec2[region].cancelSpotInstanceRequests({
         SpotInstanceRequestIds: r,
-      }).promise());
+      }).promise()));
     }
 
     await Promise.all(promises);

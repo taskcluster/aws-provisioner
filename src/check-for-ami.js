@@ -1,5 +1,6 @@
 let log = require('./log');
 let assert = require('assert');
+let timeoutPromise = require('./timeout-promise');
 
 /**
  * Check for the existence of an AMI that's executable by
@@ -17,7 +18,7 @@ module.exports = async function (ec2, ami) {
 
   let result;
   try {
-    result = await ec2.describeImages(request).promise();
+    result = await timeoutPromise(120000, ec2.describeImages(request).promise());
   } catch (err) {
     return false;
   }
