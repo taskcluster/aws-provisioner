@@ -36,7 +36,7 @@ function orderThingsInRegion(input) {
 // Just randomize the list of requests that we're making to give equal chances
 // worker type spawning earlier.
 function randomizeRequests(input) {
-    return shuffle.knuthShuffle(input);
+  return shuffle.knuthShuffle(input);
 }
 
 // If we have request for workerTypes A, B, B, C, C, C, D, D, D, D then we
@@ -128,12 +128,12 @@ class Provisioner {
     // Let's find the unique worker types in the list of requests to make This
     // is to avoid wasting time checking on worker types which we aren't even
     // going to make an attempt on
-    let toSpawnWorkerTypes = _.intersection(forSpawning.map(x => x.workerType.workerType));
+    let toSpawnWorkerTypes = _.uniq(forSpawning.map(x => x.workerType.workerType));
 
     // These are the worker type names that we shouldn't even attempt
     let disabled = [];
 
-    for (let toTest of workerTypes.filter(x => toSpawnWorkerTypes.indexOf(x.workerType) !== -1)) {
+    for (let toTest of workerTypes.filter(x => _.includes(toSpawnWorkerTypes, x.workerType))) {
       // Consider iterating over a list where we filter out those worker types
       // which don't have outstanding requests
       let launchInfo = await this.awsManager.workerTypeCanLaunch(toTest);
@@ -149,9 +149,7 @@ class Provisioner {
       log.warn({disabled}, 'found worker types which cannot launch, ignoring them');
     }
 
-    console.log(disabled);
-
-    return forSpawning.filter(x => disabled.indexOf(x.workerType.workerType) === -1);
+    return forSpawning.filter(x => _.includes(disabled, x.workerType.workerType));
   }
 
   /**

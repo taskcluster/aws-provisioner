@@ -609,9 +609,6 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     let err = new Error('Launch specifications are invalid');
     err.code = 'InvalidLaunchSpecifications';
     err.reasons = errors;
-    for (let reason of reasons) {
-      log.info({err: reason, workerType: worker.workerType}, 'invalid launch specification reason');
-    }
     throw err;
   }
   return launchSpecs;

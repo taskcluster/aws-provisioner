@@ -796,7 +796,7 @@ class AwsManager {
     let returnValue = {
       canLaunch: true,
       reasons: [],
-    }
+    };
 
     let launchSpecs;
 
@@ -850,7 +850,7 @@ class AwsManager {
             returnValue.reasons.push(err);
           }
         }
-      }))
+      }));
     }));
 
     if (returnValue.canLaunch) {
