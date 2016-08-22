@@ -199,150 +199,145 @@ class AwsManager {
     //
     // NOTE: Now that we're using lib-iterate, we probably don't *need* this
     // second Promise.race, but I'd like to keep it in because I'm paranoid
-    await Promise.race([
-      delayer(240 * 1000)().then(() => {
-        throw new Error('Timeout while updating AWS Api State');
-      }),
-      Promise.all(_.map(this.ec2, async (ec2, region) => {
-        let rLog = log.child({region});
-        let response = await Promise.all([
-          // Living instances
-          t(ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['running', 'pending'],
-              },
-            ],
-          }).promise()),
-          // Living spot requests
-          t(ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['open'],
-              },
-            ],
-          }).promise()),
-          // Dead instances
-          t(ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['shutting-down', 'terminated', 'stopping'],
-              },
-            ],
-          }).promise()),
-          // Dead spot requests
-          t(ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['cancelled', 'failed', 'closed', 'active'],
-              },
-            ],
-          }).promise()),
-          // Available availability zones
-          t(ec2.describeAvailabilityZones({
-            Filters: [
-              {
-                Name: 'state',
-                Values: ['available'],
-              },
-            ],
-          }).promise()),
-          // Raw pricing data
-          t(ec2.describeSpotPriceHistory({
-            StartTime: pricingStartDate,
-            Filters: [
-              {
-                Name: 'product-description',
-                Values: ['Linux/UNIX'],
-              },
-            ],
-          }).promise()),
-        ]);
-        rLog.info('ran all state promises for region');
+    await Promise.all(_.map(this.ec2, async (ec2, region) => {
+      let rLog = log.child({region});
+      let response = await Promise.all([
+        // Living instances
+        t(ec2.describeInstances({
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: ['running', 'pending'],
+            },
+          ],
+        }).promise()),
+        // Living spot requests
+        t(ec2.describeSpotInstanceRequests({
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: ['open'],
+            },
+          ],
+        }).promise()),
+        // Dead instances
+        t(ec2.describeInstances({
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: ['shutting-down', 'terminated', 'stopping'],
+            },
+          ],
+        }).promise()),
+        // Dead spot requests
+        t(ec2.describeSpotInstanceRequests({
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: ['cancelled', 'failed', 'closed', 'active'],
+            },
+          ],
+        }).promise()),
+        // Available availability zones
+        t(ec2.describeAvailabilityZones({
+          Filters: [
+            {
+              Name: 'state',
+              Values: ['available'],
+            },
+          ],
+        }).promise()),
+        // Raw pricing data
+        t(ec2.describeSpotPriceHistory({
+          StartTime: pricingStartDate,
+          Filters: [
+            {
+              Name: 'product-description',
+              Values: ['Linux/UNIX'],
+            },
+          ],
+        }).promise()),
+      ]);
+      rLog.info('ran all state promises for region');
 
-        // Now let's classify them
-        for (let reservation of response[0].data.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            apiState.instances.push(filtered);
-          }
-        };
-
-        // Stalled requests are those which have taken way too long to be
-        // fulfilled.  We'll consider them dead after a certain amount of time
-        // and make new requests for their pending tasks
-        let stalledSRIds = [];
-        for (let request of response[1].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          if (this._spotRequestStalled(filtered)) {
-            stalledSRIds.push(filtered.SpotInstanceRequestId);
-          } else {
-            apiState.requests.push(filtered);
-          }
-        }
-
-        // Submit request to kill stalled requests
-        await this.killCancel(region, [], stalledSRIds);
-        if (stalledSRIds.length > 0) {
-          rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
-        }
-
-        // Put the dead instances into the dead state object
-        for (let reservation of response[2].data.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            deadState.instances.push(filtered);
-          }
-        };
-
-        // Put the dead requests into the dead state object
-        let deadSpotRequests = [];
-        for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+      // Now let's classify them
+      for (let reservation of response[0].data.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
           // Maybe use objFilter here
-          let filtered = request;
+          let filtered = instance;
           filtered.Region = region;
           filtered.WorkerType = workerType;
-          deadState.requests.push(filtered);
+          apiState.instances.push(filtered);
         }
+      };
 
-        // Find all the available availability zones
-        availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+      // Stalled requests are those which have taken way too long to be
+      // fulfilled.  We'll consider them dead after a certain amount of time
+      // and make new requests for their pending tasks
+      let stalledSRIds = [];
+      for (let request of response[1].data.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        if (this._spotRequestStalled(filtered)) {
+          stalledSRIds.push(filtered.SpotInstanceRequestId);
+        } else {
+          apiState.requests.push(filtered);
+        }
+      }
 
-        // Find the max prices
-        allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
-        rLog.info('found maximum prices');
-      })),
-    ]);
+      // Submit request to kill stalled requests
+      await this.killCancel(region, [], stalledSRIds);
+      if (stalledSRIds.length > 0) {
+        rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
+      }
+
+      // Put the dead instances into the dead state object
+      for (let reservation of response[2].data.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+          // Maybe use objFilter here
+          let filtered = instance;
+          filtered.Region = region;
+          filtered.WorkerType = workerType;
+          deadState.instances.push(filtered);
+        }
+      };
+
+      // Put the dead requests into the dead state object
+      let deadSpotRequests = [];
+      for (let request of response[3].data.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        // Maybe use objFilter here
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        deadState.requests.push(filtered);
+      }
+
+      // Find all the available availability zones
+      availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+
+      // Find the max prices
+      allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
+      rLog.info('found maximum prices');
+    }));
     log.info('finished state update for all regions');
 
     // Assign all of the new state objects to the properties of this aws manager
