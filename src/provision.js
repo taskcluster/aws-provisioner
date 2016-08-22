@@ -7,7 +7,7 @@ let Biaser = require('./biaser.js');
 let rp = require('request-promise');
 let _ = require('lodash');
 let timeoutPromise = require('./timeout-promise');
-function t (p) {
+function t (p, msg = '') {
   return timeoutPromise(120000, p);
 }
 

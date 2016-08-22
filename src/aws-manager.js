@@ -10,10 +10,6 @@ let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
 let slugid = require('slugid');
 let timeoutPromise = require('./timeout-promise');
-let t = function(p) {
-  return timeoutPromise(120000, p);
-}
-
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
 
@@ -148,6 +144,11 @@ class AwsManager {
     this.reportInstanceTerminated = series.instanceTerminated.reporter(influx);
     this.reportSpotPriceFloorFound = series.spotPriceFloorFound.reporter(influx);
     this.reportAmiUsage = series.amiUsage.reporter(influx);
+
+    // This closure is used to actually run our promises
+    this.runec2 = function (region, method, request) {
+      return timeoutPromise.aws(240000, this.ec2[region], method, request);
+    }
   }
 
   /**
@@ -203,7 +204,7 @@ class AwsManager {
       let rLog = log.child({region});
       let response = await Promise.all([
         // Living instances
-        t(ec2.describeInstances({
+        this.runec2(region, 'describeInstances', {
           Filters: [
             {
               Name: 'key-name',
@@ -213,10 +214,10 @@ class AwsManager {
               Name: 'instance-state-name',
               Values: ['running', 'pending'],
             },
-          ],
-        }).promise()),
+          ], 
+        }),
         // Living spot requests
-        t(ec2.describeSpotInstanceRequests({
+        this.runec2(region, 'describeSpotInstanceRequests', {
           Filters: [
             {
               Name: 'launch.key-name',
@@ -226,9 +227,9 @@ class AwsManager {
               Values: ['open'],
             },
           ],
-        }).promise()),
+        }),
         // Dead instances
-        t(ec2.describeInstances({
+        this.runec2(region, 'describeInstances', {
           Filters: [
             {
               Name: 'key-name',
@@ -239,9 +240,9 @@ class AwsManager {
               Values: ['shutting-down', 'terminated', 'stopping'],
             },
           ],
-        }).promise()),
+        }),
         // Dead spot requests
-        t(ec2.describeSpotInstanceRequests({
+        this.runec2(region, 'describeSpotInstanceRequests', {
           Filters: [
             {
               Name: 'launch.key-name',
@@ -251,18 +252,18 @@ class AwsManager {
               Values: ['cancelled', 'failed', 'closed', 'active'],
             },
           ],
-        }).promise()),
+        }),
         // Available availability zones
-        t(ec2.describeAvailabilityZones({
+        this.runec2(region, 'describeAvailabilityZones', {
           Filters: [
             {
               Name: 'state',
               Values: ['available'],
             },
           ],
-        }).promise()),
+        }),
         // Raw pricing data
-        t(ec2.describeSpotPriceHistory({
+        this.runec2(region, 'describeSpotPriceHistory', {
           StartTime: pricingStartDate,
           Filters: [
             {
@@ -270,7 +271,7 @@ class AwsManager {
               Values: ['Linux/UNIX'],
             },
           ],
-        }).promise()),
+        }),
       ]);
       rLog.info('ran all state promises for region');
 
@@ -812,12 +813,12 @@ class AwsManager {
       }
 
       try {
-        await t(this.ec2[r.region].requestSpotInstance({
+        await this.runec2(r.region, 'requestSpotInstance', {
           DryRun: true,
           Type: 'one-time',
           LaunchSpecification: launchSpecs[r.region],
           SpotPrice: '0.1',
-        }).promise());
+        });
       } catch (err) {
         if (err.code !== 'DryRunOperation') {
           canLaunch = false;
@@ -1079,13 +1080,13 @@ class AwsManager {
       workerType: launchInfo.workerType,
     }, 'aws api client token');
 
-    let spotRequest = await t(this.ec2[bid.region].requestSpotInstances({
+    let spotRequest = await this.runec2(bid.region, 'requestSpotInstances', {
       InstanceCount: 1,
       Type: 'one-time',
       LaunchSpecification: launchInfo.launchSpec,
       SpotPrice: bid.price.toString(),
       ClientToken: clientToken,
-    }).promise());
+    });
 
     let spotReq = spotRequest.data.SpotInstanceRequests[0];
 
@@ -1179,22 +1180,22 @@ class AwsManager {
     }
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await t(ec2.describeKeyPairs({
+      let keyPairs = await this.runec2(region, 'describeKeyPairs', {
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise());
+      });
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (!keyPairs.data.KeyPairs[0]) {
-        await t(ec2.importKeyPair({
+        await this.runec2(region, 'importKeyPair', {
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
-        }).promise());
+        });
         log.info({region, keyName}, 'created key pair');
       }
     }));
