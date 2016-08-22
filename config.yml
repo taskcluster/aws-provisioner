@@ -33,6 +33,10 @@ defaults:
     forceSSL: false
     trustProxy: false
 
+  monitor:
+    project: 'aws-provisioner-dev'
+    mock: true
+
   azure:
     account: !env AZURE_ACCOUNT_NAME
   azureBlob:
@@ -73,10 +77,35 @@ production:
     awsKeyPrefix: "aws-provisioner-v1-managed:"
     iterationInterval: 10
     allowedRegions: !env:list ALLOWED_REGIONS
+  monitor:
+    project: 'aws-provisioner'
+    mock: false
   server:
     publicUrl: https://aws-provisioner.taskcluster.net
     port: !env:number PORT
     env: production
+    forceSSL: true
+    trustProxy: true
+
+staging:
+  app:
+    id: staging-aws
+    workerTypeTableName: StagingWorkerTypes
+    amiSetTableName: StagingAmiSets
+    secretTableName: StagingSecrets
+    workerStateTableName: StagingWorkerState
+    publishMetaData: false
+    statsComponent: staging-aws
+    awsKeyPrefix: "staging-managed:"
+    iterationInterval: 10
+    allowedRegions: !env:list ALLOWED_REGIONS
+  monitor:
+    project: 'staging-aws'
+    mock: false
+  server:
+    publicUrl: https://staging-aws-provisioner.herokuapp.com
+    port: !env:number PORT
+    env: staging
     forceSSL: true
     trustProxy: true
 
