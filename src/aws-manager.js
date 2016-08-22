@@ -787,20 +787,40 @@ class AwsManager {
   /**
    * Decide whether the passed-in worker type is able to run
    */
-  async workerTypeCanLaunch(worker) {
-    let canLaunch = true;
-    let reasons = []; // List of reasons why a worker type cannot launch
+  async workerTypeCanLaunch(worker, WorkerType) {
+    assert(typeof worker);
+    if (WorkerType) {
+      assert(typeof WorkerType.testLaunchSpecs === 'function');
+    }
+
+    let returnValue = {
+      canLaunch: true,
+      reasons: [],
+    }
 
     let launchSpecs;
 
     // We return early here because if we can't even test launch specs,
     // then there's no point in continuing
     try {
-      launchSpecs = worker.testLaunchSpecs();
+      // For the yet-to-be-created case in the API, we want to use the static
+      // method rather than the non-existing instance method
+      if (WorkerType) {
+        launchSpecs = WorkerType.testLaunchSpecs(
+            worker,
+            this.keyPrefix,
+            this.provisionerId,
+            'http://taskcluster.net/fake-provisioner-base-url',
+            this.pubKey,
+            worker.workerType
+        );
+      } else {
+        launchSpecs = worker.testLaunchSpecs();
+      }
     } catch (err) {
-      canLaunch = false;
-      log.error({err, workerType: worker.workerType}, 'cannot launch');
-      return false;
+      returnValue.canLaunch = false;
+      returnValue.reasons.push(err);
+      return returnValue;
     }
 
     await Promise.all(worker.regions.map(async r => {
@@ -810,8 +830,8 @@ class AwsManager {
         // Let's make sure that the AMI exists
         let exists = await amiExists(this.ec2[r.region], launchSpec.ImageId);
         if (!exists) {
-          canLaunch = false;
-          reasons.push(new Error(`${launchSpec.ImageId} not found in ${r.region}`));
+          returnValue.canLaunch = false;
+          returnValue.reasons.push(new Error(`${launchSpec.ImageId} not found in ${r.region}`));
         }
 
         // Now, let's do a DryRun on all the launch specs
@@ -826,26 +846,26 @@ class AwsManager {
           }).promise();
         } catch (err) {
           if (err.code !== 'DryRunOperation') {
-            canLaunch = false;
-            reasons.push(err);
+            returnValue.canLaunch = false;
+            returnValue.reasons.push(err);
           }
         }
       }))
     }));
 
-    if (canLaunch) {
+    if (returnValue.canLaunch) {
       log.debug({workerType: worker.workerType}, 'worker type can launch');
     } else {
       log.error({workerType: worker.workerType}, 'worker type cannot launch');
-      for (let x = 0; x < reasons.length; x++) {
+      for (let x = 0; x < returnValue.reasons.length; x++) {
         log.error({
           workerType: worker.workerType,
-          err: reasons[x],
+          err: returnValue.reasons[x],
         }, 'cannot launch reason ' + x);
       }
     }
 
-    return canLaunch;
+    return returnValue;
   }
 
   /**

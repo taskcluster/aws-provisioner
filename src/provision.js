@@ -22,6 +22,26 @@ let series = require('./influx-series');
  * them as immutable.
  */
 function orderThingsInRegion(input) {
+  switch (process.env.REQUEST_ORDER) {
+    case 'random':
+      return randomizeRequests(input);
+      break;
+    case 'round-robin':
+    default:
+      return roundRobinRequests(input);
+      break;
+  }
+}
+
+// Just randomize the list of requests that we're making to give equal chances
+// worker type spawning earlier.
+function randomizeRequests(input) {
+    return shuffle.knuthShuffle(input);
+}
+
+// If we have request for workerTypes A, B, B, C, C, C, D, D, D, D then we
+// should submit them in the order    A, B, C, D, B, C, D, C, D, D
+function roundRobinRequests(input) {
   // assemble things by workerType name
   var byName = _.reduce(input, (res, wt) => {
     var name = wt.workerType.workerType;
@@ -116,8 +136,8 @@ class Provisioner {
     for (let toTest of workerTypes.filter(x => toSpawnWorkerTypes.indexOf(x.workerType) !== -1)) {
       // Consider iterating over a list where we filter out those worker types
       // which don't have outstanding requests
-      let canLaunch = await this.awsManager.workerTypeCanLaunch(toTest);
-      if (!canLaunch) {
+      let launchInfo = await this.awsManager.workerTypeCanLaunch(toTest);
+      if (!launchInfo.canLaunch) {
         disabled.push(toTest.workerType);
       }
     }
@@ -210,10 +230,6 @@ class Provisioner {
     if (forSpawning.length === 0) {
       return;
     }
-
-    // We want to shuffle up the bids so that we don't prioritize
-    // any particular worker type
-    forSpawning = shuffle.knuthShuffle(forSpawning);
 
     // Ignore all worker types which we are sure won't be launchable
     forSpawning = await this.__filterBrokenWorkers(workerTypes, forSpawning);

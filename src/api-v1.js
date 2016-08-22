@@ -62,91 +62,6 @@ let api = new base.API({
 });
 
 /**
- * Do nothing if a workerType is valid and should be added and throw Exception
- * with a '.reasons' attribute with a list of reasons why it is invalid if it's
- * not valid
- */
-async function validateWorkerType(ctx, workerTypeName, workerType) {
-  assert(typeof ctx === 'object', 'context must be an object');
-  assert(typeof workerTypeName === 'string', 'workerTypeName must be string');
-  assert(typeof workerType === 'object', 'workerType must be object');
-
-  let reasons = [];
-
-  // First let's ensure that the launch specs are valid and able to be
-  // generated
-  let launchSpecs = [];
-  try {
-    launchSpecs = ctx.WorkerType.testLaunchSpecs(
-        workerType,
-        ctx.keyPrefix,
-        ctx.provisionerId,
-        ctx.provisionerBaseUrl,
-        ctx.pubKey,
-        workerType);
-  } catch (err) {
-    // We don't want to handle other things breaking, just badly formed worker
-    // types
-    if (err && err.code !== 'InvalidLaunchSpecifications') {
-      throw err;
-    }
-  }
-
-  await Promise.all(_.map(launchSpecs, async (region, regionName) => {
-    await Promise.all(_.map(region, async (type, typeName) => {
-      let launchSpec = type.launchSpec;
-      // We delete the Placement.AvailabilityZone key because we aren't don't
-      // know which AZ to test for and this shouldn't matter for these purposes
-      if (launchSpec.Placement && launchSpec.Placement.AvailabilityZone) {
-        delete launchSpec.Placement.AvailabilityZone;
-      }
-      // Next, let's check if the launch spec has valid parameters
-      try {
-        await ctx.ec2[regionName].requestSpotInstances({
-          DryRun: true,
-          InstanceCount: 1,
-          Type: 'one-time',
-          LaunchSpecification: launchSpec,
-          SpotPrice: '1', // Only since this is a DryRun:true call
-        }).promise();
-      } catch (err) {
-        if (err.code !== 'DryRunOperation') {
-          reasons.push(err);
-        }
-      }
-      let images = [];
-      try {
-        images = await ctx.ec2[regionName].describeImages({
-          ImageIds: [launchSpec.ImageId],
-        }).promise();
-        if (images.data.Images.length !== 1) {
-          reasons.push(new Error(`Too many results found for ${launchSpec.ImageId}`));
-        }
-        let image = images.data.Images[0];
-        if (image.ImageId !== launchSpec.ImageId) {
-          reasons.push(new Error(`Image ID returned from EC2 api ${image.ImageId}` +
-                  ` does not match launch spec ${launchSpec.ImageId}`));
-        }
-        if (image.State !== 'available') {
-          reasons.push(new Error(`Image state for ${launchSpec.ImageId} must be 'available' not ${image.State}`));
-        }
-      } catch (err) {
-        reasons.push(err);
-      }
-    }));
-  }));
-
-  // Finally, let's verify that the image for this workerType exists in EC2
-
-  if (reasons.length > 0) {
-    let e = new Error('Refusing to create an invalid worker type');
-    e.reasons = reasons;
-    throw e;
-  }
-
-}
-
-/**
  * Calculate some summary statistics for a worker type, based on the given
  * worker state.
  */
@@ -269,37 +184,18 @@ api.declare({
     return;
   }
 
-  // TODO: If workerType launchSpecification specifies scopes that should be given
-  //       to the workers using temporary credentials, then you should validate
-  //       that the caller has this scopes to avoid scope elevation.
+  let workerForValidation = _.defaults({}, {workerType: workerType}, input);
 
-  // We want to make sure that all AMIs that we are submitting are valid
-  let missing = [];
-  await Promise.all(input.regions.map(async (def) => {
-    let exists = await amiExists(this.ec2[def.region], def.launchSpec.ImageId);
-    if (!exists) {
-      missing.push({imageId: def.launchSpec.ImageId, region: def.region});
-    }
-  }));
-  if (missing.length > 0) {
+  // Let's double check that this worker type would be launchable
+  let launchInfo = await this.awsManager.workerTypeCanLaunch(workerForValidation, this.WorkerType);
+  if (!launchInfo.canLaunch) {
+    log.debug({launchInfo}, 'cannot launch this worker type submission');
     return res.status(400).json({
-      message: 'ami does not exist',
-      missing: missing,
-    });
-  }
-
-  // We want to make sure that every single possible generated LaunchSpec
-  // would be valid before we even try to store it
-  try {
-    await validateWorkerType(this, workerType, input);
-  } catch (err) {
-    res.status(400).json({
-      message: 'Invalid workerType',
+      message: 'Invalid workerType: ' + JSON.stringify(launchInfo.reasons.map(e => e.stack || e)),
       error: {
-        reasons: err.reasons,
+        reasons: launchInfo.reasons,
       },
     });
-    return;
   }
 
   // Create workerType
@@ -387,35 +283,22 @@ api.declare({
 
   let modDate = new Date();
 
-  // We want to make sure that all AMIs that we are submitting are valid
-  let missing = [];
-  await Promise.all(input.regions.map(async (def) => {
-    let exists = await amiExists(this.ec2[def.region], def.launchSpec.ImageId);
-    if (!exists) {
-      missing.push({imageId: def.launchSpec.ImageId, region: def.region});
-    }
-  }));
-  if (missing.length > 0) {
-    return res.status(400).json({
-      message: 'ami does not exist',
-      missing: missing,
-    });
-  }
-
   input.lastModified = modDate;
 
   if (!req.satisfies({workerType: workerType})) { return undefined; }
 
-  try {
-    await validateWorkerType(this, workerType, input);
-  } catch (err) {
-    res.status(400).json({
-      message: 'Invalid workerType',
+  let workerForValidation = _.defaults({}, {workerType: workerType}, input);
+
+  // Let's double check that this worker type would be launchable
+  let launchInfo = await this.awsManager.workerTypeCanLaunch(workerForValidation, this.WorkerType);
+  if (!launchInfo.canLaunch) {
+    log.debug({launchInfo}, 'cannot launch this worker type submission');
+    return res.status(400).json({
+      message: 'Invalid workerType: ' + JSON.stringify(launchInfo.reasons.map(e => e.stack || e)),
       error: {
-        reasons: err.reasons,
+        reasons: launchInfo.reasons,
       },
     });
-    return;
   }
 
   let wType = await this.WorkerType.load({workerType: workerType});
