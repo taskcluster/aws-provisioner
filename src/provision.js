@@ -204,7 +204,7 @@ class Provisioner {
         // This does create a bunch of extra logs... darn!
         let state = this.awsManager.stateForStorage(worker.workerType);
         await this.stateContainer.write(worker.workerType, state);
-        wtLog.info('wrote state to azure');
+        wtLog.debug('wrote state to azure');
       } catch (err) {
         wtLog.error(err, 'error writing state to azure');
       }
