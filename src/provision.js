@@ -254,7 +254,9 @@ class Provisioner {
     await Promise.all(_.map(byRegion, async(toSpawn, region) => {
       let rLog = log.child({region});
       rLog.info('starting to submit spot requests in region');
+      let beforeOrderingLength = byRegion[region].length;
       let inRegion = orderThingsInRegion(byRegion[region]);
+      assert(beforeOrderingLength === inRegion.length);
 
       let endLoopAt = new Date();
       endLoopAt.setMinutes(endLoopAt.getMinutes() + 5);
