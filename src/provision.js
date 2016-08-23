@@ -139,6 +139,7 @@ class Provisioner {
       let launchInfo = await this.awsManager.workerTypeCanLaunch(toTest);
       if (!launchInfo.canLaunch) {
         disabled.push(toTest.workerType);
+        log.trace({workerType: toTest.workerType}, 'worker type invalid, adding to disabled list');
       }
     }
 
@@ -149,7 +150,9 @@ class Provisioner {
       log.warn({disabled}, 'found worker types which cannot launch, ignoring them');
     }
 
-    return forSpawning.filter(x => _.includes(disabled, x.workerType.workerType));
+    log.trace({forSpawning, disabled}, '__filterBrokenWorkers outcome');
+
+    return forSpawning.filter(x => !_.includes(disabled, x.workerType.workerType));
   }
 
   /**
@@ -231,6 +234,7 @@ class Provisioner {
 
     // Ignore all worker types which we are sure won't be launchable
     forSpawning = await this.__filterBrokenWorkers(workerTypes, forSpawning);
+    log.trace({forSpawning}, 'forSpawning');
 
     // Bucket requests by region
     let byRegion = {};
@@ -245,6 +249,7 @@ class Provisioner {
     }
 
     log.info('starting to submit spot requests');
+    log.debug({byRegion}, 'byRegion');
 
     await Promise.all(_.map(byRegion, async(toSpawn, region) => {
       let rLog = log.child({region});
