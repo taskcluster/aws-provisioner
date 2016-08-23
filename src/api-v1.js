@@ -92,10 +92,6 @@ function workerTypeSummary(workerType, workerState) {
     } // note that other states are ignored
   });
 
-  workerState.requests.forEach(request => {
-    summary.requestedCapacity += capacities[request.type] || 0;
-  });
-
   return summary;
 }
 

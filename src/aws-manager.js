@@ -1488,7 +1488,6 @@ class AwsManager {
   stateForStorage(workerName) {
     let instances = [];
     let requests = [];
-    let internalTrackedRequests = [];
 
     for (let instance of this.__apiState.instances) {
       if (instance.WorkerType === workerName) {
@@ -1514,6 +1513,7 @@ class AwsManager {
           region: request.Region,
           zone: request.LaunchSpecification.Placement.AvailabilityZone,
           time: request.CreateTime,
+          visibleToEC2Api: true,
           status: request.Status.Code,
         });
       }
@@ -1521,13 +1521,14 @@ class AwsManager {
 
     for (let request of this.__internalState) {
       if (request.WorkerType === workerName) {
-        internalTrackedRequests.push({
+        requests.push({
           id: request.SpotInstanceRequestId,
           ami: request.LaunchSpecification.ImageId,
           type: request.LaunchSpecification.InstanceType,
           region: request.Region,
           zone: request.LaunchSpecification.Placement.AvailabilityZone,
           time: request.CreateTime,
+          visibleToEC2Api: false,
           status: request.Status.Code,
         });
       }
@@ -1537,7 +1538,6 @@ class AwsManager {
       workerType: workerName,
       instances,
       requests,
-      internalTrackedRequests,
     };
   }
 }
