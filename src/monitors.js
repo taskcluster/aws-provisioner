@@ -37,6 +37,7 @@ module.exports.spotRequestSubmitted = (monitor, series, provisionerId,
     price: bid.truePrice,  // ugh, naming!
     bias: bid.bias,
   });
+  monitor.count(`${workerType}.spot.submitted`);
   monitor.measure('overall.price-per-capacity-unit', bid.truePrice);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.bid`, bid.price);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.price`, bid.truePrice);
@@ -58,8 +59,8 @@ module.exports.spotRequestFulfilled = (monitor, series, provisionerId, region, a
     instanceId,
     time,
   });
-  monitor.count('overall.spot.died.count', 1);
-  monitor.measure('overall.spot.died.time', time);
+  monitor.count('overall.spot.fulfilled.count', 1);
+  monitor.measure('overall.spot.fulfilled.time', time);
   monitor.count(`${region}.${az}.${instanceType}.overall.spot.filled.count`, 1);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.filled.time`, time);
   monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.spot.filled.count`, 1);
