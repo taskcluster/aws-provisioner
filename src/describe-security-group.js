@@ -25,11 +25,11 @@ module.exports = async function (ec2, securityGroupNames) {
       log.debug({result, securityGroupNames}, 'not all security groups existed');
       return undefined;
     }
-    return result[0];
+    return result;
   } catch (err) {
     if (err.code === 'InvalidGroup.NotFound') {
       return undefined;
     }
     throw err;
   }
-}
+};

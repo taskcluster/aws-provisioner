@@ -46,7 +46,6 @@ describe('provisioner worker type api', () => {
       {type: 'c3.xlarge', status: 'waiting'},
       {type: 'c9.yuuuge', status: 'waiting'},
     ],
-    internalTrackedRequests: [],
   });
 
   before(async () => {

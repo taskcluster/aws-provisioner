@@ -8,6 +8,7 @@ let monitors = require('./monitors');
 let _ = require('lodash');
 let delayer = require('./delayer');
 let amiExists = require('./check-for-ami');
+let sgExists = require('./describe-security-group');
 let slugid = require('slugid');
 
 const MAX_ITERATIONS_FOR_STATE_RESOLUTION = 20;
@@ -824,8 +825,17 @@ class AwsManager {
     }
 
     await Promise.all(worker.regions.map(async r => {
+      let allSGForRegion = [];
       await Promise.all(worker.instanceTypes.map(async t => {
         let launchSpec = launchSpecs[r.region][t.instanceType].launchSpec;
+
+        if (launchSpec.SecurityGroups) {
+          for (let sg of launchSpec.SecurityGroups) {
+            if (!_.includes(allSGForRegion, sg)) {
+              allSGForRegion.push(sg);
+            }
+          }
+        }
 
         // Let's make sure that the AMI exists
         let exists = await amiExists(this.ec2[r.region], launchSpec.ImageId);
@@ -851,6 +861,19 @@ class AwsManager {
           }
         }
       }));
+
+      let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
+      log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
+      if (!hasAllRequiredSG) {
+        returnValue.canLaunch = false;
+        let err = new Error('Missing one or more security groups');
+        err.requested = allSGForRegion;
+        returnValue.reasons.push(err);
+        log.warn({
+          region: r.region,
+          neededGroups: allSGForRegion,
+        }, 'missing security groups');
+      }
     }));
 
     if (returnValue.canLaunch) {
