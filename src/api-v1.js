@@ -834,9 +834,8 @@ api.declare({
   stability:  base.API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
-    'This state is stored as three lists: 1 for all instances, 1 for requests',
-    'which show in the ec2 api and 1 list for those only tracked internally',
-    'in the provisioner.  The `summary` property contains an updated summary',
+    'This state is stored as three lists: 1 for running instances, 1 for',
+    'pending requests.  The `summary` property contains an updated summary',
     'similar to that returned from `listWorkerTypeSummaries`.',
   ].join('\n'),
 }, async function (req, res) {
@@ -871,7 +870,8 @@ api.declare({
     workerType: workerType.workerType,
     instances: workerState ? workerState.instances : [],
     requests: workerState ? workerState.requests : [],
-    internalTrackedRequests: workerState ? workerState.internalTrackedRequests : [],
+    // here for compatibility with the UI
+    internalTrackedRequests: [],
     summary: workerTypeSummary(workerType, workerState),
   });
 });
