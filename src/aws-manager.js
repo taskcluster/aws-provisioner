@@ -902,12 +902,36 @@ class AwsManager {
     let instances = this.instancesOfType(workerType.workerType);
     let requests = this.requestsOfType(workerType.workerType);
 
+    let llog = log.child({
+      capacityForTypeLog: true,
+      workerType: workerType.workerType,
+      states: states,
+    });
+
+    llog.trace('capacityForType called');
+
     for (let instance of instances) {
       if (_.includes(states, instance.State.Name)) {
         try {
           capacity += workerType.capacityOfType(instance.InstanceType);
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: workerType.capacityOfType(instance.InstanceType),
+            instanceType: instance.InstanceType,
+            region: instance.Region,
+            state: instance.State.Name,
+          }, 'increasing capacity because of instance');
         } catch (err) {
           capacity++;
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: 1,
+            instanceType: instance.InstanceType,
+            region: instance.Region,
+            state: instance.State.Name,
+          }, 'increasing capacity because of instance by 1 because no capacity found');
         }
       }
     }
@@ -916,8 +940,30 @@ class AwsManager {
       if (_.includes(states, 'spotReq')) {
         try {
           capacity += workerType.capacityOfType(request.InstanceType);
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: workerType.capacityOfType(request.InstanceType),
+            instanceType: request.InstanceType,
+            region: request.Region,
+            state: 'spotReq',
+            apiState: request.State,
+            status: request.Status.Code,
+            internal: false,
+          }, 'increasing capacity because of request');
         } catch (err) {
           capacity++;
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: 1,
+            instanceType: request.InstanceType,
+            region: request.Region,
+            state: 'spotReq',
+            apiState: request.State,
+            status: request.Status.Code,
+            internal: false,
+          }, 'increasing capacity because of request by 1 because no capacity found');
         }
       }
     }
@@ -926,11 +972,35 @@ class AwsManager {
       if (_.includes(states, 'spotReq')) {
         try {
           capacity += workerType.capacityOfType(sr.request.InstanceType);
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: workerType.capacityOfType(sr.request.InstanceType),
+            instanceType: sr.request.InstanceType,
+            region: sr.request.Region,
+            state: 'spotReq',
+            apiState: sr.request.State,
+            status: sr.request.Status.Code,
+            internal: true,
+          }, 'increasing capacity because of internal request');
         } catch (err) {
           capacity++;
+
+          llog.trace({
+            newCapacity: capacity,
+            capacityOfType: 1,
+            instanceType: sr.request.InstanceType,
+            region: sr.request.Region,
+            state: 'spotReq',
+            apiState: sr.request.State,
+            status: sr.request.Status.Code,
+            internal: true,
+          }, 'increasing capacity because of request by 1 because no capacity found');
         }
       }
     }
+
+    llog.trace({answer: capacity}, 'capacityForType finished');
 
     return capacity;
 
