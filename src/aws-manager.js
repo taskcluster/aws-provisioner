@@ -902,36 +902,32 @@ class AwsManager {
     let instances = this.instancesOfType(workerType.workerType);
     let requests = this.requestsOfType(workerType.workerType);
 
-    let llog = log.child({
-      capacityForTypeLog: true,
-      workerType: workerType.workerType,
-      states: states,
-    });
-
-    llog.trace('capacityForType called');
+    let capacityTrace = [];
 
     for (let instance of instances) {
       if (_.includes(states, instance.State.Name)) {
         try {
           capacity += workerType.capacityOfType(instance.InstanceType);
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: workerType.capacityOfType(instance.InstanceType),
             instanceType: instance.InstanceType,
             region: instance.Region,
             state: instance.State.Name,
-          }, 'increasing capacity because of instance');
+            type: 'instance',
+          });
         } catch (err) {
           capacity++;
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: 1,
             instanceType: instance.InstanceType,
             region: instance.Region,
             state: instance.State.Name,
-          }, 'increasing capacity because of instance by 1 because no capacity found');
+            type: 'instance',
+          });
         }
       }
     }
@@ -941,7 +937,7 @@ class AwsManager {
         try {
           capacity += workerType.capacityOfType(request.InstanceType);
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: workerType.capacityOfType(request.InstanceType),
             instanceType: request.InstanceType,
@@ -950,11 +946,12 @@ class AwsManager {
             apiState: request.State,
             status: request.Status.Code,
             internal: false,
-          }, 'increasing capacity because of request');
+            type: 'request',
+          });
         } catch (err) {
           capacity++;
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: 1,
             instanceType: request.InstanceType,
@@ -963,7 +960,8 @@ class AwsManager {
             apiState: request.State,
             status: request.Status.Code,
             internal: false,
-          }, 'increasing capacity because of request by 1 because no capacity found');
+            type: 'request',
+          });
         }
       }
     }
@@ -973,7 +971,7 @@ class AwsManager {
         try {
           capacity += workerType.capacityOfType(sr.request.InstanceType);
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: workerType.capacityOfType(sr.request.InstanceType),
             instanceType: sr.request.InstanceType,
@@ -982,11 +980,12 @@ class AwsManager {
             apiState: sr.request.State,
             status: sr.request.Status.Code,
             internal: true,
-          }, 'increasing capacity because of internal request');
+            type: 'request',
+          });
         } catch (err) {
           capacity++;
 
-          llog.trace({
+          capacityTrace.push({
             newCapacity: capacity,
             capacityOfType: 1,
             instanceType: sr.request.InstanceType,
@@ -995,12 +994,18 @@ class AwsManager {
             apiState: sr.request.State,
             status: sr.request.Status.Code,
             internal: true,
-          }, 'increasing capacity because of request by 1 because no capacity found');
+            type: 'request',
+          });
         }
       }
     }
 
-    llog.trace({answer: capacity}, 'capacityForType finished');
+    log.info({
+      answer: capacity,
+      states: states,
+      workerType: workerType.workerType,
+      trace: capacityTrace,
+    }, 'capacityForType trace');
 
     return capacity;
 
