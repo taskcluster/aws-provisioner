@@ -7,7 +7,7 @@ var mock = require('./mock-workers');
 var base = require('taskcluster-base');
 
 // for convenience
-// var makeRegion = mock.makeRegion;
+var makeRegion = mock.makeRegion;
 // var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
 var makeWorkerState = mock.makeWorkerState;
@@ -58,6 +58,32 @@ describe('provisioner worker type api', () => {
   beforeEach(async () => {
     await main('tableCleaner', {process: 'tableCleaner', profile: 'test'});
     await stateContainer.remove(id);
+  });
+
+  it('should refuse to create worker with missing ami', async () => {
+    let missingAmi = makeWorkerType({
+      regions: [makeRegion({launchSpec: {ImageId: 'ami-abcde'}})],
+    });
+    try {
+      await client.createWorkerType(id, missingAmi);
+      return Promise.reject();
+    } catch (err) {
+      return Promise.resolve();
+    }
+  });
+
+  it('should refuse to create worker with missing security group', async () => {
+    let missingAmi = makeWorkerType({
+      launchSpec: {
+        SecurityGroups: ['notthere'],
+      },
+    });
+    try {
+      await client.createWorkerType(id, missingAmi);
+      return Promise.reject();
+    } catch (err) {
+      return Promise.resolve();
+    }
   });
 
   it('should be able to create a worker (idempotent)', async () => {
