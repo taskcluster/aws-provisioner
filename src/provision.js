@@ -207,7 +207,7 @@ class Provisioner {
         // This does create a bunch of extra logs... darn!
         let state = this.awsManager.stateForStorage(worker.workerType);
         await this.stateContainer.write(worker.workerType, state);
-        wtLog.debug('wrote state to azure');
+        wtLog.trace('wrote state to azure');
       } catch (err) {
         wtLog.error(err, 'error writing state to azure');
       }
@@ -249,7 +249,7 @@ class Provisioner {
     }
 
     log.info('starting to submit spot requests');
-    log.debug({byRegion}, 'byRegion');
+    log.trace({byRegion}, 'byRegion');
 
     await Promise.all(_.map(byRegion, async(toSpawn, region) => {
       let rLog = log.child({region});
