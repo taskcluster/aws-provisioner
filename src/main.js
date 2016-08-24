@@ -330,7 +330,7 @@ let load = base.loader({
             for (let x of err) {
               log.error(x, 'contributing error');
             }
-            log.fatal(err, 'fatal error, exiting');
+            log.fatal('fatal error, exiting');
           } else {
             log.fatal(err, 'fatal error, exiting');
           }
