@@ -320,9 +320,22 @@ class Provisioner {
     wtLog.info({pendingTasks}, 'got pending tasks count');
 
     let runningCapacity = this.awsManager.capacityForType(workerType, ['running']);
-    let pendingCapacity = this.awsManager.capacityForType(workerType, ['pending', 'spotReq']);
+    let spotReqCap = this.awsManager.capacityForType(workerType, ['spotReq']);
+    let pendingInstCapacity = this.awsManager.capacityForType(workerType, ['pending']);
+    let pendingCapacity = pendingInstCapacity + spotReqCap;
 
     let change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pendingTasks);
+
+    log.info({
+      workerType: workerType.workerType,
+      pendingTasks: pendingTasks,
+      runningCapacity: runningCapacity,
+      pendingCapacity: pendingCapacity,
+      spotReqCap: spotReqCap,
+      pendingInstCapacity: pendingInstCapacity,
+      change: change,
+            
+    }, 'changeForType outcome');
 
     // Report on the stats for this iteration
     this.reportProvisioningIteration({
