@@ -337,6 +337,10 @@ class Provisioner {
             
     }, 'changeForType outcome');
 
+    if (pendingCapacity < 0 && -pendingCapacity > pendingTasks) {
+      log.error('THIS IS A MARKER TO MAKE US LOOK INTO BUG1297811');
+    }
+
     // Report on the stats for this iteration
     this.reportProvisioningIteration({
       provisionerId: this.provisionerId,
