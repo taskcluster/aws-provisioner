@@ -115,6 +115,14 @@ describe('provisioner worker type api', () => {
     assume(wType.maxCapacity).equals(15);
   });
 
+  it('should be able to get lastModified from API', async () => {
+    debug('### Load workerType (again)');
+    await client.createWorkerType(id, workerTypeDefinition);
+    let wType = await client.workerTypeLastModified(id);
+    assume(wType.workerType).equals(id);
+    assume(wType.lastModified).is.Date;
+  });
+
   it('should be able to remove a worker (idempotent)', async () => {
     debug('### Remove workerType');
     await client.removeWorkerType(id);

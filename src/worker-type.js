@@ -498,7 +498,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
     spotBid: bid.price,
     price: bid.truePrice,
     launchSpecGenerated: new Date().toISOString(),
-    workerModified: worker.lastModified.toISOString(),
+    lastModified: worker.lastModified.toISOString(),
     provisionerBaseUrl: provisionerBaseUrl,
     securityToken: securityToken,
   };

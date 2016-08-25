@@ -321,6 +321,45 @@ api.declare({
 
 api.declare({
   method: 'get',
+  route: '/worker-type-last-modified/:workerType',
+  name: 'workerTypeLastModified',
+  input: undefined,  // No input
+  output: 'get-worker-type-last-modified.json#',
+  title: 'Get Worker Type Last Modified Time',
+  stability:  base.API.stability.stable,
+  description: [
+    'This method is provided to allow workers to see when they were',
+    'last modified.  The value provided through UserData can be',
+    'compared against this value to see if changes have been made',
+    'If the worker type definition has not been changed, the date',
+    'should be identical as it is the same stored value.',
+    
+  ].join('\n'),
+}, async function (req, res) {
+  let workerType = req.params.workerType;
+
+  let worker;
+  try {
+    worker = await this.WorkerType.load({workerType: workerType});
+
+    // We do this because John made a mistake in the V1->V2
+    // schema update and there was a typo :(
+    let workerjson = worker.json();
+    return res.reply(_.pick(workerjson, 'workerType', 'lastModified'));
+  } catch (err) {
+    if (err.code === 'ResourceNotFound') {
+      res.status(404).json({
+        error: err.code,
+        msg: workerType + ' not found',
+      });
+    } else {
+      throw err;
+    }
+  }
+});
+
+api.declare({
+  method: 'get',
   route: '/worker-type/:workerType',
   name: 'workerType',
   deferAuth: true,

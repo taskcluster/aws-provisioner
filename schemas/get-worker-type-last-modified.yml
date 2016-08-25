@@ -1,0 +1,21 @@
+$schema:  http://json-schema.org/draft-04/schema#
+title:                      "Get Worker Type Response"
+description: |
+  Get the last modified date of a workerType
+type:                       object
+properties:
+  workerType:
+    type: string
+    description: |
+      The ID of the workerType
+    pattern: ^[A-Za-z0-9+/=_-]{1,22}$
+  lastModified:
+    type: string
+    format: date-time
+    description: |
+      ISO Date string (e.g. new Date().toISOString()) which represents the time
+      when this worker type definition was last altered (inclusive of creation)
+additionalProperties: false
+required:
+  - workerType
+  - lastModified
