@@ -825,17 +825,8 @@ class AwsManager {
     }
 
     await Promise.all(worker.regions.map(async r => {
-      let allSGForRegion = [];
       await Promise.all(worker.instanceTypes.map(async t => {
         let launchSpec = launchSpecs[r.region][t.instanceType].launchSpec;
-
-        if (launchSpec.SecurityGroups) {
-          for (let sg of launchSpec.SecurityGroups) {
-            if (!_.includes(allSGForRegion, sg)) {
-              allSGForRegion.push(sg);
-            }
-          }
-        }
 
         // Let's make sure that the AMI exists
         let exists = await amiExists(this.ec2[r.region], launchSpec.ImageId);
@@ -861,6 +852,9 @@ class AwsManager {
           }
         }
       }));
+
+      let launchSpecsRegion = worker.instanceTypes.map(t => launchSpecs[r.region][t.instanceType].launchSpec);
+      let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups)));
 
       let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
       log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
