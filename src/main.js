@@ -180,7 +180,7 @@ let load = base.loader({
         },
         validator: validator,
         authBaseUrl: cfg.taskcluster.authBaseUrl,
-        publish: cfg.app.publishMetaData === 'true',
+        publish: cfg.app.publishMetaData,
         baseUrl: cfg.server.publicUrl + '/v1',
         referencePrefix: 'aws-provisioner/v1/api.json',
         aws: cfg.aws,
