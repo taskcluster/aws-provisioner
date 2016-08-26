@@ -85,6 +85,19 @@ function createClient() {
   }
 }
 
+function queueClient() {
+  return new tc.Queue();
+}
+
+function provisionerId() {
+  if (program.production) {
+    return 'aws-provisioner-v1';
+  } else if (program.staging) {
+    return 'staging-aws';
+  }
+  return 'aws-provisioner-dev';
+}
+
 program
   .version(pkgData.version || 'unknown')
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
@@ -386,6 +399,83 @@ program
       let client = createClient();
       let specs = await client.getLaunchSpecs(workerType);
       console.log(JSON.stringify(specs, null, 2));
+    } catch (err) {
+      errorHandler(err);
+    }
+  });
+
+program
+  .command('stats')
+  .description('print specified workerTypes to screen')
+  .action(async () => {
+    try {
+      let client = createClient();
+      let q = queueClient();
+      let Table = require('cli-table');
+
+      let table = new Table({
+          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+      });
+
+      let summaries = await client.listWorkerTypeSummaries();
+      console.dir(summaries);
+      let allPending = {};
+      let pendingTasks = await Promise.all(summaries.map(async summary => {
+        let p = await q.pendingTasks(provisionerId(), summary.workerType);
+        allPending[summary.workerType] = p.pendingTasks;
+      }));
+      // table is an Array, so you can `push`, `unshift`, `splice` and friends
+      for (let summary of summaries) {
+        table.push([
+          summary.workerType,
+          allPending[summary.workerType],
+          summary.runningCapacity,
+          summary.pendingCapacity,
+          summary.requestedCapacity,
+          summary.minCapacity + '/' + summary.maxCapacity,
+        ]);
+      }
+      console.log(table.toString());
+    } catch (err) {
+      errorHandler(err);
+    }
+  });
+
+program
+  .command('stats-with-pending')
+  .description('print specified workerTypes to screen')
+  .action(async () => {
+    try {
+      let client = createClient();
+      let q = queueClient();
+      let Table = require('cli-table');
+
+      let table = new Table({
+          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+      });
+
+      let summaries = await client.listWorkerTypeSummaries();
+
+      let allPending = {};
+      let pendingTasks = await Promise.all(summaries.map(async summary => {
+        let p = await q.pendingTasks(provisionerId(), summary.workerType);
+        allPending[summary.workerType] = p.pendingTasks;
+      }));
+
+      // table is an Array, so you can `push`, `unshift`, `splice` and friends
+      for (let summary of summaries) {
+        if (allPending[summary.workerType] > 0) {
+          table.push([
+            summary.workerType,
+            allPending[summary.workerType],
+            summary.runningCapacity,
+            summary.pendingCapacity,
+            summary.requestedCapacity,
+            summary.minCapacity + '/' + summary.maxCapacity,
+          ]);
+        }
+      }
+      console.log(table.toString());
     } catch (err) {
       errorHandler(err);
     }
