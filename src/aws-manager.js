@@ -211,7 +211,7 @@ class AwsManager {
               },
               {
                 Name: 'instance-state-name',
-                Values: ['running', 'pending'],
+                Values: ['running', 'pending', 'shutting-down', 'terminated', 'stopping'],
               },
             ],
           }).promise(),
@@ -223,32 +223,7 @@ class AwsManager {
                 Values: [this.keyPrefix + '*'],
               }, {
                 Name: 'state',
-                Values: ['open'],
-              },
-            ],
-          }).promise(),
-          // Dead instances
-          ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['shutting-down', 'terminated', 'stopping'],
-              },
-            ],
-          }).promise(),
-          // Dead spot requests
-          ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['cancelled', 'failed', 'closed', 'active'],
+                Values: ['open', 'cancelled', 'failed', 'closed', 'active'],
               },
             ],
           }).promise(),
@@ -285,7 +260,12 @@ class AwsManager {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
             instance.Region = region;
             instance.WorkerType = workerType;
-            apiState.instances.push(instance);
+            // apiState for instance state name of 'running', 'pending'
+            if (_.includes(['running', 'pending'], instance.State.Name)) {
+              apiState.instances.push(instance);
+            } else if (_.includes(['shutting-down', 'terminated', 'stopping'], instance.State.Name)) {
+              deadState.instances.push(instance);
+            }
             ignoreSR.push(instance.SpotInstanceRequestId);
           }
         };
@@ -300,10 +280,14 @@ class AwsManager {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           request.Region = region;
           request.WorkerType = workerType;
-          if (this._spotRequestStalled(request)) {
-            stalledSRIds.push(request.SpotInstanceRequestId);
-          } else {
-            apiState.requests.push(request);
+          if (_.includes(['open'], request.State)) {
+            if (this._spotRequestStalled(request)) {
+              stalledSRIds.push(request.SpotInstanceRequestId);
+            } else {
+              apiState.requests.push(request);
+            }
+          } else if (_.includes(['cancelled', 'failed', 'closed', 'active'], request.State)) {
+            deadState.requests.push(request);
           }
         }
 
@@ -313,30 +297,11 @@ class AwsManager {
           rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
         }
 
-        // Put the dead instances into the dead state object
-        for (let reservation of response[2].data.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            instance.Region = region;
-            instance.WorkerType = workerType;
-            deadState.instances.push(instance);
-          }
-        };
-
-        // Put the dead requests into the dead state object
-        let deadSpotRequests = [];
-        for (let request of response[3].data.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          request.Region = region;
-          request.WorkerType = workerType;
-          deadState.requests.push(request);
-        }
-
         // Find all the available availability zones
-        availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+        availableAZ[region] = response[2].data.AvailabilityZones.map(x => x.ZoneName);
 
         // Find the max prices
-        allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
+        allPricingHistory[region] = this._findMaxPrices(response[3].data, availableAZ[region]);
         rLog.info('found maximum prices');
       })),
     ]);

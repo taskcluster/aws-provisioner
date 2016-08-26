@@ -414,7 +414,7 @@ program
       let Table = require('cli-table');
 
       let table = new Table({
-          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+        head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
       });
 
       let summaries = await client.listWorkerTypeSummaries();
@@ -451,7 +451,7 @@ program
       let Table = require('cli-table');
 
       let table = new Table({
-          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+        head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
       });
 
       let summaries = await client.listWorkerTypeSummaries();
