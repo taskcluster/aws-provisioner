@@ -291,6 +291,7 @@ WorkerType.prototype.json = function() {
  * and optionally a single property from it.
  */
 WorkerType.prototype.getInstanceType = function(instanceType) {
+  assert(typeof instanceType === 'string');
   let types = this.instanceTypes.filter(t => t.instanceType === instanceType);
 
   if (types.length === 1) {
@@ -309,6 +310,7 @@ WorkerType.prototype.getInstanceType = function(instanceType) {
  * single property from it.
  */
 WorkerType.prototype.getRegion = function(region) {
+  assert(typeof region === 'string');
   let regions = this.regions.filter(r => r.region === region);
 
   if (regions.length === 1) {
@@ -326,6 +328,7 @@ WorkerType.prototype.getRegion = function(region) {
  * Return the capacity for a given type
  */
 WorkerType.prototype.utilityOfType = function(instanceType) {
+  assert(typeof instanceType === 'string');
   return this.getInstanceType(instanceType).utility;
 };
 
@@ -333,6 +336,7 @@ WorkerType.prototype.utilityOfType = function(instanceType) {
  * Return the capacity for a given type
  */
 WorkerType.prototype.capacityOfType = function(instanceType) {
+  assert(typeof instanceType === 'string');
   return this.getInstanceType(instanceType).capacity;
 };
 
