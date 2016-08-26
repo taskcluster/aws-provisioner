@@ -337,7 +337,7 @@ class Provisioner {
             
     }, 'changeForType outcome');
 
-    if (change < 0 && -change > pendingTasks) {
+    if (pendingTasks > 0 && -change > pendingTasks) {
       log.error('THIS IS A MARKER TO MAKE US LOOK INTO BUG1297811');
     }
 
