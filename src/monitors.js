@@ -37,6 +37,8 @@ module.exports.spotRequestSubmitted = (monitor, series, provisionerId,
     price: bid.truePrice,  // ugh, naming!
     bias: bid.bias,
   });
+  monitor.count('overall.spot.submitted.count', 1);
+  monitor.count(`worker.${workerType}.spot.submitted.count`, 1);
   monitor.measure('overall.price-per-capacity-unit', bid.truePrice);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.bid`, bid.price);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.price`, bid.truePrice);
@@ -58,8 +60,9 @@ module.exports.spotRequestFulfilled = (monitor, series, provisionerId, region, a
     instanceId,
     time,
   });
-  monitor.count('overall.spot.died.count', 1);
-  monitor.measure('overall.spot.died.time', time);
+  monitor.count('overall.spot.filled.count', 1);
+  monitor.count(`worker.${workerType}.spot.filled.count`, 1);
+  monitor.measure('overall.spot.filled.time', time);
   monitor.count(`${region}.${az}.${instanceType}.overall.spot.filled.count`, 1);
   monitor.measure(`${region}.${az}.${instanceType}.overall.spot.filled.time`, time);
   monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.spot.filled.count`, 1);
@@ -83,6 +86,7 @@ module.exports.spotRequestDied = (monitor, series, provisionerId, region, az,
     statusMsg,
   });
   monitor.count('overall.spot.died.count', 1);
+  monitor.count(`worker.${workerType}.spot.died.count`, 1);
   monitor.count(`${region}.${az}.${instanceType}.overall.spot.died`, 1);
   monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.spot.died`, 1);
 };
@@ -107,6 +111,7 @@ module.exports.instanceTerminated = (monitor, series, provisionerId, region, az,
     stateChangeMsg,
   });
   monitor.count('overall.instance.terminated', 1);
+  monitor.count(`worker.${workerType}.instance.terminated`, 1);
   monitor.count(`${region}.${az}.${instanceType}.overall.instance.terminated`, 1);
   monitor.count(`${region}.${az}.${instanceType}.worker.${workerType}.instance.terminated`, 1);
 };
