@@ -5,7 +5,7 @@ defaults:
     publishMetaData: !env:bool PUBLISH_METADATA
     iterationInterval: 10
     maxInstanceLife: '- 96 hours'
-    id: aws-provisioner-dev
+    id: !env PROVISIONER_ID
     workerTypeTableName: DevWorkerTypes2
     amiSetTableName: DevAmiSets2
     secretTableName: DevWorkerSecrets2
@@ -96,7 +96,7 @@ staging:
     workerStateTableName: StagingWorkerState
     publishMetaData: false
     statsComponent: staging-aws
-    awsKeyPrefix: "staging-managed:"
+    awsKeyPrefix: "staging-aws-managed:"
     iterationInterval: 10
     allowedRegions: !env:list ALLOWED_REGIONS
   monitor:
@@ -105,7 +105,7 @@ staging:
   server:
     publicUrl: https://staging-aws-provisioner.herokuapp.com
     port: !env:number PORT
-    env: staging
+    env: development
     forceSSL: true
     trustProxy: true
 
@@ -117,6 +117,7 @@ development:
   azure:
     account: jungle
   app:
+    id: aws-provisioner-dev
     awsInstancePubkey: 'fake-pubkey'
     allowedRegions:
       - 'us-west-1'

@@ -41,7 +41,7 @@
     "sinon": "^1.15.4",
     "slugid": "^1.1.0",
     "source-map-support": "^0.4.0",
-    "taskcluster-base": "^6.1.0",
+    "taskcluster-base": "^6.2.0",
     "taskcluster-client": "^1.0.1",
     "taskcluster-lib-iterate": "^1.0.2",
     "taskcluster-lib-log": "^1.0.3",
