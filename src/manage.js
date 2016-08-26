@@ -126,7 +126,7 @@ program
       let updated = [];
       let client = createClient();
 
-      let existingWorkerTypes = await client.listWorkerTypes();
+      let workerTypes = await client.listWorkerTypes();
 
       await Promise.all(filenames.map(async filename => {
         let worker = JSON.parse(fs.readFileSync(filename));
@@ -139,12 +139,10 @@ program
         delete worker.lastModified;
         delete worker.workerType;
 
-        if (_.includes(existingWorkerTypes, worker.workerType)) {
-          // Update
+        if (_.includes(workerTypes, name)) {
           await client.updateWorkerType(name, worker);
-          created.push(name);
+          updated.push(name);
         } else {
-          // Create
           await client.createWorkerType(name, worker);
           updated.push(name);
         }
@@ -285,7 +283,7 @@ program
       let workerTypes = await client.listWorkerTypes();
       let absent = [];
       let deleted = [];
-      await Promise.all(workerTypes.map(async name => {
+      await Promise.all(workerTypeNames.map(async name => {
         if (_.includes(workerTypeNames, name)) {
           await client.removeWorkerType(name);
           deleted.push(name);
