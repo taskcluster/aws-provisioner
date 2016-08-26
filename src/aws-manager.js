@@ -1000,12 +1000,14 @@ class AwsManager {
       }
     }
 
-    log.info({
-      answer: capacity,
-      states: states,
-      workerType: workerType.workerType,
-      trace: capacityTrace,
-    }, 'capacityForType trace');
+    if (workerType.workerType === 'gecko-decision') {
+      log.info({
+        answer: capacity,
+        states: states,
+        workerType: workerType.workerType,
+        trace: capacityTrace,
+      }, 'capacityForType trace');
+    }
 
     return capacity;
 
