@@ -44,8 +44,7 @@ running (EC2 instances, spot bids, and SSH keypairs).
 Deploying AWS Provisioner
 -------------------------
 
-AWS provisioner is automatically deployed on push to master, without waiting
-for CI to pass.
+This app is part of the 'provisioner' pipeline.
 
 
 Post Deployment Verification
