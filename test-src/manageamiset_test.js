@@ -88,8 +88,20 @@ describe('AMI Set api', () => {
   });
 
   it('should be able to check if the AMIs from an AMI set are valid', async () => {
-    await client.createAmiSet(id, amiSetDefinition);
-    assume(await client.validateAmiSet(id)).to.deeply.equal([]);
+    let invalidAmiSet = amiSetChanged;
+    let amiSet;
+    invalidAmiSet.amis.push({
+      region: 'us-east-1',
+      hvm: 'ami123',
+      pv: 'ami345',
+    });
+    try {
+      amiSet = await client.createAmiSet(id, invalidAmiSet);
+      // throw new Error('Expected and error');
+    } catch (err) {
+      console.log(err);
+      assume(err.statusCode).is.between(400, 499);
+    };
   });
 
   it('should return a list of AMI sets', async () => {
@@ -104,7 +116,6 @@ describe('AMI Set api', () => {
 
     debug('### Try to load AMI Set');
     try {
-
       await client.amiSet(id);
       throw new Error('Expected and error');
     } catch (err) {
