@@ -333,7 +333,7 @@ api.declare({
     'compared against this value to see if changes have been made',
     'If the worker type definition has not been changed, the date',
     'should be identical as it is the same stored value.',
-    
+
   ].join('\n'),
 }, async function (req, res) {
   let workerType = req.params.workerType;
@@ -492,9 +492,9 @@ api.declare({
   }
 
   let amiSet;
-  let invalidAmis = await this.AmiSet.validate(this, input);
+  let invalidAmis = await this.AmiSet.validate(this.ec2, input);
 
-  if (invalidAmis.length === 0) {
+  if (invalidAmis.valid) {
     try {
       amiSet = await this.AmiSet.create({
         id: id,
@@ -548,11 +548,19 @@ api.declare({
   ].join('\n'),
 }, async function (req, res) {
   let id = req.params.id;
-
   let amiSet;
+
   try {
     amiSet = await this.AmiSet.load({id});
-    res.reply(amiSet.json());
+    let invalidAmis = await this.AmiSet.validate(this.ec2, amiSet);
+    if (invalidAmis.valid) {
+      return res.reply(amiSet.json());
+    } else {
+      return res.status(404).json({
+        error: 404,
+        message: id + ' contains invalid AMIs',
+      });
+    }
   } catch (err) {
     if (err.code === 'ResourceNotFound') {
       res.status(404).json({
@@ -579,7 +587,8 @@ api.declare({
 
   try {
     let amiSet = await this.AmiSet.load({id});
-    return res.reply(await this.AmiSet.validate(this, amiSet));
+    let invalidAmis = await this.AmiSet.validate(this.ec2, amiSet);
+    return res.reply(invalidAmis);
   } catch (err) {
     if (err.code === 'ResourceNotFound') {
       res.status(404).json({
@@ -624,9 +633,9 @@ api.declare({
   }
 
   let loadedAmiSet = await this.AmiSet.load({id});
-  let invalidAmis = await this.AmiSet.validate(this, loadedAmiSet);
+  let invalidAmis = await this.AmiSet.validate(this.ec2, input);
 
-  if (invalidAmis.length === 0) {
+  if (invalidAmis.valid) {
     await loadedAmiSet.modify(function(amiSet) {
       amiSet.amis = input.amis;
     });

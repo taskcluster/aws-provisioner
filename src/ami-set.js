@@ -1,7 +1,7 @@
 let base = require('taskcluster-base');
 let debug = require('debug')('aws-provisioner:AmiSet');
 let amiExists = require('./check-for-ami');
-let getVirtualizationType = require('./get-virtualization-type');
+let assert = require('assert');
 
 const KEY_CONST = 'ami-set';
 
@@ -58,43 +58,64 @@ AmiSet.listAmiSets = async function () {
  * Checks if the AMIs from the amiSet are valid or not.
  */
 
-async function checkAmi(ctx, region, ami, vtype) {
+AmiSet.__checkAmi = async function (ec2, region, imageId, vtype) {
+  assert(typeof region === 'string');
+  assert(typeof imageId === 'string');
+  assert(typeof vtype === 'string');
+
   let request;
   let missing = [];
   let virtualizationType = '';
 
+  request = {
+    ImageIds: [imageId],
+  };
+  let ami = false;
+  try {
+    ami = await amiExists(ec2[region], imageId);
+  } catch (err) {
+    ami = false;
+  };
   if (ami) {
-    request = {
-      ImageIds: [ami],
-    };
-    let exists = await amiExists(ctx.ec2[region], ami);
-    if (exists) {
-      virtualizationType = await getVirtualizationType(ctx.ec2[region], ami);
-      if (virtualizationType !== vtype) {
-        missing.push({imageId: ami, region: region, virtualizationType: virtualizationType});
-      }
-    } else {
-      missing.push({imageId: ami, region: region, virtualizationType: virtualizationType});
-    };
-  }
+    virtualizationType = ami.VirtualizationType;
+    if (virtualizationType !== vtype) {
+      missing.push({imageId: imageId, region: region, virtualizationType: virtualizationType});
+    }
+  } else {
+    missing.push({imageId: imageId, region: region, virtualizationType: virtualizationType});
+  };
+
   return missing;
 };
 
-AmiSet.validate = async function (ctx, amiSet) {
+AmiSet.validate = async function (ec2, amiSet) {
   let missing = [];
-  let exists = false;
+  let valid = false;
 
-  await Promise.all(amiSet.amis.map(async (def) => {
+  if (amiSet.amis) {
+    await Promise.all(amiSet.amis.map(async (def) => {
+      if (def.hvm) {
+        missing = missing.concat(await this.__checkAmi(ec2, def.region, def.hvm, 'hvm'));
+      }
+      if (def.pv) {
+        missing = missing.concat(await this.__checkAmi(ec2, def.region, def.pv, 'paravirtual'));
+      }
+    }));
 
-    if (def.hvm) {
-      missing = missing.concat(await checkAmi(ctx, def.region, def.hvm, 'hvm'));
+    if (missing.length > 0) {
+      valid = false;
+    } else {
+      valid = true;
     }
-    if (def.pv) {
-      missing = missing.concat(await checkAmi(ctx, def.region, def.pv, 'paravirtual'));
-    }
-  }));
+    return {
+      valid: valid,
+      invalidAmis: missing,
+    };
+  };
+};
 
-  return missing;
+AmiSet.prototype.validate = function(amiSet) {
+  return AmiSet.validate(this.ec2, amiSet);
 };
 
 /**
