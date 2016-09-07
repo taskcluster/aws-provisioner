@@ -10,7 +10,7 @@
     "pretest": "npm run compile",
     "lint": "eslint src/*.js test-src/*.js",
     "lintfix": "eslint --fix src/*.js test-src/*.js",
-    "test": "npm run lint && npm run compile && mocha test/*_test.js"
+    "test": "npm run lint && npm run compile && NODE_ENV=test mocha test/*_test.js"
   },
   "bin": {
     "manage-provisioner": "./lib/manage.js"
