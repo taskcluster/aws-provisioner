@@ -16,20 +16,19 @@ describe('AMI Set api', () => {
   let amiSetChanged = _.clone(amiSetDefinition);
   amiSetChanged.amis.push({
     region: 'us-east-1',
-    hvm: '',
-    pv: '',
+    hvm: 'ami-0123',
+    pv: 'ami-0345',
   });
 
   let id = slugid.nice();
   let lastModified;
 
-  let AmiSet;
   let amiSet;
 
   let client;
 
   before(async () => {
-    AmiSet = await main('AmiSet', {process: 'AmiSet', profile: 'test'});
+    amiSet = await main('AmiSet', {process: 'AmiSet', profile: 'test'});
 
     client = helper.getClient();
   });
@@ -62,46 +61,28 @@ describe('AMI Set api', () => {
 
     debug('### Load amiSet (again)');
     amiSet = await client.amiSet(id);
-
     lastModified = amiSet.lastModified;
     assume(amiSet).to.deeply.equal({
       amis: [
         {
-          hvm: 'ami-eee31781',
-          pv: 'ami-7fe81c10',
-          region: 'eu-central-1',
+          hvm: 'ami-1111',
+          pv: 'ami-2222',
+          region: 'us-west-1',
         },
         {
-          hvm: 'ami-fb54dcec',
-          pv: 'ami-656be372',
-          region: 'us-east-1',
+          hvm: 'ami-1234',
+          pv: 'ami-5678',
+          region: 'us-east-2',
         },
         {
-          hvm: '',
-          pv: '',
+          hvm: 'ami-0123',
+          pv: 'ami-0345',
           region: 'us-east-1',
         },
       ],
       id: id,
       lastModified: lastModified,
     });
-  });
-
-  it('should be able to check if the AMIs from an AMI set are valid', async () => {
-    let invalidAmiSet = amiSetChanged;
-    let amiSet;
-    invalidAmiSet.amis.push({
-      region: 'us-east-1',
-      hvm: 'ami123',
-      pv: 'ami345',
-    });
-    try {
-      amiSet = await client.createAmiSet(id, invalidAmiSet);
-      // throw new Error('Expected and error');
-    } catch (err) {
-      console.log(err);
-      assume(err.statusCode).is.between(400, 499);
-    };
   });
 
   it('should return a list of AMI sets', async () => {
@@ -116,6 +97,7 @@ describe('AMI Set api', () => {
 
     debug('### Try to load AMI Set');
     try {
+
       await client.amiSet(id);
       throw new Error('Expected and error');
     } catch (err) {

@@ -1,7 +1,4 @@
 let base = require('taskcluster-base');
-let debug = require('debug')('aws-provisioner:AmiSet');
-let amiExists = require('./check-for-ami');
-let assert = require('assert');
 
 const KEY_CONST = 'ami-set';
 
@@ -35,14 +32,12 @@ let AmiSet = base.Entity.configure({
     lastModified: base.Entity.types.Date,
 
   },
-  context: ['ec2'],
 });
 
 /**
  * Load the names of all the known Amis
  */
 AmiSet.listAmiSets = async function () {
-
   let names = [];
 
   await base.Entity.scan.call(this, {}, {
@@ -52,70 +47,6 @@ AmiSet.listAmiSets = async function () {
   });
 
   return names;
-};
-
-/**
- * Checks if the AMIs from the amiSet are valid or not.
- */
-
-AmiSet.__checkAmi = async function (ec2, region, imageId, vtype) {
-  assert(typeof region === 'string');
-  assert(typeof imageId === 'string');
-  assert(typeof vtype === 'string');
-
-  let request;
-  let missing = [];
-  let virtualizationType = '';
-
-  request = {
-    ImageIds: [imageId],
-  };
-  let ami = false;
-  try {
-    ami = await amiExists(ec2[region], imageId);
-  } catch (err) {
-    ami = false;
-  };
-  if (ami) {
-    virtualizationType = ami.VirtualizationType;
-    if (virtualizationType !== vtype) {
-      missing.push({imageId: imageId, region: region, virtualizationType: virtualizationType});
-    }
-  } else {
-    missing.push({imageId: imageId, region: region, virtualizationType: virtualizationType});
-  };
-
-  return missing;
-};
-
-AmiSet.validate = async function (ec2, amiSet) {
-  let missing = [];
-  let valid = false;
-
-  if (amiSet.amis) {
-    await Promise.all(amiSet.amis.map(async (def) => {
-      if (def.hvm) {
-        missing = missing.concat(await this.__checkAmi(ec2, def.region, def.hvm, 'hvm'));
-      }
-      if (def.pv) {
-        missing = missing.concat(await this.__checkAmi(ec2, def.region, def.pv, 'paravirtual'));
-      }
-    }));
-
-    if (missing.length > 0) {
-      valid = false;
-    } else {
-      valid = true;
-    }
-    return {
-      valid: valid,
-      invalidAmis: missing,
-    };
-  };
-};
-
-AmiSet.prototype.validate = function(amiSet) {
-  return AmiSet.validate(this.ec2, amiSet);
 };
 
 /**
