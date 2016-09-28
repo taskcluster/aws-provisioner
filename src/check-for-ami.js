@@ -39,7 +39,7 @@ module.exports = async function (ec2, ami) {
   }
 
   if (result.data.Images[0].ImageId === ami) {
-    return result.data.Images[0];
+    return true;
   } else {
     let err = new Error('api returned incorrect ami for search parameters');
     err.requested = ami;

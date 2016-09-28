@@ -76,12 +76,9 @@ let load = base.loader({
   },
 
   AmiSet: {
-    requires: ['cfg', 'ec2'],
-    setup: async ({cfg, ec2}) => {
+    requires: ['cfg'],
+    setup: async ({cfg}) => {
       let AmiSet = amiSet.setup({
-        context: {
-          ec2: ec2,
-        },
         account: cfg.azure.account,
         table: cfg.app.amiSetTableName,
         credentials: cfg.taskcluster.credentials,

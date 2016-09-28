@@ -4,14 +4,14 @@ var baseAmiSet = {
   amis:
   [
     {
-      region: 'eu-central-1',
-      hvm: 'ami-eee31781',
-      pv: 'ami-7fe81c10',
+      region: 'us-west-1',
+      hvm: 'ami-1111',
+      pv: 'ami-2222',
     },
     {
-      region: 'us-east-1',
-      hvm: 'ami-fb54dcec',
-      pv: 'ami-656be372',
+      region: 'us-east-2',
+      hvm: 'ami-1234',
+      pv: 'ami-5678',
     },
   ],
 };
