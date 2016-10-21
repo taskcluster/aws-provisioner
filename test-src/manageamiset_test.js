@@ -3,7 +3,6 @@ var assume = require('assume');
 var debug = require('debug')('test');
 var _ = require('lodash');
 var mock = require('./mock-amisets');
-var base = require('taskcluster-base');
 
 var makeAmiSet = mock.makeAmiSet;
 

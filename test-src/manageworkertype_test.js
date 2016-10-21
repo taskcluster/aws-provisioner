@@ -4,7 +4,6 @@ var slugid = require('slugid');
 var assume = require('assume');
 var _ = require('lodash');
 var mock = require('./mock-workers');
-var base = require('taskcluster-base');
 
 // for convenience
 var makeRegion = mock.makeRegion;
