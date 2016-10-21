@@ -43,6 +43,7 @@
     "source-map-support": "^0.4.0",
     "taskcluster-base": "^6.2.0",
     "taskcluster-client": "^1.0.1",
+    "taskcluster-lib-api": "^3.0.0",
     "taskcluster-lib-iterate": "^1.0.2",
     "taskcluster-lib-log": "^1.0.3",
     "taskcluster-lib-stats": "https://registry.npmjs.org/taskcluster-lib-stats/-/taskcluster-lib-stats-0.8.8.tgz",

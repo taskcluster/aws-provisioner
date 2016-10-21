@@ -917,24 +917,6 @@ api.declare({
 
 api.declare({
   method: 'get',
-  route: '/ping',
-  name: 'ping',
-  title: 'Ping Server',
-  stability:  base.API.stability.experimental,
-  description: [
-    'Documented later...',
-    '',
-    '**Warning** this api end-point is **not stable**.',
-  ].join('\n'),
-}, function(req, res) {
-  res.status(200).json({
-    alive: true,
-    uptime: process.uptime(),
-  });
-});
-
-api.declare({
-  method: 'get',
   route: '/backend-status',
   name: 'backendStatus',
   title: 'Backend Status',
