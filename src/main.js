@@ -7,7 +7,12 @@ let path = require('path');
 let fs = require('mz/fs');
 
 let taskcluster = require('taskcluster-client');
-let base = require('taskcluster-base');
+let loader = require('taskcluster-lib-loader');
+let config = require('typed-env-config');
+let libMonitor = require('taskcluster-lib-monitor');
+let libValidator = require('taskcluster-lib-validate');
+let libApp = require('taskcluster-lib-app');
+let stats = require('taskcluster-lib-stats');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
@@ -31,10 +36,10 @@ process.on('unhandledRejection', err => {
   */
 });
 
-let load = base.loader({
+let load = loader({
   cfg: {
     requires: ['profile'],
-    setup: ({profile}) => base.config({profile}),
+    setup: ({profile}) => config({profile}),
   },
 
   stateContainer: {
@@ -68,7 +73,7 @@ let load = base.loader({
 
   monitor: {
     requires: ['process', 'profile', 'cfg'],
-    setup: ({process, profile, cfg}) => base.monitor({
+    setup: ({process, profile, cfg}) => libMonitor({
       project: cfg.monitor.project,
       credentials: cfg.taskcluster.credentials,
       mock: cfg.monitor.mock,
@@ -125,7 +130,7 @@ let load = base.loader({
   validator: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
-      return await base.validator({
+      return await libValidator({
         prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
       });
@@ -251,7 +256,7 @@ let load = base.loader({
   server: {
     requires: ['cfg', 'api'],
     setup: ({cfg, api}) => {
-      let app = base.app(cfg.server);
+      let app = libApp(cfg.server);
       app.use('/v1', api);
       return app.createServer();
     },
@@ -261,14 +266,14 @@ let load = base.loader({
     requires: ['cfg'],
     setup: ({cfg}) => {
       if (cfg.influx.connectionString) {
-        return new base.stats.Influx({
+        return new stats.Influx({
           connectionString: cfg.influx.connectionString,
           maxDelay: cfg.influx.maxDelay,
           maxPendingPoints: cfg.influx.maxPendingPoints,
         });
       } else {
         console.log('No influx.connectionString configured; not using influx');
-        return new base.stats.NullDrain();
+        return new stats.NullDrain();
       }
     },
   },

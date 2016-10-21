@@ -1,11 +1,11 @@
 let log = require('./log');
-let base = require('taskcluster-base');
 let assert = require('assert');
 let lodash = require('lodash');
 let util = require('util');
 let slugid = require('slugid');
 let keyPairs = require('./key-pairs');
 let _ = require('lodash');
+let Entity = require('azure-entities');
 
 const KEY_CONST = 'worker-type';
 
@@ -38,40 +38,40 @@ function fixUserData(x) {
  * is not stored here.  The only time we fetch state here is for shutting
  * down everything.
  */
-let WorkerType = base.Entity.configure({
+let WorkerType = Entity.configure({
   version: 1,
   /* eslint-disable new-cap */
-  partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
-  rowKey: base.Entity.keys.StringKey('workerType'),
+  partitionKey: Entity.keys.ConstantKey(KEY_CONST),
+  rowKey: Entity.keys.StringKey('workerType'),
   /* eslint-enable new-cap */
   properties: {
     /* This is a string identifier of the Worker Type.  It
      * is what we give to the Queue to figure out whether there
      * is pending work. */
-    workerType: base.Entity.types.String,
+    workerType: Entity.types.String,
     /* This is the basic AWS LaunchSpecification.  It is
      * stored as an opaque JSON blob and represents the
      * information which will be shared between all instances
      * of this worker across all regions and instance types */
-    launchSpecification: base.Entity.types.JSON,
+    launchSpecification: Entity.types.JSON,
     /* This is the minimum capacity we will run */
-    minCapacity: base.Entity.types.Number,
+    minCapacity: Entity.types.Number,
     /* This is the maximum capacity which we will ever run */
-    maxCapacity: base.Entity.types.Number,
+    maxCapacity: Entity.types.Number,
     /* Scaling ratio a ratio of pending jobs to capacity.  A number
      * which is between 0 and 1 will ensure that there is always
      * idle capacity and a number greater than 1 will ensure that
      * some percentage of tasks will remain pending before we spawn
      * instances. */
-    scalingRatio: base.Entity.types.Number,
+    scalingRatio: Entity.types.Number,
     /* This is the minimum spot bid... It isn't actually read
      * and should be moved to the instance type definition... */
-    minPrice: base.Entity.types.Number,
-    maxPrice: base.Entity.types.Number,
+    minPrice: Entity.types.Number,
+    maxPrice: Entity.types.Number,
     /* Right now this is ineffective */
-    canUseOndemand: base.Entity.types.JSON,
+    canUseOndemand: Entity.types.JSON,
     /* Right now this is ineffective */
-    canUseSpot: base.Entity.types.JSON,
+    canUseSpot: Entity.types.JSON,
     /* This dictionary describes which instance types that this workerType
      * can run on as well as type-specific information.
      * This is a dictionary in the shape:
@@ -92,7 +92,7 @@ let WorkerType = base.Entity.configure({
      *   - overwrites: this object overwrites keys in the general
      *                 launch specification
      */
-    instanceTypes: base.Entity.types.JSON,
+    instanceTypes: Entity.types.JSON,
     /* This is a JSON object which contains the regions which this
      * workerType is allowed to run in as well as the region-specific
      * information.  It is in the shape:
@@ -103,7 +103,7 @@ let WorkerType = base.Entity.configure({
      *      }
      *   }
      * } */
-    regions: base.Entity.types.JSON,
+    regions: Entity.types.JSON,
   },
   context: ['provisionerId', 'keyPrefix'],
 });
@@ -113,27 +113,27 @@ WorkerType = WorkerType.configure({
   version: 2,
   properties: {
     // These fields are documented in Version 1 of this Entity
-    workerType: base.Entity.types.String,
-    minCapacity: base.Entity.types.Number,
-    maxCapacity: base.Entity.types.Number,
-    scalingRatio: base.Entity.types.Number,
-    minPrice: base.Entity.types.Number,
-    maxPrice: base.Entity.types.Number,
-    canUseOndemand: base.Entity.types.JSON, // delete this
-    canUseSpot: base.Entity.types.JSON, // delete this
-    instanceTypes: base.Entity.types.JSON,
-    regions: base.Entity.types.JSON,
+    workerType: Entity.types.String,
+    minCapacity: Entity.types.Number,
+    maxCapacity: Entity.types.Number,
+    scalingRatio: Entity.types.Number,
+    minPrice: Entity.types.Number,
+    maxPrice: Entity.types.Number,
+    canUseOndemand: Entity.types.JSON, // delete this
+    canUseSpot: Entity.types.JSON, // delete this
+    instanceTypes: Entity.types.JSON,
+    regions: Entity.types.JSON,
     // Store the date of last modification for this entity
-    lastModified: base.Entity.types.Date,
+    lastModified: Entity.types.Date,
     // Global base UserData object for overwriting
-    userData: base.Entity.types.JSON,
+    userData: Entity.types.JSON,
     // Global base LaunchSpecification object for overwriting
-    launchSpec: base.Entity.types.JSON,
+    launchSpec: Entity.types.JSON,
     // Global base secrets object for overwriting
-    secrets: base.Entity.types.JSON,
+    secrets: Entity.types.JSON,
     // Global base scope list for appending, these are the scopes that
     // temporary TC credentials will be issued against
-    scopes: base.Entity.types.JSON,
+    scopes: Entity.types.JSON,
   },
   migrate: function(item) {
     // First, let's set up the static/easy data
@@ -195,25 +195,25 @@ WorkerType = WorkerType.configure({
   version: 3,
   properties: {
     // These fields are documented in Version 1 of this Entity
-    workerType: base.Entity.types.String,
-    minCapacity: base.Entity.types.Number,
-    maxCapacity: base.Entity.types.Number,
-    scalingRatio: base.Entity.types.Number,
-    minPrice: base.Entity.types.Number,
-    maxPrice: base.Entity.types.Number,
-    canUseOndemand: base.Entity.types.JSON, // delete this
-    canUseSpot: base.Entity.types.JSON, // delete this
-    instanceTypes: base.Entity.types.JSON,
-    regions: base.Entity.types.JSON,
-    lastModified: base.Entity.types.Date,
-    userData: base.Entity.types.JSON,
-    launchSpec: base.Entity.types.JSON,
-    secrets: base.Entity.types.JSON,
-    scopes: base.Entity.types.JSON,
+    workerType: Entity.types.String,
+    minCapacity: Entity.types.Number,
+    maxCapacity: Entity.types.Number,
+    scalingRatio: Entity.types.Number,
+    minPrice: Entity.types.Number,
+    maxPrice: Entity.types.Number,
+    canUseOndemand: Entity.types.JSON, // delete this
+    canUseSpot: Entity.types.JSON, // delete this
+    instanceTypes: Entity.types.JSON,
+    regions: Entity.types.JSON,
+    lastModified: Entity.types.Date,
+    userData: Entity.types.JSON,
+    launchSpec: Entity.types.JSON,
+    secrets: Entity.types.JSON,
+    scopes: Entity.types.JSON,
     // Store a string description of this worker type
-    description: base.Entity.types.String,
+    description: Entity.types.String,
     // Store the owner of this worker type
-    owner: base.Entity.types.String,
+    owner: Entity.types.String,
   },
   migrate: function(item) {
     item.description = '** WRITE THIS**';
@@ -229,23 +229,23 @@ WorkerType = WorkerType.configure({
   signEntities: true, // NEW
   properties: {
     // These fields are documented in Version 1 of this Entity
-    workerType: base.Entity.types.String,
-    minCapacity: base.Entity.types.Number,
-    maxCapacity: base.Entity.types.Number,
-    scalingRatio: base.Entity.types.Number,
-    minPrice: base.Entity.types.Number,
-    maxPrice: base.Entity.types.Number,
-    canUseOndemand: base.Entity.types.JSON, // delete this
-    canUseSpot: base.Entity.types.JSON, // delete this
-    instanceTypes: base.Entity.types.JSON,
-    regions: base.Entity.types.JSON,
-    lastModified: base.Entity.types.Date,
-    userData: base.Entity.types.JSON,
-    launchSpec: base.Entity.types.JSON,
-    secrets: base.Entity.types.EncryptedJSON,
-    scopes: base.Entity.types.JSON,
-    description: base.Entity.types.String,
-    owner: base.Entity.types.String,
+    workerType: Entity.types.String,
+    minCapacity: Entity.types.Number,
+    maxCapacity: Entity.types.Number,
+    scalingRatio: Entity.types.Number,
+    minPrice: Entity.types.Number,
+    maxPrice: Entity.types.Number,
+    canUseOndemand: Entity.types.JSON, // delete this
+    canUseSpot: Entity.types.JSON, // delete this
+    instanceTypes: Entity.types.JSON,
+    regions: Entity.types.JSON,
+    lastModified: Entity.types.Date,
+    userData: Entity.types.JSON,
+    launchSpec: Entity.types.JSON,
+    secrets: Entity.types.EncryptedJSON,
+    scopes: Entity.types.JSON,
+    description: Entity.types.String,
+    owner: Entity.types.String,
   },
   migrate: item => item, // no change in the column content, just format
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
@@ -263,7 +263,7 @@ WorkerType.create = function(workerType, properties) {
   assert(/^[a-zA-Z0-9-_]{1,22}$/.exec(workerType), 'worker name invalid');
   properties = _.clone(properties);
   properties.workerType = workerType;
-  return base.Entity.create.call(this, properties);
+  return Entity.create.call(this, properties);
 };
 
 /**
@@ -273,7 +273,7 @@ WorkerType.loadAll = async function () {
   let workers = [];
 
   try {
-    await base.Entity.scan.call(this, {}, {
+    await Entity.scan.call(this, {}, {
       handler: function(item) {
         workers.push(item);
       },
@@ -292,7 +292,7 @@ WorkerType.listWorkerTypes = async function () {
   let names = [];
 
   try {
-    await base.Entity.scan.call(this, {}, {
+    await Entity.scan.call(this, {}, {
       handler: function(item) {
         names.push(item.workerType);
       },
