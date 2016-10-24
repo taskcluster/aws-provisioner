@@ -1,5 +1,5 @@
 let log = require('./log');
-let base = require('taskcluster-base');
+let API = require('taskcluster-lib-api');
 let taskcluster = require('taskcluster-client');
 let amiExists = require('./check-for-ami');
 let _ = require('lodash');
@@ -20,7 +20,7 @@ let EC2_INSTANCE_ID_PATTERN = /^i-[a-fA-F0-9]{8}$/;
  *   WorkerType:        // Instance of data.WorkerType
  * }
  */
-let api = new base.API({
+let api = new API({
   title: 'AWS Provisioner API Documentation',
   description: [
     'The AWS Provisioner is responsible for provisioning instances on EC2 for use in',
