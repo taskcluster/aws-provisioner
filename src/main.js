@@ -13,6 +13,10 @@ let libMonitor = require('taskcluster-lib-monitor');
 let libValidator = require('taskcluster-lib-validate');
 let libApp = require('taskcluster-lib-app');
 let stats = require('taskcluster-lib-stats');
+let docs = require('taskcluster-lib-docs');
+let Iterate = require('taskcluster-lib-iterate');
+let azure = require('azure-storage');
+let DataContainer = require('azure-blob-storage').default;
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
@@ -21,10 +25,7 @@ let provision = require('./provision');
 let exchanges = require('./exchanges');
 let v1 = require('./api-v1');
 let series = require('./influx-series');
-let azure = require('azure-storage');
 let Container = require('./container');
-let DataContainer = require('azure-blob-storage').default;
-let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
   log.fatal({err}, '[alert-operator] UNHANDLED REJECTION!');
@@ -120,6 +121,31 @@ let load = loader({
       return await libValidator({
         prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
+      });
+    },
+  },
+
+  docs: {
+    requires: ['cfg', 'validator'],
+    setup: ({cfg, validator}) => {
+      let reference = exchanges.reference({
+        exchangePrefix:   cfg.app.exchangePrefix,
+        credentials:      cfg.pulse,
+      });
+      return docs.documenter({
+        credentials: cfg.taskcluster.credentials,
+        tier: 'core',
+        schemas: validator.schemas,
+        project: 'aws-provisioner',
+        references: [
+          {
+            name: 'api',
+            reference: v1.reference({baseUrl: cfg.server.publicUrl + '/v1'}),
+          }, {
+            name: 'events',
+            reference: reference,
+          },
+        ],
       });
     },
   },
@@ -241,6 +267,9 @@ let load = loader({
     requires: ['cfg', 'api'],
     setup: ({cfg, api}) => {
       let app = libApp(cfg.server);
+    requires: ['cfg', 'api', 'docs'],
+    setup: ({cfg, api, docs}) => {
+      let app = app(cfg.server);
       app.use('/v1', api);
       return app.createServer();
     },
