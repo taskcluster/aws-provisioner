@@ -7,6 +7,9 @@ let path = require('path');
 
 let taskcluster = require('taskcluster-client');
 let base = require('taskcluster-base');
+let docs = require('taskcluster-lib-docs');
+let Iterate = require('taskcluster-lib-iterate');
+let azure = require('azure-storage');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
@@ -16,9 +19,7 @@ let provision = require('./provision');
 let exchanges = require('./exchanges');
 let v1 = require('./api-v1');
 let series = require('./influx-series');
-let azure = require('azure-storage');
 let Container = require('./container');
-let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
   log.fatal({err}, '[alert-operator] UNHANDLED REJECTION!');
@@ -105,6 +106,31 @@ let load = base.loader({
       return await base.validator({
         prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
+      });
+    },
+  },
+
+  docs: {
+    requires: ['cfg', 'validator'],
+    setup: ({cfg, validator}) => {
+      let reference = exchanges.reference({
+        exchangePrefix:   cfg.app.exchangePrefix,
+        credentials:      cfg.pulse,
+      });
+      return docs.documenter({
+        credentials: cfg.taskcluster.credentials,
+        tier: 'core',
+        schemas: validator.schemas,
+        project: 'aws-provisioner',
+        references: [
+          {
+            name: 'api',
+            reference: v1.reference({baseUrl: cfg.server.publicUrl + '/v1'}),
+          }, {
+            name: 'events',
+            reference: reference,
+          },
+        ],
       });
     },
   },
@@ -226,8 +252,8 @@ let load = base.loader({
   },
 
   server: {
-    requires: ['cfg', 'api'],
-    setup: ({cfg, api}) => {
+    requires: ['cfg', 'api', 'docs'],
+    setup: ({cfg, api, docs}) => {
       let app = base.app(cfg.server);
       app.use('/v1', api);
       return app.createServer();
