@@ -1,17 +1,17 @@
-let base = require('taskcluster-base');
+let Entity = require('azure-entities');
 
-let Secret = base.Entity.configure({
+let Secret = Entity.configure({
   version: 1,
 
-  partitionKey: base.Entity.keys.StringKey('token'),
-  rowKey: base.Entity.keys.ConstantKey('secret'),
+  partitionKey: Entity.keys.StringKey('token'),
+  rowKey: Entity.keys.ConstantKey('secret'),
 
   properties: {
-    token: base.Entity.types.String,
-    expiration: base.Entity.types.Date,
-    workerType: base.Entity.types.String,
-    secrets: base.Entity.types.JSON,
-    scopes: base.Entity.types.JSON,
+    token: Entity.types.String,
+    expiration: Entity.types.Date,
+    workerType: Entity.types.String,
+    secrets: Entity.types.JSON,
+    scopes: Entity.types.JSON,
   },
 });
 
