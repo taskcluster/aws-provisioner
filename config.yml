@@ -19,6 +19,12 @@ defaults:
       - 'us-west-2'
       - 'us-east-1'
       - 'eu-central-1'
+
+    # Key for signing in base.Entity (sufficiently random string required)
+    tableSigningKey:          !env TABLE_SIGNING_KEY
+    # Key for data encryption in base.Entity (32 random bytes as base64)
+    tableCryptoKey:           !env TABLE_CRYPTO_KEY
+
   taskcluster:
     authBaseUrl: https://auth.taskcluster.net/v1
     queueBaseUrl: https://queue.taskcluster.net/v1
@@ -137,6 +143,9 @@ test:
     awsInstancePubkey: 'fake-pubkey'
     allowedRegions:
       - 'us-west-2'
+    tableSigningKey:          not-a-secret-so-you-cant-guess-it
+    tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+
   server:
     publicUrl: http://localhost:60407
     port: 60407
