@@ -63,6 +63,8 @@ let load = base.loader({
       let WorkerType = workerType.setup({
         account: cfg.azure.account,
         table: cfg.app.workerTypeTableName,
+        signingKey: cfg.app.tableSigningKey,
+        cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
@@ -93,6 +95,8 @@ let load = base.loader({
       let Secret = secret.setup({
         account: cfg.azure.account,
         table: cfg.app.secretTableName,
+        signingKey: cfg.app.tableSigningKey,
+        cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
       });
       return Secret;

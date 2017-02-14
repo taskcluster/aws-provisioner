@@ -223,6 +223,34 @@ WorkerType = WorkerType.configure({
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
 });
 
+// Encrypt the secrets column
+WorkerType = WorkerType.configure({
+  version: 4,
+  signEntities: true, // NEW
+  properties: {
+    // These fields are documented in Version 1 of this Entity
+    workerType: base.Entity.types.String,
+    minCapacity: base.Entity.types.Number,
+    maxCapacity: base.Entity.types.Number,
+    scalingRatio: base.Entity.types.Number,
+    minPrice: base.Entity.types.Number,
+    maxPrice: base.Entity.types.Number,
+    canUseOndemand: base.Entity.types.JSON, // delete this
+    canUseSpot: base.Entity.types.JSON, // delete this
+    instanceTypes: base.Entity.types.JSON,
+    regions: base.Entity.types.JSON,
+    lastModified: base.Entity.types.Date,
+    userData: base.Entity.types.JSON,
+    launchSpec: base.Entity.types.JSON,
+    secrets: base.Entity.types.EncryptedJSON,
+    scopes: base.Entity.types.JSON,
+    description: base.Entity.types.String,
+    owner: base.Entity.types.String,
+  },
+  migrate: item => item, // no change in the column content, just format
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+});
+
 /**
  * Create a workerType in the table.  The properties
  * should not have a workerType key since that will be
