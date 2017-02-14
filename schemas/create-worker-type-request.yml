@@ -51,7 +51,7 @@ properties:
       time before starting to run.
       A higher scaling ratio often results in better utilization and longer
       waiting times. For workerTypes running long tasks a short scaling ratio
-      may be prefered, but for workerTypes running quick tasks a higher scaling
+      may be preferred, but for workerTypes running quick tasks a higher scaling
       ratio may increase utilization without major delays.
       If using a scaling ratio of 0, the provisioner will attempt to keep the
       capacity of pending spot requests equal to the number of pending tasks.
