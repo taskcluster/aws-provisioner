@@ -1,7 +1,7 @@
-let base = require('taskcluster-base');
+let Exchanges = require('pulse-publisher');
 
 /** Declaration of exchanges offered by the aws-provisioner */
-let exchanges = new base.Exchanges({
+let exchanges = new Exchanges({
   title: 'AWS Provisioner Pulse Exchanges',
   description: [
     'Exchanges from the provisioner... more docs later',

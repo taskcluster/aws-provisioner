@@ -1,4 +1,4 @@
-let base = require('taskcluster-base');
+let Entity = require('azure-entities');
 
 const KEY_CONST = 'ami-set';
 
@@ -8,15 +8,15 @@ const KEY_CONST = 'ami-set';
  * by its AWS region.
  */
 
-let AmiSet = base.Entity.configure({
+let AmiSet = Entity.configure({
   version: 1,
 
-  partitionKey: base.Entity.keys.ConstantKey(KEY_CONST),
-  rowKey: base.Entity.keys.StringKey('id'),
+  partitionKey: Entity.keys.ConstantKey(KEY_CONST),
+  rowKey: Entity.keys.StringKey('id'),
 
   properties: {
 
-    id: base.Entity.types.String,
+    id: Entity.types.String,
     /* This is a JSON object which contains the AMIs of an AMI set keyed by
      * their virtualization type and region. It is in the shape:
      * [
@@ -27,9 +27,9 @@ let AmiSet = base.Entity.configure({
      *   }
      * ]
      */
-    amis: base.Entity.types.JSON,
+    amis: Entity.types.JSON,
     // Store the date of last modification for this entity
-    lastModified: base.Entity.types.Date,
+    lastModified: Entity.types.Date,
 
   },
 });
@@ -40,7 +40,7 @@ let AmiSet = base.Entity.configure({
 AmiSet.listAmiSets = async function () {
   let names = [];
 
-  await base.Entity.scan.call(this, {}, {
+  await Entity.scan.call(this, {}, {
     handler: function(item) {
       names.push(item.id);
     },
