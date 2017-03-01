@@ -4,7 +4,7 @@ let log = require('./log');
 let aws = require('aws-sdk');
 let _ = require('lodash');
 let path = require('path');
-let fs = require('fs');
+let fs = require('mz/fs');
 
 let taskcluster = require('taskcluster-client');
 let base = require('taskcluster-base');
@@ -53,13 +53,11 @@ let load = base.loader({
     requires: ['cfg', 'profile'],
     setup: async ({cfg, profile}) => {
       let container = `worker-state-${profile}`;
-      let schema = fs.readFileSync(`${__dirname}/../schemas/state-definition.json`, 'utf8');
+      let schema = await fs.readFile(`${__dirname}/../schemas/state-definition.json`, 'utf8');
       let schemaObj = JSON.parse(schema);
       let options = {
-        credentials: {
-          accountName: cfg.azureBlob.accountName,
-          accountKey: cfg.azureBlob.accountKey,
-        },
+        account: cfg.azureBlob.accountName,
+        credentials: cfg.taskcluster.credentials,
         container: container,
         schema: schemaObj,
       };
