@@ -917,6 +917,62 @@ api.declare({
 
 api.declare({
   method: 'get',
+  route: '/new-state/:workerType',
+  name: 'new-state',
+  title: 'Get AWS State for a worker type',
+  scopes: [
+    ['aws-provisioner:view-worker-type:<workerType>'],
+    ['aws-provisioner:manage-worker-type:<workerType>'],
+  ],
+  deferAuth: true,
+  stability:  base.API.stability.stable,
+  description: [
+    'Return the state of a given workertype as stored by the provisioner. ',
+    'This state is stored as three lists: 1 for running instances, 1 for',
+    'pending requests.  The `summary` property contains an updated summary',
+    'similar to that returned from `listWorkerTypeSummaries`.',
+  ].join('\n'),
+}, async function (req, res) {
+  let workerType;
+  let workerState;
+
+  if (!req.satisfies({workerType: req.params.workerType})) {
+    return;
+  }
+
+  try {
+    workerType = await this.WorkerType.load({workerType: req.params.workerType});
+  } catch (err) {
+    if (err.code === 'ResourceNotFound') {
+      res.status(404).json({
+        message: req.params.workerType + ' does not have any state information',
+      }).end();
+    } else {
+      throw err;
+    }
+  }
+
+  try {
+    let workerStateBlob = await this.stateNewContainer.load(workerType.workerType, true);
+    workerState = workerStateBlob.content;
+  } catch (err) {
+    if (err.code !== 'BlobNotFound') {
+      throw err;
+    }
+  }
+
+  res.reply({
+    workerType: workerType.workerType,
+    instances: workerState ? workerState.instances : [],
+    requests: workerState ? workerState.requests : [],
+    // here for compatibility with the UI
+    internalTrackedRequests: [],
+    summary: workerTypeSummary(workerType, workerState),
+  });
+});
+
+api.declare({
+  method: 'get',
   route: '/ping',
   name: 'ping',
   title: 'Ping Server',

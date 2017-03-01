@@ -4,6 +4,7 @@ let log = require('./log');
 let aws = require('aws-sdk');
 let _ = require('lodash');
 let path = require('path');
+let fs = require('fs');
 
 let taskcluster = require('taskcluster-client');
 let base = require('taskcluster-base');
@@ -18,6 +19,7 @@ let v1 = require('./api-v1');
 let series = require('./influx-series');
 let azure = require('azure-storage');
 let Container = require('./container');
+let DataContainer = require('azure-blob-storage');
 let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
@@ -44,6 +46,25 @@ let load = base.loader({
       // TODO: Use ExponentialRetryPolicyFilter
       let container = `worker-state-${profile}`;
       return Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, container);
+    },
+  },
+
+  stateNewContainer: {
+    requires: ['cfg', 'profile'],
+    setup: async ({cfg, profile}) => {
+      let container = `worker-state-${profile}`;
+      let schema = fs.readFileSync(`${__dirname}/../schemas/state-definition.json`, 'utf8');
+      let schemaObj = JSON.parse(schema);
+      let options = {
+        credentials: {
+          accountName: cfg.azureBlob.accountName,
+          accountKey: cfg.azureBlob.accountKey,
+        },
+        container: container,
+        schema: schemaObj,
+      };
+      let dataContainer = await DataContainer(options);
+      return dataContainer;
     },
   },
 

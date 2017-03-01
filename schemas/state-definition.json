@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "State Definition",
+  "type": "object",
+  "properties": {
+    "workerType": {
+      "title": "Worker Type",
+      "description": "Worker type name\n",
+      "type": "string"
+    },
+    "instances": {
+      "title": "Instances",
+      "description": "",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Instance id",
+            "description": "Instance id\n",
+            "type": "string"
+          },
+          "srId": {
+            "title": "Spot instance request id",
+            "description": "Spot instance request id\n",
+            "type": "string"
+          },
+          "ami": {
+            "title": "Image id",
+            "description": "Image id\n",
+            "type": "string"
+          },
+          "type": {
+            "title": "Instance type",
+            "description": "instance type\n",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "description": "Region\n",
+            "type": "string"
+          },
+          "zone": {
+            "title": "Zone",
+            "description": "Availibility zone\n",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "description": "State name\n",
+            "type": "string"
+          },
+          "launch": {
+            "title": "Launch",
+            "description": "Launch time\n",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "requests": {
+      "title": "Requests",
+      "description": "",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Spot instance request id",
+            "description": "Spot instance request id\n",
+            "type": "string"
+          },
+          "ami": {
+            "title": "Image id",
+            "description": "Image id\n",
+            "type": "string"
+          },
+          "type": {
+            "title": "Instance type",
+            "description": "instance type\n",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "description": "Region\n",
+            "type": "string"
+          },
+          "zone": {
+            "title": "Zone",
+            "description": "Availibility zone\n",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "description": "Create time\n",
+            "type": "string"
+          },
+          "visibleToEC2Api": {
+            "title": "visibleToEC2Api",
+            "description": "",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "description": "Status code\n",
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "workerType"
+  ]
+}
