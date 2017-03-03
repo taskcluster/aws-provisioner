@@ -744,7 +744,7 @@ api.declare({
 api.declare({
   method: 'get',
   route: '/new-state/:workerType',
-  name: 'new-state',
+  name: 'newState',
   title: 'Get AWS State for a worker type',
   scopes: [
     ['aws-provisioner:view-worker-type:<workerType>'],
