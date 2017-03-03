@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "install": "npm run compile",
-    "compile": "rm -rf lib/ test/ && DEBUG= babel-compile -p taskcluster src:lib test-src:test",
+    "compile": "DEBUG= babel-compile -p taskcluster src:lib test-src:test",
     "fastcompile": "DEBUG= babel-compile --no-clean -p taskcluster src:lib test-src:test",
     "clean": "rm -rf lib test",
     "pretest": "npm run compile",
     "lint": "eslint src/*.js test-src/*.js",
     "lintfix": "eslint --fix src/*.js test-src/*.js",
-    "test": "npm run lint && npm run compile && NODE_ENV=test mocha test/*_test.js"
+    "test": "npm run lint && NODE_ENV=test mocha test/*_test.js"
   },
   "bin": {
     "manage-provisioner": "./lib/manage.js"
@@ -22,7 +22,7 @@
   "dependencies": {
     "assume": "^1.2.5",
     "aws-sdk": "^2.5.0",
-    "azure-blob-storage": "elenasolomon/azure-blob-storage",
+    "azure-blob-storage": "^1.0.1",
     "azure-storage": "^1.0.1",
     "babel-compile": "^2.0.0",
     "babel-eslint": "^6.0.0",
