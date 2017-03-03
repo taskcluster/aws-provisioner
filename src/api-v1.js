@@ -1,5 +1,5 @@
 let log = require('./log');
-let base = require('taskcluster-base');
+let API = require('taskcluster-lib-api');
 let taskcluster = require('taskcluster-client');
 let amiExists = require('./check-for-ami');
 let _ = require('lodash');
@@ -20,7 +20,7 @@ let EC2_INSTANCE_ID_PATTERN = /^i-[a-fA-F0-9]{8}$/;
  *   WorkerType:        // Instance of data.WorkerType
  * }
  */
-let api = new base.API({
+let api = new API({
   title: 'AWS Provisioner API Documentation',
   description: [
     'The AWS Provisioner is responsible for provisioning instances on EC2 for use in',
@@ -108,7 +108,7 @@ api.declare({
   input: undefined,  // No input
   output: 'list-worker-types-summaries-response.json#',
   title: 'List worker types with details',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Return a list of worker types, including some summary information about',
     'current capacity for each.  While this list includes all defined worker types,',
@@ -147,7 +147,7 @@ api.declare({
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Create new Worker Type',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Create a worker type.  A worker type contains all the configuration',
     'needed for the provisioner to manage the instances.  Each worker type',
@@ -263,7 +263,7 @@ api.declare({
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Update Worker Type',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Provide a new copy of a worker type to replace the existing one.',
     'This will overwrite the existing worker type definition if there',
@@ -326,7 +326,7 @@ api.declare({
   input: undefined,  // No input
   output: 'get-worker-type-last-modified.json#',
   title: 'Get Worker Type Last Modified Time',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'This method is provided to allow workers to see when they were',
     'last modified.  The value provided through UserData can be',
@@ -370,7 +370,7 @@ api.declare({
   input: undefined,  // No input
   output: 'get-worker-type-response.json#',
   title: 'Get Worker Type',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Retreive a copy of the requested worker type definition.',
     'This copy contains a lastModified field as well as the worker',
@@ -415,7 +415,7 @@ api.declare({
   input: undefined,  // No input
   output: undefined,  // No output
   title: 'Delete Worker Type',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Delete a worker type definition.  This method will only delete',
     'the worker type definition from the storage table.  The actual',
@@ -457,7 +457,7 @@ api.declare({
   input: undefined,  // No input
   output: 'list-worker-types-response.json#',
   title: 'List Worker Types',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Return a list of string worker type names.  These are the names',
     'of all managed worker types known to the provisioner.  This does',
@@ -477,7 +477,7 @@ api.declare({
   scopes: [['aws-provisioner:create-secret']],
   input: 'create-secret-request.json#',
   title: 'Create new Secret',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Insert a secret into the secret storage.  The supplied secrets will',
     'be provided verbatime via `getSecret`, while the supplied scopes will',
@@ -540,7 +540,7 @@ api.declare({
   name: 'getSecret',
   output: 'get-secret-response.json#',
   title: 'Get a Secret',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Retrieve a secret from storage.  The result contains any passwords or',
     'other restricted information verbatim as well as a temporary credential',
@@ -584,7 +584,7 @@ api.declare({
   route: '/instance-started/:instanceId/:token',
   name: 'instanceStarted',
   title: 'Report an instance starting',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'An instance will report in by giving its instance id as well',
     'as its security token.  The token is given and checked to ensure',
@@ -616,7 +616,7 @@ api.declare({
   route: '/secret/:token',
   name: 'removeSecret',
   title: 'Remove a Secret',
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Remove a secret.  After this call, a call to `getSecret` with the given',
     'token will return no information.',
@@ -656,7 +656,7 @@ api.declare({
   input: undefined,  // No input
   output: 'get-launch-specs-response.json#',
   title: 'Get All Launch Specifications for WorkerType',
-  stability:  base.API.stability.experimental,
+  stability:  API.stability.experimental,
   description: [
     'This method returns a preview of all possible launch specifications',
     'that this worker type definition could submit to EC2.  It is used to',
@@ -696,7 +696,7 @@ api.declare({
     ['aws-provisioner:manage-worker-type:<workerType>'],
   ],
   deferAuth: true,
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
     'This state is stored as three lists: 1 for running instances, 1 for',
@@ -751,7 +751,7 @@ api.declare({
     ['aws-provisioner:manage-worker-type:<workerType>'],
   ],
   deferAuth: true,
-  stability:  base.API.stability.stable,
+  stability:  API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
     'This state is stored as three lists: 1 for running instances, 1 for',
@@ -802,7 +802,7 @@ api.declare({
   route: '/ping',
   name: 'ping',
   title: 'Ping Server',
-  stability:  base.API.stability.experimental,
+  stability:  API.stability.experimental,
   description: [
     'Documented later...',
     '',
@@ -820,7 +820,7 @@ api.declare({
   route: '/backend-status',
   name: 'backendStatus',
   title: 'Backend Status',
-  stability:  base.API.stability.experimental,
+  stability:  API.stability.experimental,
   output: 'backend-status-response.json#',
   description: [
     'This endpoint is used to show when the last time the provisioner',
@@ -854,7 +854,7 @@ api.declare({
   route: '/worker-type/:workerType/terminate-all-instances',
   name: 'terminateAllInstancesOfWorkerType',
   title: 'Shutdown Every Ec2 Instance of this Worker Type',
-  stability:  base.API.stability.experimental,
+  stability:  API.stability.experimental,
   scopes: [
     [
       'aws-provisioner:terminate-all-worker-type:<workerType>',
@@ -897,7 +897,7 @@ api.declare({
   route: '/shutdown/every/single/ec2/instance/managed/by/this/provisioner',
   name: 'shutdownEverySingleEc2InstanceManagedByThisProvisioner',
   title: 'Shutdown Every Single Ec2 Instance Managed By This Provisioner',
-  stability:  base.API.stability.experimental,
+  stability:  API.stability.experimental,
   scopes: [
     [
       'aws-provisioner:terminate-all-worker-type:*',

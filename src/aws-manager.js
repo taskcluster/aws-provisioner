@@ -81,10 +81,10 @@ function dateForInflux(thingy) {
  *      absolute upper bounds of instance life.  This should never be hit, but
  *      is rather a safety limit to ensure we don't have things living forever.
  * influx:
- *      Instance of a taskcluster-base.stats.Influx class which is used to
+ *      Instance of a taskcluster-lib-stats.stats.Influx class which is used to
  *      submit data points to an influx instance
  * monitor:
- *      Instance of a taskcluster-base.monitor which is used to
+ *      Instance of a taskcluster-lib-stats.monitor which is used to
  *      submit data points to a statsum instance
  */
 class AwsManager {

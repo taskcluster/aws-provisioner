@@ -11,7 +11,7 @@ let _ = require('lodash');
  */
 class Biaser {
   constructor(cfg) {
-    // Store a taskcluster-base.stats Influx object that the queries will be run
+    // Store a taskcluster-lib-stats Influx object that the queries will be run
     // against
     assert(cfg.influx);
     this.influx = cfg.influx;
