@@ -23,7 +23,7 @@ let v1 = require('./api-v1');
 let series = require('./influx-series');
 let azure = require('azure-storage');
 let Container = require('./container');
-let DataContainer = require('azure-blob-storage');
+let DataContainer = require('azure-blob-storage').default;
 let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
@@ -168,9 +168,9 @@ let load = loader({
   },
 
   api: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'validator',
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'validator',
                'publisher', 'influx', 'monitor'],
-    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, validator,
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, validator,
                    publisher, influx, monitor}) => {
 
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
@@ -190,6 +190,7 @@ let load = loader({
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
           ec2: ec2,
           stateContainer: stateContainer,
+          stateNewContainer: stateNewContainer,
           awsManager: awsManager,
         },
         validator: validator,
