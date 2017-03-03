@@ -1,7 +1,7 @@
 let mocha = require('mocha');
 
-let base = require('taskcluster-base');
 let taskcluster = require('taskcluster-client');
+let testing = require('taskcluster-lib-testing');
 
 let main = require('../lib/main');
 
@@ -15,11 +15,11 @@ mocha.before(async () => {
   // Mock out the authentication
   let x = {};
   x[client._options.credentials.clientId] = ['*'];
-  base.testing.fakeauth.start(x);
+  testing.fakeauth.start(x);
 });
 
 mocha.after(async () => {
-  base.testing.fakeauth.stop();
+  testing.fakeauth.stop();
   await server.terminate();
 });
 
