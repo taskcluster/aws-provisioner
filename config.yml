@@ -7,7 +7,6 @@ defaults:
     maxInstanceLife: '- 96 hours'
     id: !env PROVISIONER_ID
     workerTypeTableName: DevWorkerTypes2
-    amiSetTableName: DevAmiSets2
     secretTableName: DevWorkerSecrets2
     workerStateTableName: DevWorkerState2
     awsInstancePubkey: !env AWS_INSTANCE_PUBKEY
@@ -75,7 +74,6 @@ production:
   app:
     id: aws-provisioner-v1
     workerTypeTableName: WorkerTypes
-    amiSetTableName: AmiSets
     secretTableName: Secrets
     workerStateTableName: WorkerState
     publishMetaData: true
@@ -97,7 +95,6 @@ staging:
   app:
     id: staging-aws
     workerTypeTableName: StagingWorkerTypes
-    amiSetTableName: StagingAmiSets
     secretTableName: StagingSecrets
     workerStateTableName: StagingWorkerState
     publishMetaData: false

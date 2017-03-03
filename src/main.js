@@ -11,7 +11,6 @@ let base = require('taskcluster-base');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
-let amiSet = require('./ami-set');
 let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
@@ -96,18 +95,6 @@ let load = base.loader({
     },
   },
 
-  AmiSet: {
-    requires: ['cfg'],
-    setup: async ({cfg}) => {
-      let AmiSet = amiSet.setup({
-        account: cfg.azure.account,
-        table: cfg.app.amiSetTableName,
-        credentials: cfg.taskcluster.credentials,
-      });
-      return AmiSet;
-    },
-  },
-
   Secret: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
@@ -176,9 +163,9 @@ let load = base.loader({
   },
 
   api: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator',
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'validator',
                'publisher', 'influx', 'monitor'],
-    setup: async ({cfg, awsManager, WorkerType, AmiSet, Secret, ec2, stateContainer, validator,
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, validator,
                    publisher, influx, monitor}) => {
 
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
@@ -186,7 +173,6 @@ let load = base.loader({
       let router = await v1.setup({
         context: {
           WorkerType: WorkerType,
-          AmiSet: AmiSet,
           Secret: Secret,
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
@@ -231,16 +217,13 @@ let load = base.loader({
 
   // Table Cleaner for testing
   tableCleaner: {
-    requires: ['WorkerType', 'Secret', 'AmiSet'],
-    setup: async ({WorkerType, Secret, AmiSet}) => {
+    requires: ['WorkerType', 'Secret'],
+    setup: async ({WorkerType, Secret}) => {
       await Promise.all([
         WorkerType.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
         Secret.scan({}, {
-          handler: async (x) => { await x.remove(); },
-        }),
-        AmiSet.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
       ]);
