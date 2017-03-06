@@ -2,7 +2,6 @@ var main = require('../lib/main');
 var slugid = require('slugid');
 var assume = require('assume');
 var taskcluster = require('taskcluster-client');
-var base = require('taskcluster-base');
 var helper = require('./helper');
 
 describe('secrets api', () => {

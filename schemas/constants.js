@@ -1,6 +1,6 @@
 /**
  * This module defines a mapping from keys to value that can be rendered into
- * JSON schemas using taskcluster-base
+ * JSON schemas using taskcluster-lib-validate
  *
  * This enables us to reuse the same slugid-pattern everywhere we define slugids
  * but give a different description of each occurrence. It makes it easy to

@@ -4,13 +4,18 @@ let log = require('./log');
 let aws = require('aws-sdk');
 let _ = require('lodash');
 let path = require('path');
+let fs = require('mz/fs');
 
+let loader = require('taskcluster-lib-loader');
 let taskcluster = require('taskcluster-client');
-let base = require('taskcluster-base');
+let config = require('typed-env-config');
+let libMonitor = require('taskcluster-lib-monitor');
+let libValidator = require('taskcluster-lib-validate');
+let libApp = require('taskcluster-lib-app');
+let stats = require('taskcluster-lib-stats');
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
-let amiSet = require('./ami-set');
 let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
@@ -18,6 +23,7 @@ let v1 = require('./api-v1');
 let series = require('./influx-series');
 let azure = require('azure-storage');
 let Container = require('./container');
+let DataContainer = require('azure-blob-storage').default;
 let Iterate = require('taskcluster-lib-iterate');
 
 process.on('unhandledRejection', err => {
@@ -29,10 +35,10 @@ process.on('unhandledRejection', err => {
   */
 });
 
-let load = base.loader({
+let load = loader({
   cfg: {
     requires: ['profile'],
-    setup: ({profile}) => base.config({profile}),
+    setup: ({profile}) => config({profile}),
   },
 
   stateContainer: {
@@ -47,9 +53,26 @@ let load = base.loader({
     },
   },
 
+  stateNewContainer: {
+    requires: ['cfg', 'profile'],
+    setup: async ({cfg, profile}) => {
+      let container = `worker-state-${profile}`;
+      let schema = await fs.readFile(`${__dirname}/../schemas/state-definition.json`, 'utf8');
+      let schemaObj = JSON.parse(schema);
+      let options = {
+        account: cfg.azureBlob.accountName,
+        credentials: cfg.taskcluster.credentials,
+        container: container,
+        schema: schemaObj,
+      };
+      let dataContainer = await DataContainer(options);
+      return dataContainer;
+    },
+  },
+
   monitor: {
     requires: ['process', 'profile', 'cfg'],
-    setup: ({process, profile, cfg}) => base.monitor({
+    setup: ({process, profile, cfg}) => libMonitor({
       project: cfg.monitor.project,
       credentials: cfg.taskcluster.credentials,
       mock: cfg.monitor.mock,
@@ -77,18 +100,6 @@ let load = base.loader({
     },
   },
 
-  AmiSet: {
-    requires: ['cfg'],
-    setup: async ({cfg}) => {
-      let AmiSet = amiSet.setup({
-        account: cfg.azure.account,
-        table: cfg.app.amiSetTableName,
-        credentials: cfg.taskcluster.credentials,
-      });
-      return AmiSet;
-    },
-  },
-
   Secret: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
@@ -106,7 +117,7 @@ let load = base.loader({
   validator: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
-      return await base.validator({
+      return await libValidator({
         prefix: 'aws-provisioner/v1/',
         aws: cfg.aws,
       });
@@ -157,9 +168,9 @@ let load = base.loader({
   },
 
   api: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'AmiSet', 'Secret', 'ec2', 'stateContainer', 'validator',
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'validator',
                'publisher', 'influx', 'monitor'],
-    setup: async ({cfg, awsManager, WorkerType, AmiSet, Secret, ec2, stateContainer, validator,
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, validator,
                    publisher, influx, monitor}) => {
 
       let reportInstanceStarted = series.instanceStarted.reporter(influx);
@@ -167,7 +178,6 @@ let load = base.loader({
       let router = await v1.setup({
         context: {
           WorkerType: WorkerType,
-          AmiSet: AmiSet,
           Secret: Secret,
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
@@ -180,6 +190,7 @@ let load = base.loader({
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
           ec2: ec2,
           stateContainer: stateContainer,
+          stateNewContainer: stateNewContainer,
           awsManager: awsManager,
         },
         validator: validator,
@@ -212,16 +223,13 @@ let load = base.loader({
 
   // Table Cleaner for testing
   tableCleaner: {
-    requires: ['WorkerType', 'Secret', 'AmiSet'],
-    setup: async ({WorkerType, Secret, AmiSet}) => {
+    requires: ['WorkerType', 'Secret'],
+    setup: async ({WorkerType, Secret}) => {
       await Promise.all([
         WorkerType.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
         Secret.scan({}, {
-          handler: async (x) => { await x.remove(); },
-        }),
-        AmiSet.scan({}, {
           handler: async (x) => { await x.remove(); },
         }),
       ]);
@@ -232,7 +240,7 @@ let load = base.loader({
   server: {
     requires: ['cfg', 'api'],
     setup: ({cfg, api}) => {
-      let app = base.app(cfg.server);
+      let app = libApp(cfg.server);
       app.use('/v1', api);
       return app.createServer();
     },
@@ -242,14 +250,14 @@ let load = base.loader({
     requires: ['cfg'],
     setup: ({cfg}) => {
       if (cfg.influx.connectionString) {
-        return new base.stats.Influx({
+        return new stats.Influx({
           connectionString: cfg.influx.connectionString,
           maxDelay: cfg.influx.maxDelay,
           maxPendingPoints: cfg.influx.maxPendingPoints,
         });
       } else {
         console.log('No influx.connectionString configured; not using influx');
-        return new base.stats.NullDrain();
+        return new stats.NullDrain();
       }
     },
   },

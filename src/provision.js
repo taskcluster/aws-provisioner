@@ -203,13 +203,22 @@ class Provisioner {
       // This is a slightly modified version of the aws objects
       // which are made smaller to fit into azure storage entities
 
+      let state;
       try {
         // This does create a bunch of extra logs... darn!
-        let state = this.awsManager.stateForStorage(worker.workerType);
+        state = this.awsManager.stateForStorage(worker.workerType);
         await this.stateContainer.write(worker.workerType, state);
         wtLog.trace('wrote state to azure');
       } catch (err) {
         wtLog.error(err, 'error writing state to azure');
+      }
+
+      // write in azure using azure-blob-storage
+      try {
+        await this.stateNewContainer.createDataBlockBlob(worker.workerType, state);
+        wtLog.trace('wrote state to azure using azure-blob-storage');
+      } catch (err) {
+        wtLog.error(err, 'error writing state using azure-blob-storage');
       }
 
       if (change > 0) {
