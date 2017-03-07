@@ -274,31 +274,36 @@ class AwsManager {
         ]);
         rLog.info('ran all state promises for region');
 
+        // These are spot requests which we know should not be considered as
+        // outstanding because we have a running or pending instance for them
+        let ignoreSR = [];
+        let stalledSRIds = [];
+
         // Now let's classify them
         for (let reservation of response[0].data.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            apiState.instances.push(filtered);
+            instance.Region = region;
+            instance.WorkerType = workerType;
+            apiState.instances.push(instance);
+            ignoreSR.push(instance.SpotInstanceRequestId);
           }
         };
 
         // Stalled requests are those which have taken way too long to be
         // fulfilled.  We'll consider them dead after a certain amount of time
         // and make new requests for their pending tasks
-        let stalledSRIds = [];
         for (let request of response[1].data.SpotInstanceRequests) {
+          if (_.includes(ignoreSR, request.SpotInstanceRequestId)) {
+            continue;
+          }
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          if (this._spotRequestStalled(filtered)) {
-            stalledSRIds.push(filtered.SpotInstanceRequestId);
+          request.Region = region;
+          request.WorkerType = workerType;
+          if (this._spotRequestStalled(request)) {
+            stalledSRIds.push(request.SpotInstanceRequestId);
           } else {
-            apiState.requests.push(filtered);
+            apiState.requests.push(request);
           }
         }
 
@@ -312,11 +317,9 @@ class AwsManager {
         for (let reservation of response[2].data.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            deadState.instances.push(filtered);
+            instance.Region = region;
+            instance.WorkerType = workerType;
+            deadState.instances.push(instance);
           }
         };
 
@@ -324,11 +327,9 @@ class AwsManager {
         let deadSpotRequests = [];
         for (let request of response[3].data.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          // Maybe use objFilter here
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          deadState.requests.push(filtered);
+          request.Region = region;
+          request.WorkerType = workerType;
+          deadState.requests.push(request);
         }
 
         // Find all the available availability zones
@@ -906,97 +907,59 @@ class AwsManager {
 
     for (let instance of instances) {
       if (_.includes(states, instance.State.Name)) {
-        try {
-          capacity += workerType.capacityOfType(instance.InstanceType);
+        let instanceType = instance.InstanceType;
+        assert(typeof instanceType === 'string');
+        capacity += workerType.capacityOfType(instanceType);
 
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: workerType.capacityOfType(instance.InstanceType),
-            instanceType: instance.InstanceType,
-            region: instance.Region,
-            state: instance.State.Name,
-            type: 'instance',
-          });
-        } catch (err) {
-          capacity++;
-
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: 1,
-            instanceType: instance.InstanceType,
-            region: instance.Region,
-            state: instance.State.Name,
-            type: 'instance',
-          });
-        }
+        capacityTrace.push({
+          newCapacity: capacity,
+          capacityOfType: workerType.capacityOfType(instance.InstanceType),
+          instanceType: instanceType,
+          region: instance.Region,
+          state: instance.State.Name,
+          type: 'instance',
+        });
       }
     }
 
     for (let request of requests) {
       if (_.includes(states, 'spotReq')) {
-        try {
-          capacity += workerType.capacityOfType(request.InstanceType);
+        let instanceType = request.LaunchSpecification.InstanceType;
+        assert(typeof instanceType === 'string');
+        capacity += workerType.capacityOfType(instanceType);
 
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: workerType.capacityOfType(request.InstanceType),
-            instanceType: request.InstanceType,
-            region: request.Region,
-            state: 'spotReq',
-            apiState: request.State,
-            status: request.Status.Code,
-            internal: false,
-            type: 'request',
-          });
-        } catch (err) {
-          capacity++;
-
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: 1,
-            instanceType: request.InstanceType,
-            region: request.Region,
-            state: 'spotReq',
-            apiState: request.State,
-            status: request.Status.Code,
-            internal: false,
-            type: 'request',
-          });
-        }
+        capacityTrace.push({
+          newCapacity: capacity,
+          capacityOfType: workerType.capacityOfType(instanceType),
+          instanceType: instanceType,
+          region: request.Region,
+          state: 'spotReq',
+          apiState: request.State,
+          status: request.Status.Code,
+          internal: false,
+          type: 'request',
+        });
       }
     }
 
     for (let sr of this.__internalState) {
       if (_.includes(states, 'spotReq')) {
-        try {
-          capacity += workerType.capacityOfType(sr.request.InstanceType);
+        let instanceType = sr.request.LaunchSpecification.InstanceType;
+        assert(typeof instanceType === 'string');
 
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: workerType.capacityOfType(sr.request.InstanceType),
-            instanceType: sr.request.InstanceType,
-            region: sr.request.Region,
-            state: 'spotReq',
-            apiState: sr.request.State,
-            status: sr.request.Status.Code,
-            internal: true,
-            type: 'request',
-          });
-        } catch (err) {
-          capacity++;
+        capacity += workerType.capacityOfType(instanceType);
 
-          capacityTrace.push({
-            newCapacity: capacity,
-            capacityOfType: 1,
-            instanceType: sr.request.InstanceType,
-            region: sr.request.Region,
-            state: 'spotReq',
-            apiState: sr.request.State,
-            status: sr.request.Status.Code,
-            internal: true,
-            type: 'request',
-          });
-        }
+        capacityTrace.push({
+          newCapacity: capacity,
+          capacityOfType: workerType.capacityOfType(instanceType),
+          instanceType: instanceType,
+          region: sr.request.Region,
+          state: 'spotReq',
+          apiState: sr.request.State,
+          status: sr.request.Status.Code,
+          internal: true,
+          type: 'request',
+        });
       }
     }
 

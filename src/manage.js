@@ -1,87 +1,58 @@
 #!/usr/bin/env babel-node
 process.env.DEBUG = '';
 
-var fs = require('fs');
-var path = require('path');
-var tc = require('taskcluster-client');
-var program = require('commander');
-var pkgData = require('../package.json');
+let fs = require('fs');
+let path = require('path');
+let tc = require('taskcluster-client');
+let program = require('commander');
+let pkgData = require('../package.json');
+let _ = require('lodash');
 
-var canGenerateReference = false;
+let canGenerateReference = false;
+let api;
+let Config;
 try {
-  var api = require('../lib/api-v1');
-  var Config = require('typed-env-config');
+  api = require('../lib/api-v1');
+  Config = require('typed-env-config');
   canGenerateReference = true;
 } catch (err) { }
 
-var localhostAddress = 'http://localhost:5557/v1';
-var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
+const localhostAddress = 'http://localhost:5557/v1';
+const realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
+const stagingBaseAddress = 'https://provisioner-staging.herokuapp.com/v1';
 
 function errorHandler(err) {
-  /*console.log(JSON.stringify({
+  console.log(JSON.stringify({
     outcome: 'failure',
     err: err,
     stack: err.stack || 'no-stack',
-  }, null, 2));*/
-  if (err.stack) {
-    console.log(err.stack);
-  }
+  }, null, 2));
   throw err;
+  process.exit(1);
 }
 
-async function classifyNames(client, names) {
-  var p = client.listWorkerTypes();
-
-  p = p.then(function(listing) {
-    var existing = names.filter(function(name) {
-      return listing.indexOf(name) !== -1;
-    });
-
-    var notExisting = names.filter(function(name) {
-      return listing.indexOf(name) === -1;
-    });
-
-    return {present: existing, absent: notExisting};
-  });
-
-  return p;
-}
-
-function slurp(filenames) {
-  var files = {};
-  filenames.forEach(function(file) {
-    var raw = fs.readFileSync(file);
-    var data = JSON.parse(raw);
-    files[data.workerType] = data;
-  });
-  return files;
-}
-
-function writeWorkerTypes(client, workerTypes) {
+async function writeWorkerTypes(client, workerTypes) {
   if (!fs.existsSync('workers')) {
     fs.mkdirSync('workers');
   }
 
-  var p = Promise.all(workerTypes.map(function(name) {
+  let workers = await Promise.all(workerTypes.map(async name => {
     return client.workerType(name);
   }));
 
-  p = p.then(function(res) {
-    var filenames = [];
-    res.forEach(function(worker) {
-      var filename = path.join('workers', worker.workerType + '.json');
+  let filenames = [];
+
+  for (let worker of workers) {
+    let filename = path.join('workers', worker.workerType + '.json');
+    if (!fs.existsSync(filename)) {
+      fs.writeFileSync(filename.replace(' ', '_'), JSON.stringify(worker, null, 2));
       filenames.push(filename);
-      if (!fs.existsSync(filename)) {
-        fs.writeFileSync(filename.replace(' ', '_'), JSON.stringify(worker, null, 2));
-      } else {
-        throw new Error('refusing to overwrite ' + filename);
-      }
-    });
+    } else {
+      throw new Error('refusing to overwrite ' + filename);
+    }
+  }
 
-    return filenames;
-  });
-
-  return p;
+  return filenames;
 }
 
 function createClient() {
@@ -92,12 +63,17 @@ function createClient() {
     shouldGenerateReference = true;
   }
 
-  if (program.localhost && program.production) {
-    console.log('--localhost and --production are mutually exclusive');
-  } else if (program.localhost) {
+  if (program.localhost && program.production || program.localhost && program.staging) {
+    console.log('--localhost, --staging and --production are mutually exclusive');
+    throw new Error('Invalid environment flags provided');
+  }
+  
+  if (program.localhost) {
     url = localhostAddress;
   } else if (program.production) {
     url = realBaseAddress;
+  } else if (program.staging) {
+    url = stagingBaseAddress;
   }
 
   if (shouldGenerateReference) {
@@ -109,12 +85,26 @@ function createClient() {
   }
 }
 
+function queueClient() {
+  return new tc.Queue();
+}
+
+function provisionerId() {
+  if (program.production) {
+    return 'aws-provisioner-v1';
+  } else if (program.staging) {
+    return 'staging-aws';
+  }
+  return 'aws-provisioner-dev';
+}
+
 program
   .version(pkgData.version || 'unknown')
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
   .option('-u, --url [url]', 'Use arbitrary URL', 'http://localhost:5557/v1')
   .option('--localhost', 'Force URL' + localhostAddress)
   .option('--production', 'Force URL' + realBaseAddress)
+  .option('--staging', 'Force URL' + stagingBaseAddress)
   .option('--force-released-api', 'Force usage of the API reference in taskcluster-client');
 
 program
@@ -127,118 +117,168 @@ program
 program
   .command('list')
   .description('list worker types known to the host')
-  .action(function() {
-    var p = createClient().listWorkerTypes();
-
-    p = p.then(function(workerTypes) {
-      if (workerTypes.length > 0) {
-        console.log(JSON.stringify(workerTypes, null, 2));
-      } else {
-        console.log('[]');
-      }
-    });
-
-    p = p.catch(errorHandler);
+  .action(async () => {
+    try {
+      let client = createClient();
+      let workerTypes = await client.listWorkerTypes();
+      console.log(JSON.stringify({
+        outcome: 'success',
+        workerTypes: workerTypes || [],
+      }, null, 2));
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('create <files...>')
   .description('Create a workerType based on these files')
-  .action(async function(filenames) {
+  .action(async filenames => {
     try {
-      var files = slurp(filenames);
-      var workerTypeNames = [];
+      let created = [];
+      let updated = [];
+      let client = createClient();
 
-      Object.keys(files).forEach(function(workerType) {
-        workerTypeNames.push(files[workerType].workerType);
-      });
+      let workerTypes = await client.listWorkerTypes();
 
-      var client = createClient();
+      await Promise.all(filenames.map(async filename => {
+        let worker = JSON.parse(fs.readFileSync(filename));
+        let name = worker.workerType;
 
-      let classified = await classifyNames(client, workerTypeNames);
+        // These properties cannot be set in the create/update but is always
+        // returned in gets.  The `input.workerType` is special beacuse it's
+        // what this tool operates on to avoid parsing file names to determine
+        // workerType
+        delete worker.lastModified;
+        delete worker.workerType;
 
-      var promises = [];
-
-      for (let name of classified.present) {
-        delete files[name].workerType;
-        await client.updateWorkerType(name, files[name]);
-      }
-
-      for (let name of classified.absent) {
-        delete files[name].workerType;
-        await client.createWorkerType(name, files[name]);
-      }
+        if (_.includes(workerTypes, name)) {
+          await client.updateWorkerType(name, worker);
+          updated.push(name);
+        } else {
+          await client.createWorkerType(name, worker);
+          updated.push(name);
+        }
+      }));
 
       console.log(JSON.stringify({
         outcome: 'success',
-        created: workerTypeNames,
+        created,
+        updated,
       }, null, 2));
+
     } catch (err) {
-      console.log('Error! ' + err.stack || err);
+      errorHandler(err);
     }
   });
 
 program
   .command('modify-all <nodeModule>')
   .description('modify all server-side worker types using the function exported by the nodeModule')
-  .action(function(nodeModule) {
-    var modifier = require(nodeModule);
-    var client = createClient();
+  .action(async nodeModule => {
+    try {
+      let modifier = require(nodeModule);
+      let client = createClient();
+      let modified = [];
+      let unmodified = [];
 
-    var r = client.listWorkerTypes();
+      let workerTypes = await client.listWorkerTypes();
 
-    r = r.then(function(workers) {
-      return Promise.all(workers.map(function(workerTypeName) {
-        var p = client.workerType(workerTypeName);
+      await Promise.all(workerTypes.map(async name => {
+        let worker = await client.workerType(name);
+        delete worker.workerType;
+        delete worker.lastModified;
 
-        p = p.then(function(workerType) {
-          var modified = modifier(workerType);
-          delete modified.lastModified;
-          delete modified.workerType;
-          return modified;
-        });
+        let modified = modifier(_.cloneDeep(worker));
 
-        p = p.then(function(workerType) {
-          return client.updateWorkerType(workerTypeName, workerType);
-        });
-
-        return p;
+        if (_.isEqual(modified, worker)) {
+          unmodified.push(name);
+        } else {
+          await client.updateWorkerType(name, modified);
+          modified.push(name);
+        }
+        console.log(JSON.stringify({
+          outcome: 'success',
+          modified,
+          unmodified,
+        }, null, 2));
       }));
-    });
-
-    r.done();
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('modify <nodeModule> <workerTypes...>')
   .description('modify specified server-side worker types using the function exported by the nodeModule')
-  .action(function(nodeModule, workerTypes) {
-    var modifier = require(nodeModule);
-    var client = createClient();
+  .action(async (nodeModule, workerTypes) => {
+    try {
+      let modifier = require(nodeModule);
+      let client = createClient();
+      let modifiedwt = [];
+      let unmodified = [];
+      let missing = [];
 
-    Promise.all(workerTypes.map(function(workerTypeName) {
-      var p = client.workerType(workerTypeName);
+      await Promise.all(workerTypes.map(async name => {
+        let worker = await client.workerType(name);
+        delete worker.workerType;
+        delete worker.lastModified;
 
-      p = p.then(function(workerType) {
-        var modified = modifier(workerType);
-        delete modified.lastModified;
-        delete modified.workerType;
-        return modified;
-      });
+        let modified = modifier(_.cloneDeep(worker));
 
-      p = p.then(function(workerType) {
-        return client.updateWorkerType(workerTypeName, workerType);
-      });
-
-      return p;
-
-    })).done();
+        if (_.isEqual(modified, worker)) {
+          unmodified.push(name);
+        } else {
+          modified.workerType = name;
+          await client.updateWorkerType(name, modified);
+          modifiedwt.push(name);
+        }
+        console.log(JSON.stringify({
+          outcome: 'success',
+          modified: modifiedwt,
+          unmodified,
+        }, null, 2));
+      }));
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('modify-file <nodeModule> <filenames...>')
   .description('modify specified local worker types using the function exported by the nodeModule')
-  .action(function(nodeModule, filenames) {
+  .action(async (nodeModule, filenames) => {
+    try {
+      let modifier = require(nodeModule);
+      let modifiedwt = [];
+      let unmodified = [];
+
+      for (let filename of filenames) {
+        let worker = JSON.parse(fs.readFileSync(filename));
+        let name = worker.workerType;
+        delete worker.workerType;
+        delete worker.lastModified;
+
+        let modified = modifier(_.cloneDeep(worker));
+
+        if (_.isEqual(modified, worker)) {
+          unmodified.push({name, src: filename});
+        } else {
+          modified.workerType = name;
+          modifiedwt.push({name, src: filename, dst: filename + '_modified'});
+          fs.writeFileSync(filename + '_modified', JSON.stringify(modified, null, 2));
+        }
+      }
+
+      console.log(JSON.stringify({
+        outcome: 'success',
+        modified: modifiedwt,
+        unmodified,
+      }, null, 2));
+    } catch (err) {
+      errorHandler(err);
+    }
+
     var modifier = require(nodeModule);
     filenames.forEach(function(filename) {
       var original = JSON.parse(fs.readFileSync(filename));
@@ -250,157 +290,195 @@ program
 program
   .command('delete <workerTypes...>')
   .description('delete listed worker types')
-  .action(function(workerTypeNames) {
-    var workerTypes;
-    var client = createClient();
-
-    var p = classifyNames(client, workerTypeNames);
-
-    p = p.then(function(workerTypes_) {
-      workerTypes = workerTypes_;
-      return Promise.all(workerTypes.present.map(function(workerType) {
-        return client.removeWorkerType(workerType);
+  .action(async workerTypeNames => {
+    try {
+      let client = createClient();
+      let workerTypes = await client.listWorkerTypes();
+      let absent = [];
+      let deleted = [];
+      await Promise.all(workerTypeNames.map(async name => {
+        if (_.includes(workerTypeNames, name)) {
+          await client.removeWorkerType(name);
+          deleted.push(name);
+        } else {
+          absent.push(name);
+        }
       }));
-    });
-
-    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
-        deleted: workerTypes.present || [],
-        absent: workerTypes.absent || [],
+        deleted: deleted,
+        absent: absent,
       }, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('delete-all')
   .description('Delete all workerTypes')
-  .action(function() {
-    var client = createClient();
-    var workerTypeNames;
-
-    var p = client.listWorkerTypes();
-
-    p = p.then(function(workerTypes) {
-      workerTypeNames = workerTypes;
-      return Promise.all(workerTypes.map(function(workerType) {
-        return client.removeWorkerType(workerType);
+  .action(async () => {
+    try {
+      let client = createClient();
+      let workerTypes = await client.listWorkerTypes();
+      let deleted = [];
+      await Promise.all(workerTypes.map(async name => {
+        await client.removeWorkerType(name);
+        deleted.push(name);
       }));
-    });
-
-    p = p.then(function() {
       console.log(JSON.stringify({
         outcome: 'success',
-        deleted: workerTypeNames,
+        deleted: deleted,
       }, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('fetch-all')
   .description('Fetch all workerTypes')
-  .action(function() {
-    var client = createClient();
-
-    var p = client.listWorkerTypes();
-
-    p = p.then(function(names) {
-      return writeWorkerTypes(client, names);
-    });
-
-    p = p.then(function(filenames) {
+  .action(async () => {
+    try {
+      let client = createClient();
+      let workerTypes = await client.listWorkerTypes();
+      let fetched = [];
+      await Promise.all(workerTypes.map(async name => {
+        let worker = await client.workerType(name);
+        fs.writeFileSync(name + '.json', JSON.stringify(worker, null, 2));
+        fetched.push({name, dst: name + '.json'});
+      }));
       console.log(JSON.stringify({
         outcome: 'success',
-        wrote: filenames,
+        fetched: fetched,
       }, null, 2));
-    });
+    } catch (err) {
+      errorHandler(err);
+    }
+  });
 
-    p = p.catch(errorHandler);
+program
+  .command('fetch <workerTypeNames...>')
+  .description('fetch specified workerTypes')
+  .action(async workerTypeNames => {
+    try {
+      let client = createClient();
+      let fetched = [];
+      await Promise.all(workerTypeNames.map(async name => {
+        let worker = await client.workerType(name);
+        fs.writeFileSync(name + '.json', JSON.stringify(worker, null, 2));
+        fetched.push({name, dst: name + '.json'});
+      }));
+      console.log(JSON.stringify({
+        outcome: 'success',
+        fetched: fetched,
+      }, null, 2));
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('show <workerType>')
   .description('print specified workerType to screen')
-  .action(function(workerType) {
-    var client = createClient();
-
-    var p = client.workerType(workerType);
-
-    p = p.then(function(worker) {
-      console.log(JSON.stringify(worker, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+  .action(async workerType => {
+    try {
+      let client = createClient();
+      let worker = await client.workerType(workerType);
+      console.log(JSON.stringify(worker, null, 2)); 
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
   .command('preview-launch-specs <workerType>')
   .description('print specified workerTypes to screen')
-  .action(function(workerType) {
-    var client = createClient();
-
-    var p = client.getLaunchSpecs(workerType);
-
-    p = p.then(function(specs) {
+  .action(async workerType => {
+    try {
+      let client = createClient();
+      let specs = await client.getLaunchSpecs(workerType);
       console.log(JSON.stringify(specs, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
-  .command('fetch <workerTypes...>')
-  .description('fetch specified workerTypes')
-  .action(function(workerTypes) {
-    var client = createClient();
+  .command('stats')
+  .description('print specified workerTypes to screen')
+  .action(async () => {
+    try {
+      let client = createClient();
+      let q = queueClient();
+      let Table = require('cli-table');
 
-    var p = writeWorkerTypes(client, workerTypes);
+      let table = new Table({
+          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+      });
 
-    p = p.then(function(filenames) {
-      console.log(JSON.stringify({
-        outcome: 'success',
-        wrote: filenames,
-      }, null, 2));
-    });
-
-    p = p.catch(errorHandler);
+      let summaries = await client.listWorkerTypeSummaries();
+      console.dir(summaries);
+      let allPending = {};
+      let pendingTasks = await Promise.all(summaries.map(async summary => {
+        let p = await q.pendingTasks(provisionerId(), summary.workerType);
+        allPending[summary.workerType] = p.pendingTasks;
+      }));
+      // table is an Array, so you can `push`, `unshift`, `splice` and friends
+      for (let summary of summaries) {
+        table.push([
+          summary.workerType,
+          allPending[summary.workerType],
+          summary.runningCapacity,
+          summary.pendingCapacity,
+          summary.requestedCapacity,
+          summary.minCapacity + '/' + summary.maxCapacity,
+        ]);
+      }
+      console.log(table.toString());
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program
-  .command('setup-table')
-  .option('--config <config>', 'Configuration file to use', 'development')
-  .description('Assert that this provisioner has a table')
-  .action(function(conf) {
-    var config = Config();
+  .command('stats-with-pending')
+  .description('print specified workerTypes to screen')
+  .action(async () => {
+    try {
+      let client = createClient();
+      let q = queueClient();
+      let Table = require('cli-table');
 
-    var account = config.azure.account;
-    var tableName = config.app.workerTypeTableName;
-    var secretTable = config.app.secretTableName;
-    var workerStateTable = config.app.workerStateTableName;
+      let table = new Table({
+          head: ['WorkerType', 'pendingTasks', 'runningCapacity', 'pendingCapacity', 'requestedCapacity', 'min/max'],
+      });
 
-    var auth = new tc.Auth();
+      let summaries = await client.listWorkerTypeSummaries();
 
-    var p = Promise.all([
-      auth.azureTableSAS(account, tableName),
-      auth.azureTableSAS(account, secretTable),
-      auth.azureTableSAS(account, workerStateTable),
-    ]);
+      let allPending = {};
+      let pendingTasks = await Promise.all(summaries.map(async summary => {
+        let p = await q.pendingTasks(provisionerId(), summary.workerType);
+        allPending[summary.workerType] = p.pendingTasks;
+      }));
 
-    p = p.then(function() {
-      console.log(JSON.stringify({
-        outcome: 'success',
-        tableName: tableName,
-        secretTable: secretTable,
-        workerStateTable: workerStateTable,
-      }, null, 2));
-    });
-
-    p = p.catch(errorHandler);
-
+      // table is an Array, so you can `push`, `unshift`, `splice` and friends
+      for (let summary of summaries) {
+        if (allPending[summary.workerType] > 0) {
+          table.push([
+            summary.workerType,
+            allPending[summary.workerType],
+            summary.runningCapacity,
+            summary.pendingCapacity,
+            summary.requestedCapacity,
+            summary.minCapacity + '/' + summary.maxCapacity,
+          ]);
+        }
+      }
+      console.log(table.toString());
+    } catch (err) {
+      errorHandler(err);
+    }
   });
 
 program.parse(process.argv);
