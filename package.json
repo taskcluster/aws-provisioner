@@ -10,6 +10,7 @@
     "pretest": "npm run compile",
     "lint": "eslint src/*.js test-src/*.js",
     "lintfix": "eslint --fix src/*.js test-src/*.js",
+    "redoshrinkwrap": "rm -rf node_modules/ && rm npm-shrinkwrap.json && npm install . && npm shrinkwrap",
     "test": "npm run lint && NODE_ENV=test mocha test/*_test.js"
   },
   "bin": {
@@ -21,7 +22,7 @@
   },
   "dependencies": {
     "assume": "^1.2.5",
-    "aws-sdk": "^2.5.0",
+    "aws-sdk": "^2.23.0",
     "azure-blob-storage": "^1.0.2",
     "azure-entities": "^1.2.1",
     "azure-storage": "^1.0.1",

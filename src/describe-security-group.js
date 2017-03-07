@@ -18,7 +18,7 @@ module.exports = async function (ec2, securityGroupNames) {
     let result = await ec2.describeSecurityGroups({
       GroupNames: securityGroupNames,
     }).promise();
-    result = result.data.SecurityGroups;
+    result = result.SecurityGroups;
     assert(!!result);
     assert(Array.isArray(result));
     if (result.length !== securityGroupNames.length) {

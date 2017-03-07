@@ -30,20 +30,20 @@ module.exports = async function (ec2, ami) {
     throw err;
   }
 
-  if (result.data.Images.length === 0) {
+  if (result.Images.length === 0) {
     return false;
-  } else if (result.data.Images.length > 1) {
+  } else if (result.Images.length > 1) {
     let err = new Error('Image returned more than one result');
-    err.imageids = result.data.Images.map(x => x.ImageId);
+    err.imageids = result.Images.map(x => x.ImageId);
     throw err;
   }
 
-  if (result.data.Images[0].ImageId === ami) {
+  if (result.Images[0].ImageId === ami) {
     return true;
   } else {
     let err = new Error('api returned incorrect ami for search parameters');
     err.requested = ami;
-    err.received = result.data.Images[0].ImageId;
+    err.received = result.Images[0].ImageId;
     throw err;
   }
 };

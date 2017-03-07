@@ -275,7 +275,7 @@ class AwsManager {
         rLog.info('ran all state promises for region');
 
         // Now let's classify them
-        for (let reservation of response[0].data.Reservations) {
+        for (let reservation of response[0].Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
             // Maybe use objFilter here
@@ -290,7 +290,7 @@ class AwsManager {
         // fulfilled.  We'll consider them dead after a certain amount of time
         // and make new requests for their pending tasks
         let stalledSRIds = [];
-        for (let request of response[1].data.SpotInstanceRequests) {
+        for (let request of response[1].SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           let filtered = request;
           filtered.Region = region;
@@ -309,7 +309,7 @@ class AwsManager {
         }
 
         // Put the dead instances into the dead state object
-        for (let reservation of response[2].data.Reservations) {
+        for (let reservation of response[2].Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
             // Maybe use objFilter here
@@ -322,7 +322,7 @@ class AwsManager {
 
         // Put the dead requests into the dead state object
         let deadSpotRequests = [];
-        for (let request of response[3].data.SpotInstanceRequests) {
+        for (let request of response[3].SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           // Maybe use objFilter here
           let filtered = request;
@@ -332,10 +332,10 @@ class AwsManager {
         }
 
         // Find all the available availability zones
-        availableAZ[region] = response[4].data.AvailabilityZones.map(x => x.ZoneName);
+        availableAZ[region] = response[4].AvailabilityZones.map(x => x.ZoneName);
 
         // Find the max prices
-        allPricingHistory[region] = this._findMaxPrices(response[5].data, availableAZ[region]);
+        allPricingHistory[region] = this._findMaxPrices(response[5], availableAZ[region]);
         rLog.info('found maximum prices');
       })),
     ]);
@@ -1214,7 +1214,7 @@ class AwsManager {
       ClientToken: clientToken,
     }).promise();
 
-    let spotReq = spotRequest.data.SpotInstanceRequests[0];
+    let spotReq = spotRequest.SpotInstanceRequests[0];
 
     log.info({
       srid: spotReq.SpotInstanceRequestId,
@@ -1317,7 +1317,7 @@ class AwsManager {
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
-      if (!keyPairs.data.KeyPairs[0]) {
+      if (!keyPairs.KeyPairs[0]) {
         await ec2.importKeyPair({
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
@@ -1350,7 +1350,7 @@ class AwsManager {
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
-      if (keyPairs.data.KeyPairs[0]) {
+      if (keyPairs.KeyPairs[0]) {
         await ec2.deleteKeyPair({
           KeyName: keyName,
         }).promise();
