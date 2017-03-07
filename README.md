@@ -65,3 +65,8 @@ The unit test suite in the provisioner is limited to the web component.  The
 EC2 api's eventual consistency as well as it taking sometimes more than 20
 minutes to launch an instance mean that integration tests for the EC2
 interactions are not very feasible.
+
+Service Owner
+-------------
+
+Service Owner: jhford@mozilla.com
