@@ -122,6 +122,8 @@ development:
   app:
     id: aws-provisioner-dev
     awsInstancePubkey: 'fake-pubkey'
+    tableSigningKey:          not-a-secret-so-you-cant-guess-it
+    tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     allowedRegions:
       - 'us-west-1'
       - 'us-west-2'
