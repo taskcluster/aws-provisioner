@@ -93,6 +93,10 @@ class Provisioner {
     assert(cfg.stateContainer);
     this.stateContainer = cfg.stateContainer;
 
+    // We should have Azure Blob Storage info
+    assert(cfg.stateNewContainer);
+    this.stateNewContainer = cfg.stateNewContainer;
+
     // We should have an influx object
     assert(cfg.influx);
     this.influx = cfg.influx;
@@ -215,7 +219,7 @@ class Provisioner {
 
       // write in azure using azure-blob-storage
       try {
-        await this.stateNewContainer.createDataBlockBlob(worker.workerType, state);
+        await this.stateNewContainer.createDataBlockBlob({name: worker.workerType}, state);
         wtLog.trace('wrote state to azure using azure-blob-storage');
       } catch (err) {
         wtLog.error(err, 'error writing state using azure-blob-storage');
