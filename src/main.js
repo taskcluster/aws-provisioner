@@ -264,12 +264,9 @@ let load = loader({
   },
 
   server: {
-    requires: ['cfg', 'api'],
-    setup: ({cfg, api}) => {
-      let app = libApp(cfg.server);
     requires: ['cfg', 'api', 'docs'],
     setup: ({cfg, api, docs}) => {
-      let app = app(cfg.server);
+      let app = libApp(cfg.server);
       app.use('/v1', api);
       return app.createServer();
     },
