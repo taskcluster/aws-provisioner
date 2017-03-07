@@ -304,7 +304,17 @@ let load = loader({
   },
 
   provisioner: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'influx', 'monitor'],
+    requires: [
+      'cfg',
+      'awsManager',
+      'WorkerType',
+      'Secret',
+      'ec2',
+      'stateContainer',
+      'stateNewContainer',
+      'influx',
+      'monitor',
+    ],
     setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, influx, monitor}) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
