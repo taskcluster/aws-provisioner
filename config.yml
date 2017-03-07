@@ -100,7 +100,7 @@ staging:
     publishMetaData: false
     statsComponent: staging-aws
     awsKeyPrefix: "staging-aws-managed:"
-    iterationInterval: 10
+    iterationInterval: 90
     allowedRegions: !env:list ALLOWED_REGIONS
   monitor:
     project: 'staging-aws'
