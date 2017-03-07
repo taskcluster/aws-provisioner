@@ -372,7 +372,7 @@ api.declare({
   title: 'Get Worker Type',
   stability:  API.stability.stable,
   description: [
-    'Retreive a copy of the requested worker type definition.',
+    'Retrieve a copy of the requested worker type definition.',
     'This copy contains a lastModified field as well as the worker',
     'type name.  As such, it will require manipulation to be able to',
     'use the results of this method to submit date to the update',
