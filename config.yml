@@ -17,6 +17,7 @@ defaults:
       - 'us-west-1'
       - 'us-west-2'
       - 'us-east-1'
+      - 'us-east-2'
       - 'eu-central-1'
 
     # Key for signing in base.Entity (sufficiently random string required)
@@ -128,6 +129,7 @@ development:
       - 'us-west-1'
       - 'us-west-2'
       - 'us-east-1'
+      - 'us-east-2'
       - 'eu-central-1'
 
 test:
