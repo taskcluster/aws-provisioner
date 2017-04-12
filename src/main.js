@@ -378,6 +378,12 @@ let load = loader({
           if (Array.isArray(err)) {
             for (let x of err) {
               log.error(x, 'contributing error');
+              if (err.code) {
+                monitor.count(`errors.${err.code}`);
+              } else {
+                monitor.count(`errors.unknown-error`);
+              }
+              monitor.count('errors-all');
             }
             log.fatal('fatal error, exiting');
           } else {
