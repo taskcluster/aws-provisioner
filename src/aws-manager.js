@@ -1206,13 +1206,20 @@ class AwsManager {
       workerType: launchInfo.workerType,
     }, 'aws api client token');
 
-    let spotRequest = await this.ec2[bid.region].requestSpotInstances({
-      InstanceCount: 1,
-      Type: 'one-time',
-      LaunchSpecification: launchInfo.launchSpec,
-      SpotPrice: bid.price.toString(),
-      ClientToken: clientToken,
-    }).promise();
+    let spotRequest;
+    try {
+      spotRequest = await this.ec2[bid.region].requestSpotInstances({
+        InstanceCount: 1,
+        Type: 'one-time',
+        LaunchSpecification: launchInfo.launchSpec,
+        SpotPrice: bid.price.toString(),
+        ClientToken: clientToken,
+      }).promise();
+    } catch (err) {
+      log.error(err, 'error requesting spot instance');
+      log.error(JSON.stringify(err), 'error requesetion spot instances, JSON\'d');
+      throw err;
+    }
 
     let spotReq = spotRequest.SpotInstanceRequests[0];
 
