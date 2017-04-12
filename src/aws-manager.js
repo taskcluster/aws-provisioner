@@ -1218,7 +1218,13 @@ class AwsManager {
     } catch (err) {
       log.error(err, 'error requesting spot instance');
       log.error(JSON.stringify(err), 'error requesetion spot instances, JSON\'d');
-      throw err;
+      if (err.code && err.code !== 'RequestResourceCountExceeded') {
+        throw err;
+      } else {
+        await new Promise((resolve, reject) => {
+          setTimeout(resolve, 10000);
+        });
+      }
     }
 
     let spotReq = spotRequest.SpotInstanceRequests[0];
