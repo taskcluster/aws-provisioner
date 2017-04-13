@@ -5,7 +5,7 @@ let assert = require('assert');
  * Check for the existence of an AMI that's executable by
  * the provided ec2 object in the given region
  */
-module.exports = async function (ec2, ami) {
+module.exports = async function(ec2, ami) {
   assert(typeof ec2 === 'object');
   assert(typeof ami === 'string', 'ami is not string, rather a ' + typeof ami);
 

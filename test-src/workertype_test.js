@@ -24,7 +24,7 @@ describe('worker type', function() {
   });
 
   // This duplicates the api test a little i guess but why not :/
-  it('should be able to be created, updated and deleted', async function () {
+  it('should be able to be created, updated and deleted', async function() {
     var wType = makeWorkerType({
       lastModified: new Date(),
       regions: [makeRegion()],
@@ -49,7 +49,7 @@ describe('worker type', function() {
   });
 
   describe('generating launch specifications', function() {
-    it('should create a launch spec with valid data', async function () {
+    it('should create a launch spec with valid data', async function() {
       var wType = makeWorkerType({
         lastModified: new Date(),
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
@@ -66,7 +66,7 @@ describe('worker type', function() {
       /* eslint-enable no-extra-parens, no-wrap-func */
     }
 
-    it('should fail with duplicate instance type', async function () {
+    it('should fail with duplicate instance type', async function() {
       var wType = makeWorkerType({
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.small'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'eu-central-1'})],
@@ -74,7 +74,7 @@ describe('worker type', function() {
       shouldThrow(wType);
     });
 
-    it('should fail with duplicate region', async function () {
+    it('should fail with duplicate region', async function() {
       var wType = makeWorkerType({
         instanceTypes: [makeInstanceType({instanceType: 'c3.small'}), makeInstanceType({instanceType: 'c3.medium'})],
         regions: [makeRegion({region: 'us-west-1'}), makeRegion({region: 'us-west-1'})],
@@ -158,18 +158,18 @@ describe('worker type', function() {
     // To ensure cleanup without having to do .remove()
     // in each test, we'll create and delete in the before/after
     // hooks and use modify in each test
-    beforeEach(async function () {
+    beforeEach(async function() {
       wName = slugid.v4();
       wType = await subject.create(wName, makeWorkerType({
         lastModified: new Date(),
       }));
     });
 
-    afterEach(async function () {
+    afterEach(async function() {
       await wType.remove();
     });
 
-    it('getting region object', async function () {
+    it('getting region object', async function() {
       var wt = await wType.modify(w => {
         w.regions = [makeRegion({region: 'moon-3'})];
       });
@@ -184,7 +184,7 @@ describe('worker type', function() {
       /* eslint-enable no-extra-parens, no-wrap-func */
     });
 
-    it('getting instance type object', async function () {
+    it('getting instance type object', async function() {
       var wt = await wType.modify(w => {
         w.instanceTypes = [makeInstanceType({instanceType: 't1.micro'})];
       });
@@ -199,7 +199,7 @@ describe('worker type', function() {
       /* eslint-enable no-extra-parens, no-wrap-func */
     });
 
-    it('getting capacity of an instance type', async function () {
+    it('getting capacity of an instance type', async function() {
       var wt = await wType.modify(w => {
         w.instanceTypes = [makeInstanceType({instanceType: 'c3.small', capacity: 5})];
       });
@@ -214,7 +214,7 @@ describe('worker type', function() {
 
     });
 
-    it('getting utility factor of an instance type', async function () {
+    it('getting utility factor of an instance type', async function() {
       var wt = await wType.modify(w => {
         w.instanceTypes = [makeInstanceType({instanceType: 'c3.small', utility: 4})];
       });
@@ -243,20 +243,20 @@ describe('worker type', function() {
     // To ensure cleanup without having to do .remove()
     // in each test, we'll create and delete in the before/after
     // hooks and use modify in each test
-    beforeEach(async function () {
+    beforeEach(async function() {
       wName = slugid.v4();
       wType = await subject.create(wName, makeWorkerType({
         lastModified: new Date(),
       }));
     });
 
-    afterEach(async function () {
+    afterEach(async function() {
       await wType.remove();
     });
 
     function testChange(expected, rCap, pCap, pend, min, max, sr) {
       it(rCap + ' runningCap ' + pCap + ' pendingCap ' + pend + ' pending ==> ' +
-         expected + ' ratio ' + (sr || 0) + ' min/max ' + (min || 0) + '/' + (max || 20), async function () {
+         expected + ' ratio ' + (sr || 0) + ' min/max ' + (min || 0) + '/' + (max || 20), async function() {
         var wt = await wType.modify(w => {
           w.minCapacity = min || 0;
           w.maxCapacity = max || 20;
@@ -339,7 +339,7 @@ describe('worker type', function() {
     // To ensure cleanup without having to do .remove()
     // in each test, we'll create and delete in the before/after
     // hooks and use modify in each test
-    beforeEach(async function () {
+    beforeEach(async function() {
       wName = slugid.v4();
       wType = await subject.create(wName, makeWorkerType({
         maxPrice: 6,
@@ -356,7 +356,7 @@ describe('worker type', function() {
       }));
     });
 
-    afterEach(async function () {
+    afterEach(async function() {
       await wType.remove();
     });
 
@@ -405,7 +405,7 @@ describe('worker type', function() {
       expected.should.eql(actual);
     });
 
-    it('should use the minPrice as lower bounds', async function () {
+    it('should use the minPrice as lower bounds', async function() {
       var wt = await wType.modify(w => {
         w.maxPrice = 10;
         w.minPrice = 8;
@@ -424,7 +424,7 @@ describe('worker type', function() {
       expected.should.eql(actual);
     });
 
-    it('throw when no bid can be created because of max price', async function () {
+    it('throw when no bid can be created because of max price', async function() {
       var wt = await wType.modify(w => {
         w.maxPrice = 0.1;
       });
@@ -435,7 +435,7 @@ describe('worker type', function() {
       /* eslint-enable no-extra-parens, no-wrap-func */
     });
 
-    it('throw when we hit sanity threshold no matter what', async function () {
+    it('throw when we hit sanity threshold no matter what', async function() {
       var wt = await wType.modify(w => {
         w.maxPrice = 100000;
       });

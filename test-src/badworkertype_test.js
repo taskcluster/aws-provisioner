@@ -1,3 +1,4 @@
+
 suite('Bad WorkerType definitions', () => {
   var main = require('../lib/main');
   var helper = require('./helper');
