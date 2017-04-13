@@ -2,7 +2,7 @@ var subject = require('../lib/aws-manager').runAWSRequest;
 var assume = require('assume');
 var aws = require('aws-sdk');
 
-describe.only('aws-runner', function() {
+describe('aws-runner', function() {
   let goodEc2;
   let badEc2;
 

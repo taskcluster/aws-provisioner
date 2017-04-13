@@ -394,6 +394,7 @@ class AwsManager {
           },
         ],
       });
+
       allPricingHistory[region] = this._findMaxPrices(rawPricingData, availableAZ[region]);
 
       rLog.info('ran all state promises for region');
