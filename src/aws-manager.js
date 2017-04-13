@@ -350,7 +350,7 @@ class AwsManager {
         // Stalled requests are those which have taken way too long to be
         // fulfilled.  We'll consider them dead after a certain amount of time
         // and make new requests for their pending tasks
-        for (let request of livingSpotRequests.SpotInstanceRequests) {
+        for (let request of spotRequests.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           let filtered = request;
           filtered.Region = region;
