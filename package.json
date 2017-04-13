@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "install": "npm run compile",
+    "install": "yarn run compile",
     "compile": "DEBUG= babel-compile -p taskcluster src:lib test-src:test",
     "fastcompile": "DEBUG= babel-compile --no-clean -p taskcluster src:lib test-src:test",
     "clean": "rm -rf lib test",
-    "pretest": "npm run compile",
+    "pretest": "yarn run compile",
     "lint": "eslint src/*.js test-src/*.js",
     "lintfix": "eslint --fix src/*.js test-src/*.js",
-    "redoshrinkwrap": "rm -rf node_modules/ && rm -f npm-shrinkwrap.json && npm install . && npm shrinkwrap",
-    "test": "npm run lint && NODE_ENV=test mocha test/*_test.js"
+    "test": "yarn check && yarn run lint && NODE_ENV=test mocha test/*_test.js"
   },
   "bin": {
     "manage-provisioner": "./lib/manage.js"
