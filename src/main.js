@@ -16,7 +16,7 @@ let stats = require('taskcluster-lib-stats');
 let docs = require('taskcluster-lib-docs');
 let Iterate = require('taskcluster-lib-iterate');
 let azure = require('azure-storage');
-let DataContainer = require('azure-blob-storage').default;
+let DataContainer = require('azure-blob-storage-temp-fork').default;
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
