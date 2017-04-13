@@ -269,7 +269,7 @@ WorkerType.create = function(workerType, properties) {
 /**
  * Return a list of all known workerTypes
  */
-WorkerType.loadAll = async function () {
+WorkerType.loadAll = async function() {
   let workers = [];
 
   try {
@@ -288,7 +288,7 @@ WorkerType.loadAll = async function () {
 /**
  * Load the names of all known workerTypes
  */
-WorkerType.listWorkerTypes = async function () {
+WorkerType.listWorkerTypes = async function() {
   let names = [];
 
   try {

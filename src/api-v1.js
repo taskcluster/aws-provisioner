@@ -115,7 +115,7 @@ api.declare({
     'there may be running EC2 instances for deleted worker types that are not',
     'included here.  The list is unordered.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   // gather workerType information
   let workerTypes = [];
   await this.WorkerType.scan({}, {
@@ -173,7 +173,7 @@ api.declare({
     'will be used to generate a set of temporary credentials available with',
     'the other secrets.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let input = req.body;
   let workerType = req.params.workerType;
 
@@ -277,7 +277,7 @@ api.declare({
     'Otherwise, all input requirements and actions are the same as the',
     'create method.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let input = req.body;
   let workerType = req.params.workerType;
 
@@ -335,7 +335,7 @@ api.declare({
     'should be identical as it is the same stored value.',
     
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType = req.params.workerType;
 
   let worker;
@@ -378,7 +378,7 @@ api.declare({
     'use the results of this method to submit date to the update',
     'method.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType = req.params.workerType;
 
   if (!req.satisfies({workerType: workerType})) { return undefined; }
@@ -428,7 +428,7 @@ api.declare({
     'or you could theoretically set maxCapacity to 0, though, this is',
     'not a supported or tested action',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let that = this;
   let workerType = req.params.workerType;
 
@@ -464,7 +464,7 @@ api.declare({
     'not include worker types which are left overs from a deleted worker',
     'type definition but are still running in AWS.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
 
   let list = await this.WorkerType.listWorkerTypes();
   return res.reply(list);
@@ -486,7 +486,7 @@ api.declare({
     'This method is not ordinarily used in production; instead, the provisioner',
     'creates a new secret directly for each spot bid.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let input = req.body;
   let token = req.params.token;
 
@@ -550,7 +550,7 @@ api.declare({
     'or else the secrets will be visible to any process which can access the',
     'user data associated with the instance.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let token = req.params.token;
 
   try {
@@ -592,7 +592,7 @@ api.declare({
     'machines do not check in.  We could generate a different token',
     'but that seems like overkill',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let instanceId = req.params.instanceId;
   let token = req.params.token;
 
@@ -625,7 +625,7 @@ api.declare({
     'secret delete the secret from storage before handing over control',
     'to untrusted processes to prevent credential and/or secret leakage.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let token = req.params.token;
 
   try {
@@ -664,7 +664,7 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType = req.params.workerType;
 
   if (!req.satisfies({workerType: workerType})) { return undefined; }
@@ -703,7 +703,7 @@ api.declare({
     'pending requests.  The `summary` property contains an updated summary',
     'similar to that returned from `listWorkerTypeSummaries`.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType;
   let workerState;
 
@@ -758,7 +758,7 @@ api.declare({
     'pending requests.  The `summary` property contains an updated summary',
     'similar to that returned from `listWorkerTypeSummaries`.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType;
   let workerState;
 
@@ -813,7 +813,7 @@ api.declare({
     '',
     '**Warning** this api end-point is **not stable**.',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let endpoint = 'https://api.deadmanssnitch.com/v1/snitches/';
   endpoint += url.parse(this.iterationSnitch).pathname.split('/').slice(-1);
 
@@ -852,7 +852,7 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
   let workerType = req.params.workerType;
 
   if (!req.satisfies({workerType})) {
@@ -894,7 +894,7 @@ api.declare({
     '',
     '**This API end-point is experimental and may be subject to change without warning.**',
   ].join('\n'),
-}, async function (req, res) {
+}, async function(req, res) {
 
   log.warn('SOMEONE IS TURNING EVERYTHING OFF');
 

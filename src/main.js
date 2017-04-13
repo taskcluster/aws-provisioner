@@ -195,7 +195,7 @@ let load = loader({
 
   api: {
     requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'validator',
-               'publisher', 'influx', 'monitor'],
+      'publisher', 'influx', 'monitor'],
     setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, validator,
                    publisher, influx, monitor}) => {
 

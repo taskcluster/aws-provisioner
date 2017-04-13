@@ -10,7 +10,7 @@ let assert = require('assert');
  * `securityGroupName` parameter is the freeform name, e.g. "livelog-direct"
  * and not the ID, e.g. "sg-123abcd".
  */
-module.exports = async function (ec2, securityGroupNames) {
+module.exports = async function(ec2, securityGroupNames) {
   assert(typeof ec2 === 'object');
   assert(securityGroupNames);
   assert(Array.isArray(securityGroupNames));
