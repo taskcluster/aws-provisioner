@@ -23,7 +23,7 @@
   "dependencies": {
     "assume": "^1.2.5",
     "aws-sdk": "^2.23.0",
-    "azure-blob-storage": "^1.0.2",
+    "azure-blob-storage": "^1.0.3",
     "azure-entities": "^1.2.1",
     "azure-storage": "^1.0.1",
     "babel-compile": "^2.0.0",

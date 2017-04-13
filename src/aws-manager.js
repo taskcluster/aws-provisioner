@@ -24,6 +24,102 @@ function dateForInflux(thingy) {
 }
 
 /**
+ * This method will run an EC2 operation.  Because the AWS-SDK client is so
+ * much fun to work with, we need to do the following things above what it does
+ * to get useful information out of it.
+ *
+ *   1. We want to have exceptions that always have region, method and service
+ *      name if available
+ *   2. Any requests which would have a requestId should include it in their
+ *      exceptions
+ *   3. Sometimes promises from AWS-SDK just magically never return and never
+ *      timeout even though we've set those options.  We have our own timeout
+ *   4. Useful logging that includes useful debugging information
+ *   5. Because we're catching the exceptions here, there's a *chance* that
+ *      we might get useful stack traces.  AWS-SDK exceptions which aren't
+ *      caught seem to have the most utterly useless stacks, which only
+ *      have frames in their own state machine and never include the call
+ *      site
+ *
+ * I am halfway tempted to rewrite this file using aws4 because it is a more
+ * sensible library.
+ *
+ */
+async function runAWSRequest(service, method, body) {
+  assert(typeof service === 'object');
+  assert(typeof method === 'string');
+  assert(typeof body === 'object');
+
+  let region = service.config.region || 'unknown-region';
+  let serviceId = service.serviceIdentifier || 'unknown-service';
+
+  let request;
+
+  try {
+    // We have to have a reference to the AWS.Request object
+    // because we'll later need to refer to its .response property
+    // to find out the requestId. part 1/2 of the hack
+    request = service[method](body);
+    let response = await Promise.race([
+      request.promise(),
+      delayer(240 * 1000)().then(() => {
+        let err = new Error(`Timeout in ${region} ${serviceId}.${method}`);
+        err.region = region;
+        err.service = serviceId;
+        err.body = body;
+        throw err;
+      }),
+    ]);
+    return response;
+  } catch (err) {
+    let logObj = {
+      //err,
+      method,
+    };
+
+    // We want to have properties we think might be in the error and
+    // are relevant right here
+    for (let prop of ['code', 'region', 'service', 'requestId']) {
+      if (err[prop]) { logObj[prop] = err[prop]; }
+    }
+
+    // Grab the request id if it's there. part 2/2 of the hack
+    if (request.response && request.response.requestId) {
+      if (logObj.requestId) {
+        logObj.requestIdFromHack = request.response.requestId;
+      } else {
+        logObj.requestId = request.response.requestId;
+      }
+    }
+
+    // For the region and service, if they don't already exist, we'll
+    // set it to the values here.
+    if (!logObj.region) {
+      logObj.region = region;
+    }
+    if (!logObj.service) {
+      logObj.service = serviceId;
+    }
+
+    // We're going to add these in because they're handy to have
+    if (!err.region) {
+      err.region = region;
+    }
+    if (!err.service) {
+      err.service = serviceId;
+    }
+    if (!err.method) {
+      err.method = method;
+    }
+
+    log.error(logObj, 'aws request failure');
+
+    // We're just logging here so rethrow
+    throw err;
+  }
+}
+
+/**
  * The AWS Manager is an object which tracks the state of the EC2 nodes,
  * pricing and other aspects of interfacing with AWS's ec2 api.  Instances of
  * this defer to responses of the EC2 API where appropriate.  There are cases
@@ -195,87 +291,30 @@ class AwsManager {
     //
     // NOTE: Now that we're using lib-iterate, we probably don't *need* this
     // second Promise.race, but I'd like to keep it in because I'm paranoid
-    await Promise.race([
-      delayer(240 * 1000)().then(() => {
-        throw new Error('Timeout while updating AWS Api State');
-      }),
-      Promise.all(_.map(this.ec2, async (ec2, region) => {
-        let rLog = log.child({region});
-        let response = await Promise.all([
-          // Living instances
-          ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['running', 'pending'],
-              },
-            ],
-          }).promise(),
-          // Living spot requests
-          ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['open'],
-              },
-            ],
-          }).promise(),
-          // Dead instances
-          ec2.describeInstances({
-            Filters: [
-              {
-                Name: 'key-name',
-                Values: [this.keyPrefix + '*'],
-              },
-              {
-                Name: 'instance-state-name',
-                Values: ['shutting-down', 'terminated', 'stopping'],
-              },
-            ],
-          }).promise(),
-          // Dead spot requests
-          ec2.describeSpotInstanceRequests({
-            Filters: [
-              {
-                Name: 'launch.key-name',
-                Values: [this.keyPrefix + '*'],
-              }, {
-                Name: 'state',
-                Values: ['cancelled', 'failed', 'closed', 'active'],
-              },
-            ],
-          }).promise(),
-          // Available availability zones
-          ec2.describeAvailabilityZones({
-            Filters: [
-              {
-                Name: 'state',
-                Values: ['available'],
-              },
-            ],
-          }).promise(),
-          // Raw pricing data
-          ec2.describeSpotPriceHistory({
-            StartTime: pricingStartDate,
-            Filters: [
-              {
-                Name: 'product-description',
-                Values: ['Linux/UNIX'],
-              },
-            ],
-          }).promise(),
-        ]);
-        rLog.info('ran all state promises for region');
 
-        // Now let's classify them
-        for (let reservation of response[0].Reservations) {
+    await Promise.all(_.map(this.ec2, async (ec2, region) => {
+      let rLog = log.child({region});
+
+      // YES!  I know this is done sort of slowly and inefficiently.
+      // We are bound not by speed but by the API, so we've removed
+      // the concurrency and all that stuff so that we're less likely to burn
+      // the API
+
+      // Living Instances
+      for (let state of ['running', 'pending']) {
+        let instances = await runAWSRequest(ec2, 'describeInstances', {
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: [state],
+            },
+          ],
+        });
+        for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
             // Maybe use objFilter here
@@ -285,12 +324,29 @@ class AwsManager {
             apiState.instances.push(filtered);
           }
         };
+      }
+
+      // Living spot requests
+      // In a list to keep the namespace clean
+      for (let state of ['open']) {
+        let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: [state],
+            },
+          ],
+        });
+
+        let stalledSRIds = [];
 
         // Stalled requests are those which have taken way too long to be
         // fulfilled.  We'll consider them dead after a certain amount of time
         // and make new requests for their pending tasks
-        let stalledSRIds = [];
-        for (let request of response[1].SpotInstanceRequests) {
+        for (let request of livingSpotRequests.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           let filtered = request;
           filtered.Region = region;
@@ -302,14 +358,32 @@ class AwsManager {
           }
         }
 
-        // Submit request to kill stalled requests
-        await this.killCancel(region, [], stalledSRIds);
+        // Request that stalled spot requests be cancelled
         if (stalledSRIds.length > 0) {
+          await this.killCancel(region, [], stalledSRIds);
           rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
         }
 
+
+      }
+
+      // Dead instances
+      for (let state of ['shutting-down', 'terminated', 'stopping']) {
+        let instances = await runAWSRequest(ec2, 'describeInstances', {
+          Filters: [
+            {
+              Name: 'key-name',
+              Values: [this.keyPrefix + '*'],
+            },
+            {
+              Name: 'instance-state-name',
+              Values: [state],
+            },
+          ],
+        });
+
         // Put the dead instances into the dead state object
-        for (let reservation of response[2].Reservations) {
+        for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
             // Maybe use objFilter here
@@ -319,10 +393,22 @@ class AwsManager {
             deadState.instances.push(filtered);
           }
         };
+      }
 
-        // Put the dead requests into the dead state object
-        let deadSpotRequests = [];
-        for (let request of response[3].SpotInstanceRequests) {
+      // Dead spot requests
+      for (let state of ['cancelled', 'failed', 'closed', 'active']) {
+        let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
+          Filters: [
+            {
+              Name: 'launch.key-name',
+              Values: [this.keyPrefix + '*'],
+            }, {
+              Name: 'state',
+              Values: [state],
+            },
+          ],
+        });
+        for (let request of spotRequests.SpotInstanceRequests) {
           let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
           // Maybe use objFilter here
           let filtered = request;
@@ -330,15 +416,36 @@ class AwsManager {
           filtered.WorkerType = workerType;
           deadState.requests.push(filtered);
         }
+      }
 
-        // Find all the available availability zones
-        availableAZ[region] = response[4].AvailabilityZones.map(x => x.ZoneName);
+      // Find all the available availability zones
+      let rawAZData = await runAWSRequest(ec2, 'describeAvailabilityZones', {
+        Filters: [
+          {
+            Name: 'state',
+            Values: ['available'],
+          },
+        ],
+      });
+      availableAZ[region] = rawAZData.AvailabilityZones.map(x => x.ZoneName);
 
-        // Find the max prices
-        allPricingHistory[region] = this._findMaxPrices(response[5], availableAZ[region]);
-        rLog.info('found maximum prices');
-      })),
-    ]);
+      // Raw pricing data
+      let rawPricingData = await runAWSRequest(ec2, 'describeSpotPriceHistory', {
+        StartTime: pricingStartDate,
+        Filters: [
+          {
+            Name: 'product-description',
+            Values: ['Linux/UNIX'],
+          },
+        ],
+      });
+      allPricingHistory[region] = this._findMaxPrices(rawPricingData, availableAZ[region]);
+
+      rLog.info('ran all state promises for region');
+
+      // Find the max prices
+      rLog.info('found maximum prices');
+    }));
     log.info('finished state update for all regions');
 
     // Assign all of the new state objects to the properties of this aws manager
@@ -837,14 +944,14 @@ class AwsManager {
 
         // Now, let's do a DryRun on all the launch specs
         try {
-          await this.ec2[r.region].requestSpotInstances({
+          await runAWSRequest(this.ec2[r.region], 'requestSpotInstances', {
             InstanceCount: 1,
             DryRun: true,
             Type: 'one-time',
             LaunchSpecification: launchSpec,
             SpotPrice: '0.1',
             ClientToken: slugid.nice(),
-          }).promise();
+          });
         } catch (err) {
           if (err.code !== 'DryRunOperation') {
             returnValue.canLaunch = false;
@@ -1067,10 +1174,10 @@ class AwsManager {
     let tagPromises = [];
     for (let region of Object.keys(tags)) {
       for (let workerType of Object.keys(tags[region])) {
-        tagPromises.push(this.ec2[region].createTags({
+        tagPromises.push(runAWSRequest(this.ec2[region], 'createTags', {
           Tags: tags[region][workerType].data,
           Resources: tags[region][workerType].ids,
-        }).promise());
+        }));
       }
     }
 
@@ -1208,16 +1315,14 @@ class AwsManager {
 
     let spotRequest;
     try {
-      spotRequest = await this.ec2[bid.region].requestSpotInstances({
+      spotRequest = await runAWSRequest(this.ec2[bid.region], 'requestSpotInstances', {
         InstanceCount: 1,
         Type: 'one-time',
         LaunchSpecification: launchInfo.launchSpec,
         SpotPrice: bid.price.toString(),
         ClientToken: clientToken,
-      }).promise();
+      });
     } catch (err) {
-      log.error(err, 'error requesting spot instance');
-      log.error(JSON.stringify(err), 'error requesetion spot instances, JSON\'d');
       if (err.code && err.code !== 'RequestResourceCountExceeded') {
         throw err;
       } else {
@@ -1319,22 +1424,22 @@ class AwsManager {
     }
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await runAWSRequest(ec2, 'describeKeyPairs', {
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      });
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (!keyPairs.KeyPairs[0]) {
-        await ec2.importKeyPair({
+        await runAWSRequest(ec2, 'importKeyPair', {
           KeyName: keyName,
           PublicKeyMaterial: this.pubKey,
-        }).promise();
+        });
         log.info({region, keyName}, 'created key pair');
       }
     }));
@@ -1352,21 +1457,21 @@ class AwsManager {
     let keyName = this.createKeyPairName(workerName);
 
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
-      let keyPairs = await ec2.describeKeyPairs({
+      let keyPairs = await runAWSRequest(ec2, 'describeKeyPairs', {
         Filters: [
           {
             Name: 'key-name',
             Values: [keyName],
           },
         ],
-      }).promise();
+      });
 
       // Since we're using a filter to look for *only* this
       // key pair, the only possibility is 0 or 1 results
       if (keyPairs.KeyPairs[0]) {
-        await ec2.deleteKeyPair({
+        await runAWSRequest(ec2, 'deleteKeyPair', {
           KeyName: keyName,
-        }).promise();
+        });
         log.info({region, keyName}, 'deleted key pair');
       }
     }));
@@ -1456,14 +1561,14 @@ class AwsManager {
     let promises = [];
 
     if (i.length > 0) {
-      promises.push(this.ec2[region].terminateInstances({
+      promises.push(runAWSRequest(this.ec2[region], 'terminateInstances', {
         InstanceIds: i,
-      }).promise());
+      }));
     }
     if (r.length > 0) {
-      promises.push(this.ec2[region].cancelSpotInstanceRequests({
+      promises.push(runAWSRequest(this.ec2[region], 'cancelSpotInstanceRequests', {
         SpotInstanceRequestIds: r,
-      }).promise());
+      }));
     }
 
     await Promise.all(promises);
@@ -1648,5 +1753,7 @@ class AwsManager {
     };
   }
 }
+
+AwsManager.runAWSRequest = runAWSRequest;
 
 module.exports = AwsManager;

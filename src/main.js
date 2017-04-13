@@ -384,7 +384,7 @@ let load = loader({
               if (err.code) {
                 monitor.count(`errors.${err.code}`);
               } else {
-                monitor.count(`errors.unknown-error`);
+                monitor.count('errors.unknown-error');
               }
               monitor.count('errors-all');
             }
