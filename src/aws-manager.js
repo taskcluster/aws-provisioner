@@ -300,8 +300,8 @@ class AwsManager {
       // the concurrency and all that stuff so that we're less likely to burn
       // the API
 
-      // Living Instances
-      for (let state of ['running', 'pending']) {
+      // Instances
+      for (let state of ['running', 'pending', 'shutting-down', 'terminated', 'stopping']) {
         let instances = await runAWSRequest(ec2, 'describeInstances', {
           Filters: [
             {
@@ -321,7 +321,11 @@ class AwsManager {
             let filtered = instance;
             filtered.Region = region;
             filtered.WorkerType = workerType;
-            apiState.instances.push(filtered);
+            if (state === 'pending' || state === 'running') {
+              apiState.instances.push(filtered);
+            } else { 
+              deadState.instances.push(filtered);
+            }
           }
         };
       }
@@ -351,10 +355,14 @@ class AwsManager {
           let filtered = request;
           filtered.Region = region;
           filtered.WorkerType = workerType;
-          if (this._spotRequestStalled(filtered)) {
-            stalledSRIds.push(filtered.SpotInstanceRequestId);
+          if (state === 'open') {
+            if (this._spotRequestStalled(filtered)) {
+              stalledSRIds.push(filtered.SpotInstanceRequestId);
+            } else {
+              apiState.requests.push(filtered);
+            }
           } else {
-            apiState.requests.push(filtered);
+            deadState.requests.push(filtered);
           }
         }
 
@@ -362,59 +370,6 @@ class AwsManager {
         if (stalledSRIds.length > 0) {
           await this.killCancel(region, [], stalledSRIds);
           rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
-        }
-
-
-      }
-
-      // Dead instances
-      for (let state of ['shutting-down', 'terminated', 'stopping']) {
-        let instances = await runAWSRequest(ec2, 'describeInstances', {
-          Filters: [
-            {
-              Name: 'key-name',
-              Values: [this.keyPrefix + '*'],
-            },
-            {
-              Name: 'instance-state-name',
-              Values: [state],
-            },
-          ],
-        });
-
-        // Put the dead instances into the dead state object
-        for (let reservation of instances.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            deadState.instances.push(filtered);
-          }
-        };
-      }
-
-      // Dead spot requests
-      for (let state of ['cancelled', 'failed', 'closed', 'active']) {
-        let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
-          Filters: [
-            {
-              Name: 'launch.key-name',
-              Values: [this.keyPrefix + '*'],
-            }, {
-              Name: 'state',
-              Values: [state],
-            },
-          ],
-        });
-        for (let request of spotRequests.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          // Maybe use objFilter here
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          deadState.requests.push(filtered);
         }
       }
 
@@ -442,9 +397,6 @@ class AwsManager {
       allPricingHistory[region] = this._findMaxPrices(rawPricingData, availableAZ[region]);
 
       rLog.info('ran all state promises for region');
-
-      // Find the max prices
-      rLog.info('found maximum prices');
     }));
     log.info('finished state update for all regions');
 
