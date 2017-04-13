@@ -193,7 +193,7 @@ aws4@^1.2.1:
   version "1.6.0"
   resolved "https://registry.yarnpkg.com/aws4/-/aws4-1.6.0.tgz#83ef5ca860b2b32e4a0deedee8c771b9db57471e"
 
-azure-blob-storage@^1.0.2:
+azure-blob-storage@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/azure-blob-storage/-/azure-blob-storage-1.0.3.tgz#2939b7acce34442756b42bb5057fa744979e474b"
   dependencies:
