@@ -378,6 +378,9 @@ let load = loader({
           if (Array.isArray(err)) {
             for (let x of err) {
               log.error(x, 'contributing error');
+              if (err.requestId) {
+                log.error({requestId: err.requestId}, 'contributing error request id');
+              }
               if (err.code) {
                 monitor.count(`errors.${err.code}`);
               } else {
