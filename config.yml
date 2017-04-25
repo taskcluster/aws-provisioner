@@ -126,10 +126,10 @@ development:
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
     tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     allowedRegions:
-      - 'us-west-1'
-      - 'us-west-2'
-      - 'us-east-1'
-      - 'us-east-2'
+      #- 'us-west-1'
+      #- 'us-west-2'
+      #- 'us-east-1'
+      #- 'us-east-2'
       - 'eu-central-1'
 
 test:

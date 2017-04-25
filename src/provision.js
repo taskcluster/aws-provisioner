@@ -164,11 +164,10 @@ class Provisioner {
    */
   async provision() {
     let allProvisionerStart = new Date();
-    let workerTypes;
-    workerTypes = await this.WorkerType.loadAll();
-    log.info('loaded worker types');
-    await this.awsManager.update();
-    log.info('updated aws state');
+    let workerTypes = await this.WorkerType.loadAll();
+    let workerNames = workerTypes.map(w => w.workerType);
+
+    await this.awsManager.update(workerNames);
 
     try {
       await this.biaser.fetchBiasInfo(this.awsManager.availableAZ(), []);
@@ -176,8 +175,6 @@ class Provisioner {
     } catch (err) {
       log.warn(err, 'error updating bias info, ignoring');
     }
-
-    let workerNames = workerTypes.map(w => w.workerType);
 
     try {
       await this.awsManager.ensureTags();

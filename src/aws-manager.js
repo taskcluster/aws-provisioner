@@ -242,10 +242,111 @@ class AwsManager {
     this.reportAmiUsage = series.amiUsage.reporter(influx);
   }
 
+  /** 
+   * Get the instances and spot requests for a given worker type.
+   * The return value of this is an object like:
+   * {instances: [], requests: [], deadInstances: [], deadRequests: []}
+   *
+   * If the negate parameter is true, then return information matching none
+   * of the workertypes
+   */
+  async updateWorkerTypeInRegion(ec2, workerTypes, negate = false) {
+    assert(workerTypes);
+    if (typeof workerTypes === 'string') {
+      workerTypes = [workerTypes];
+    }
+    assert(Array.isArray(workerTypes));
+
+    let instances = [];
+    let requests = [];
+    let deadInstances = [];
+    let deadRequests = [];
+
+    let keyPrefixes = workerTypes.map(workerType => negate ? '!' : '' + this.keyPrefix + workerType);
+
+    // Instances
+    for (let state of ['running', 'pending', 'shutting-down', 'terminated', 'stopping']) {
+      let instances = await runAWSRequest(ec2, 'describeInstances', {
+        Filters: [
+          {
+            Name: 'key-name',
+            Values: keyPrefixes,
+          },
+          {
+            Name: 'instance-state-name',
+            Values: [state],
+          },
+        ],
+      });
+      await delayer(100); // for safety
+      for (let reservation of instances.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+          // Maybe use objFilter here
+          let filtered = instance;
+          filtered.Region = region;
+          filtered.WorkerType = workerType;
+          if (state === 'pending' || state === 'running') {
+            instances.push(filtered);
+          } else { 
+            deadInstances.push(filtered);
+          }
+        }
+      };
+    }
+
+    // Living spot requests
+    // In a list to keep the namespace clean
+    for (let state of ['open', 'cancelled', 'failed', 'closed', 'active']) {
+      let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
+        Filters: [
+          {
+            Name: 'launch.key-name',
+            Values: keyPrefixes,
+          }, {
+            Name: 'state',
+            Values: [state],
+          },
+        ],
+      });
+      await delayer(100); // for safety
+
+      let stalledSRIds = [];
+
+      // Stalled requests are those which have taken way too long to be
+      // fulfilled.  We'll consider them dead after a certain amount of time
+      // and make new requests for their pending tasks
+      for (let request of spotRequests.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        if (state === 'open') {
+          if (this._spotRequestStalled(filtered)) {
+            stalledSRIds.push(filtered.SpotInstanceRequestId);
+          } else {
+            requests.push(filtered);
+          }
+        } else {
+          deadRequests.push(filtered);
+        }
+      }
+
+      // Request that stalled spot requests be cancelled
+      // This probably shouldn't live here but I don't feel strongly about it
+      if (stalledSRIds.length > 0) {
+        await this.killCancel(region, [], stalledSRIds);
+        rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
+      }
+    }
+
+    return {instances, requests, deadInstances, deadRequests};
+  }
+
   /**
    * Update the state from the AWS API
    */
-  async update() {
+  async update(workerNames) {
     // We fetch the living instance and spot requests separate from the dead
     // ones to make things a little easier to work with as there's really very
     // little in the provisioner which requires info on dead instances and spot
@@ -300,78 +401,29 @@ class AwsManager {
       // the concurrency and all that stuff so that we're less likely to burn
       // the API
 
-      // Instances
-      for (let state of ['running', 'pending', 'shutting-down', 'terminated', 'stopping']) {
-        let instances = await runAWSRequest(ec2, 'describeInstances', {
-          Filters: [
-            {
-              Name: 'key-name',
-              Values: [this.keyPrefix + '*'],
-            },
-            {
-              Name: 'instance-state-name',
-              Values: [state],
-            },
-          ],
-        });
-        for (let reservation of instances.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            if (state === 'pending' || state === 'running') {
-              apiState.instances.push(filtered);
-            } else { 
-              deadState.instances.push(filtered);
-            }
-          }
-        };
+      // Push the lists from the state returns into the apiState and deadState objects
+      let x = (state) => {
+        apiState.instances.push.apply(apiState.instances, state.instances);
+        apiState.requests.push.apply(apiState.requests, state.requests);
+
+        deadState.instances.push.apply(deadState.instances, state.deadInstances);
+        deadState.requests.push.apply(deadState.requests, state.deadRequests);
+        rLog.info(state);
       }
 
-      // Living spot requests
-      // In a list to keep the namespace clean
-      for (let state of ['open']) {
-        let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
-          Filters: [
-            {
-              Name: 'launch.key-name',
-              Values: [this.keyPrefix + '*'],
-            }, {
-              Name: 'state',
-              Values: [state],
-            },
-          ],
-        });
-
-        let stalledSRIds = [];
-
-        // Stalled requests are those which have taken way too long to be
-        // fulfilled.  We'll consider them dead after a certain amount of time
-        // and make new requests for their pending tasks
-        for (let request of spotRequests.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          if (state === 'open') {
-            if (this._spotRequestStalled(filtered)) {
-              stalledSRIds.push(filtered.SpotInstanceRequestId);
-            } else {
-              apiState.requests.push(filtered);
-            }
-          } else {
-            deadState.requests.push(filtered);
-          }
-        }
-
-        // Request that stalled spot requests be cancelled
-        if (stalledSRIds.length > 0) {
-          await this.killCancel(region, [], stalledSRIds);
-          rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
-        }
+      // Let's update each worker type
+      for (let workerName of workerNames) {
+        let workerState = await this.updateWorkerTypeInRegion(ec2, workerName);
+        x(workerState);
+        await delayer(1000);
+        rLog.info({workerType: workerName}, 'updating state for workerType');
       }
+
+      // Remember that this is the negate flag which will match all rogue
+      // instances
+      let unknownState = await this.updateWorkerTypeInRegion(ec2, workerNames, true);
+      x(unknownState);
+      console.log('updating state for unknowns');
 
       // Find all the available availability zones
       let rawAZData = await runAWSRequest(ec2, 'describeAvailabilityZones', {
