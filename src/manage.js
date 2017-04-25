@@ -16,6 +16,7 @@ try {
 
 var localhostAddress = 'http://localhost:5557/v1';
 var realBaseAddress = 'https://aws-provisioner.taskcluster.net/v1';
+var stagingBaseAddress = 'https://provisioner-staging.herokuapp.com/v1';
 
 function errorHandler(err) {
   /*console.log(JSON.stringify({
@@ -92,12 +93,14 @@ function createClient() {
     shouldGenerateReference = true;
   }
 
-  if (program.localhost && program.production) {
-    console.log('--localhost and --production are mutually exclusive');
+  if (program.localhost && program.production || program.localhost && program.staging) {
+    console.log('--localhost, staging and --production are mutually exclusive');
   } else if (program.localhost) {
     url = localhostAddress;
   } else if (program.production) {
     url = realBaseAddress;
+  } else if (program.staging) {
+    url = stagingBaseAddress;
   }
 
   if (shouldGenerateReference) {
@@ -113,8 +116,9 @@ program
   .version(pkgData.version || 'unknown')
   .description('Perform various management tasks for the Taskcluster AWS Provisioner')
   .option('-u, --url [url]', 'Use arbitrary URL', 'http://localhost:5557/v1')
-  .option('--localhost', 'Force URL' + localhostAddress)
-  .option('--production', 'Force URL' + realBaseAddress)
+  .option('--localhost', 'Force URL ' + localhostAddress)
+  .option('--production', 'Force URL ' + realBaseAddress)
+  .option('--staging', 'Force URL ' + stagingBaseAddress)
   .option('--force-released-api', 'Force usage of the API reference in taskcluster-client');
 
 program
