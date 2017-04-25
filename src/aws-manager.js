@@ -332,7 +332,7 @@ class AwsManager {
 
       // Living spot requests
       // In a list to keep the namespace clean
-      for (let state of ['open']) {
+      for (let state of ['open', 'cancelled', 'failed', 'closed', 'active']) {
         let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
           Filters: [
             {
