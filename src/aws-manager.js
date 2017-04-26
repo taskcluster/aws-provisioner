@@ -314,6 +314,7 @@ class AwsManager {
             },
           ],
         });
+        await delayer(500);
         for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
@@ -344,6 +345,7 @@ class AwsManager {
             },
           ],
         });
+        await delayer(500);
 
         let stalledSRIds = [];
 
