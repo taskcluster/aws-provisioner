@@ -134,7 +134,7 @@ let load = loader({
       });
       return docs.documenter({
         credentials: cfg.taskcluster.credentials,
-        tier: 'core',
+        tier: 'integrations',
         schemas: validator.schemas,
         project: 'aws-provisioner',
         references: [
