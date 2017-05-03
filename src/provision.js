@@ -218,12 +218,12 @@ class Provisioner {
       }
 
       // write in azure using azure-blob-storage
-      try {
+      /*try {
         await this.stateNewContainer.createDataBlockBlob({name: worker.workerType}, state);
         wtLog.trace('wrote state to azure using azure-blob-storage');
       } catch (err) {
         wtLog.error(err, 'error writing state using azure-blob-storage');
-      }
+      }*/
 
       if (change > 0) {
         let bids = worker.determineSpotBids(

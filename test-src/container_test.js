@@ -49,13 +49,12 @@ describe('Azure Blob Container', () => {
     container.remove(blobName);
   });
 
-  it('should cause error when reading missing blob', async done => {
+  it('should cause error when reading missing blob', async () => {
     try {
       await container.read(uuid.v4());
-      done(new Error('shouldnt reach here'));
+      return Promise.reject(new Error('shouldnt reach here'));
     } catch (err) {
       assume(err.code).equals('BlobNotFound');
-      done();
     }
   });
 
