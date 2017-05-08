@@ -314,7 +314,8 @@ class AwsManager {
             },
           ],
         });
-        await delayer(500)();
+        await delayer(3000)();
+        rLog.info({state}, 'fetched instances in state for region');
         for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
             let workerType = this.parseKeyPairName(instance.KeyName).workerType;
@@ -345,7 +346,9 @@ class AwsManager {
             },
           ],
         });
-        await delayer(500)();
+        await delayer(3000)();
+
+        rLog.info({state}, 'fetched requests in state for region');
 
         let stalledSRIds = [];
 
@@ -1280,6 +1283,13 @@ class AwsManager {
     } catch (err) {
       if (err.code && err.code !== 'RequestResourceCountExceeded') {
         throw err;
+      } else if (err.code && err.code === 'MaxSpotInstanceCountExceeded') {
+        log.info({
+          region: bid.region,
+          instanceType: bid.type,
+          zone: bid.zone,
+          workerType: launchInfo.workerType},
+          'Too many spot instances in this region'); 
       } else {
         await new Promise((resolve, reject) => {
           setTimeout(resolve, 10000);

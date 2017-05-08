@@ -281,9 +281,23 @@ class Provisioner {
         try {
           await this.spawn(toSpawn.workerType, toSpawn.bid);
         } catch (err) {
-          rLog.error({
-            err, workerType: toSpawn.workerType.workerType, bid: toSpawn.bid,
-          }, 'error submitting spot request');
+          if (err.code === 'MaxSpotInstanceCountExceeded') {
+            rLog.warn({
+              err,
+              workerType: toSpawn.workerType.workerType,
+              instanceType: toSpawn.bid.type,
+              region: toSpawn.bid.region,
+              zone: toSpawn.bid.zone,
+            }, 'too many spot requests of this type in region');
+          } else {
+            rLog.error({
+              err, 
+              workerType: toSpawn.workerType.workerType,
+              instanceType: toSpawn.bid.type,
+              region: toSpawn.bid.region,
+              zone: toSpawn.bid.zone,
+            }, 'error submitting spot request');
+          }
         }
       }
 
