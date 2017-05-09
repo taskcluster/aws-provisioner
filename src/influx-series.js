@@ -1,4 +1,3 @@
-let stats = require('taskcluster-lib-stats');
 
 // This is a time series to measure how long it takes for instances to show up
 // in the AWS api responses

@@ -275,16 +275,7 @@ let load = loader({
   influx: {
     requires: ['cfg'],
     setup: ({cfg}) => {
-      if (cfg.influx.connectionString) {
-        return new stats.Influx({
-          connectionString: cfg.influx.connectionString,
-          maxDelay: cfg.influx.maxDelay,
-          maxPendingPoints: cfg.influx.maxPendingPoints,
-        });
-      } else {
-        console.log('No influx.connectionString configured; not using influx');
-        return new stats.NullDrain();
-      }
+      return new stats.NullDrain();
     },
   },
 
