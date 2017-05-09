@@ -112,7 +112,9 @@ async function runAWSRequest(service, method, body) {
       err.method = method;
     }
 
-    log.error(logObj, 'aws request failure');
+    if (err.code !== 'DryRunOperation') {
+      log.error(logObj, 'aws request failure');
+    }
 
     // We're just logging here so rethrow
     throw err;
