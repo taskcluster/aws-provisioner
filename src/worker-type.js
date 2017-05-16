@@ -770,7 +770,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             let potentialBid = pricingData[region][type][zone];
             let bias = biaser.getBias(region, zone, type);
             if (region === 'us-west-2') {
-              bias *= 1.4;
+              bias *= 1.2;
             }
             let potentialPrice = potentialBid / uf[type] * bias;
             assert(typeof potentialBid === 'number');
