@@ -317,7 +317,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(5000)();
+        await delayer(1000)();
         rLog.info({state}, 'fetched instances in state for region');
         for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
@@ -349,7 +349,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(5000)();
+        await delayer(1000)();
 
         rLog.info({state}, 'fetched requests in state for region');
 
