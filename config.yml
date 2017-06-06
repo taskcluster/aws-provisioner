@@ -25,6 +25,9 @@ defaults:
     # Key for data encryption in base.Entity (32 random bytes as base64)
     tableCryptoKey:           !env TABLE_CRYPTO_KEY
 
+  ec2manager:
+    baseUrl: !env EC2_MANAGER_BASEURL
+
   taskcluster:
     authBaseUrl: https://auth.taskcluster.net/v1
     queueBaseUrl: https://queue.taskcluster.net/v1
@@ -91,6 +94,8 @@ production:
     env: production
     forceSSL: true
     trustProxy: true
+  ec2manager:
+    baseUrl: https://ec2-manager.herokuapp.com/v1
 
 staging:
   app:
@@ -131,6 +136,8 @@ development:
       - 'us-east-1'
       - 'us-east-2'
       - 'eu-central-1'
+  ec2manager:
+    baseUrl: http://localhost:5555/v1
 
 test:
   app:
@@ -156,3 +163,5 @@ test:
     api:
       key: 'nokey'
     iterationSnitch: 'http://httpbin.org/status/200'
+  ec2manager:
+    baseUrl: http://localhost:5555/v1

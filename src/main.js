@@ -5,6 +5,7 @@ let aws = require('aws-sdk');
 let _ = require('lodash');
 let path = require('path');
 let fs = require('mz/fs');
+let request = require('request-promise');
 
 let loader = require('taskcluster-lib-loader');
 let taskcluster = require('taskcluster-client');
@@ -280,8 +281,8 @@ let load = loader({
   },
 
   awsManager: {
-    requires: ['cfg', 'ec2', 'influx', 'monitor'],
-    setup: ({cfg, ec2, influx, monitor}) => {
+    requires: ['cfg', 'ec2', 'influx', 'monitor', 'ec2manager'],
+    setup: ({cfg, ec2, influx, monitor, ec2manager}) => {
       return new AwsManager(
         ec2,
         cfg.app.id,
@@ -289,7 +290,8 @@ let load = loader({
         cfg.app.awsInstancePubkey,
         cfg.app.maxInstanceLife,
         influx,
-        monitor.prefix('awsManager')
+        monitor.prefix('awsManager'),
+        ec2manager,
       );
     },
   },
@@ -394,6 +396,26 @@ let load = loader({
 
         i.start();
       });
+    },
+  },
+
+  ec2manager: {
+    requires: ['cfg'],
+    setup: async ({cfg}) => {
+      let ec2ManagerBaseUrl = cfg.ec2manager.baseUrl;
+
+      let reference = await request.get(ec2ManagerBaseUrl + '/internal/api-reference');
+      reference = JSON.parse(reference);
+
+      let clientClass = taskcluster.createClient(reference);
+
+      let client = new clientClass({
+        agent: require('http').globalAgent,
+        baseUrl: ec2ManagerBaseUrl,
+        credentials: cfg.taskcluster.credentials,
+      });
+
+      return client;
     },
   },
 

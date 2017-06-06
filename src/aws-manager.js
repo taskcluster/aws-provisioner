@@ -186,7 +186,7 @@ async function runAWSRequest(service, method, body) {
  *      submit data points to a statsum instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor, ec2manager) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
@@ -202,6 +202,7 @@ class AwsManager {
     this.maxInstanceLife = maxInstanceLife;
     this.influx = influx;
     this.monitor = monitor;
+    this.ec2manager = ec2manager;
 
     // Known keypairs are tracked so that we don't have to retreive the list of
     // all known key pairs on every iteration.
@@ -336,7 +337,7 @@ class AwsManager {
 
       // Living spot requests
       // In a list to keep the namespace clean
-      for (let state of ['open', 'cancelled', 'failed', 'closed', /*'active'*/]) {
+      for (let state of ['open', 'cancelled', 'failed', 'closed']) {
         let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
           Filters: [
             {
@@ -1300,6 +1301,12 @@ class AwsManager {
     }
 
     let spotReq = spotRequest.SpotInstanceRequests[0];
+
+    try {
+      await this.ec2manager.importSpotRequest(bid.region, spotRequest);
+    } catch (err) {
+      log.info({err}, 'Problem reporting this spot request to the ec2-manager');
+    }
 
     log.info({
       srid: spotReq.SpotInstanceRequestId,
