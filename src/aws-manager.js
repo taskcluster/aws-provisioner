@@ -1304,6 +1304,13 @@ class AwsManager {
 
     try {
       await this.ec2manager.importSpotRequest(bid.region, spotRequest);
+      log.info({
+        srid: spotReq.SpotInstanceRequestId,
+        workerType: launchInfo.workerType,
+        region: bid.region,
+        instanceType: bid.type,
+      }, 'Submitted spot request to ec2-manager');
+
     } catch (err) {
       log.info({err}, 'Problem reporting this spot request to the ec2-manager');
     }

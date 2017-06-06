@@ -402,20 +402,25 @@ let load = loader({
   ec2manager: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
-      let ec2ManagerBaseUrl = cfg.ec2manager.baseUrl;
+      try {
+        let ec2ManagerBaseUrl = cfg.ec2manager.baseUrl;
 
-      let reference = await request.get(ec2ManagerBaseUrl + '/internal/api-reference');
-      reference = JSON.parse(reference);
+        let reference = await request.get(ec2ManagerBaseUrl + '/internal/api-reference');
+        reference = JSON.parse(reference);
 
-      let clientClass = taskcluster.createClient(reference);
+        let clientClass = taskcluster.createClient(reference);
 
-      let client = new clientClass({
-        agent: require('http').globalAgent,
-        baseUrl: ec2ManagerBaseUrl,
-        credentials: cfg.taskcluster.credentials,
-      });
+        let client = new clientClass({
+          agent: require('http').globalAgent,
+          baseUrl: ec2ManagerBaseUrl,
+          credentials: cfg.taskcluster.credentials,
+        });
 
-      return client;
+        return client;
+      } catch (err) {
+        log.info({err}, 'error creating ec2manager');
+        return undefined;
+      }
     },
   },
 
