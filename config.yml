@@ -3,7 +3,7 @@
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
-    iterationInterval: 300
+    iterationInterval: 100
     maxInstanceLife: '- 96 hours'
     id: !env PROVISIONER_ID
     workerTypeTableName: DevWorkerTypes2
