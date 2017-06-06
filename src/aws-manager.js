@@ -194,6 +194,8 @@ class AwsManager {
     assert(maxInstanceLife);
     assert(influx);
     assert(monitor);
+    assert(describeInstanceDelay);
+    assert(describeSpotInstanceDelay);
 
     this.ec2 = ec2;
     this.provisionerId = provisionerId;
@@ -317,7 +319,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(1000)();
+        await delayer(describeInstanceDelay)();
         rLog.info({state}, 'fetched instances in state for region');
         for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
@@ -349,7 +351,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(1000)();
+        await delayer(describeSpotInstanceDelay)();
 
         rLog.info({state}, 'fetched requests in state for region');
 

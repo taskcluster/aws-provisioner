@@ -3,7 +3,9 @@
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
-    iterationInterval: 120
+    iterationInterval: !env ITERATION_INTERVAL
+    describeInstanceDelay: !env DESCRIBE_INSTANCE_DELAY
+    describeSpotInstanceDelay: !env DESCRIBE_SPOT_INSTANCE_DELAY
     maxInstanceLife: '- 96 hours'
     id: !env PROVISIONER_ID
     workerTypeTableName: DevWorkerTypes2
@@ -83,7 +85,9 @@ production:
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
-    iterationInterval: 120
+    iterationInterval: !env ITERATION_INTERVAL
+    describeInstanceDelay: !env DESCRIBE_INSTANCE_DELAY
+    describeSpotInstanceDelay: !env DESCRIBE_SPOT_INSTANCE_DELAY
     allowedRegions: !env:list ALLOWED_REGIONS
   monitor:
     project: 'aws-provisioner'
@@ -107,6 +111,8 @@ staging:
     statsComponent: staging-aws
     awsKeyPrefix: "staging-aws-managed:"
     iterationInterval: 300
+    describeInstanceDelay: 5000
+    describeSpotInstanceDelay: 5000
     allowedRegions: !env:list ALLOWED_REGIONS
   monitor:
     project: 'staging-aws'
