@@ -186,7 +186,7 @@ async function runAWSRequest(service, method, body) {
  *      submit data points to a statsum instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor, ec2manager) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor, ec2manager, describeInstanceDelay, describeSpotRequestDelay) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
@@ -195,7 +195,7 @@ class AwsManager {
     assert(influx);
     assert(monitor);
     assert(describeInstanceDelay);
-    assert(describeSpotInstanceDelay);
+    assert(describeSpotRequestDelay);
 
     this.ec2 = ec2;
     this.provisionerId = provisionerId;
@@ -351,7 +351,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(describeSpotInstanceDelay)();
+        await delayer(describeSpotRequestDelay)();
 
         rLog.info({state}, 'fetched requests in state for region');
 
