@@ -206,6 +206,9 @@ class AwsManager {
     this.monitor = monitor;
     this.ec2manager = ec2manager;
 
+    this.describeInstanceDelay = describeInstanceDelay;  
+    this.describeSpotRequestDelay = describeSpotRequestDelay;
+
     // Known keypairs are tracked so that we don't have to retreive the list of
     // all known key pairs on every iteration.
     this.__knownKeyPairs = [];
@@ -319,7 +322,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(describeInstanceDelay)();
+        await delayer(this.describeInstanceDelay)();
         rLog.info({state}, 'fetched instances in state for region');
         for (let reservation of instances.Reservations) {
           for (let instance of reservation.Instances) {
@@ -351,7 +354,7 @@ class AwsManager {
             },
           ],
         });
-        await delayer(describeSpotRequestDelay)();
+        await delayer(this.describeSpotRequestDelay)();
 
         rLog.info({state}, 'fetched requests in state for region');
 
