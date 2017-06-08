@@ -139,6 +139,9 @@ development:
       - 'us-east-1'
       - 'us-east-2'
       - 'eu-central-1'
+    iterationInterval: 120
+    describeInstanceDelay: 1000
+    describeSpotRequestDelay: 1000
   ec2manager:
     baseUrl: http://localhost:5555/v1
 
@@ -156,7 +159,9 @@ test:
       - 'us-west-2'
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
     tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-
+    iterationInterval: 120
+    describeInstanceDelay: 1000
+    describeSpotRequestDelay: 1000
   server:
     publicUrl: http://localhost:60407
     port: 60407
