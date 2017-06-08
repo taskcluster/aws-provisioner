@@ -292,6 +292,8 @@ let load = loader({
         influx,
         monitor.prefix('awsManager'),
         ec2manager,
+        cfg.app.describeInstanceDelay,
+        cfg.app.describeSpotRequestDelay
       );
     },
   },
