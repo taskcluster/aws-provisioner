@@ -3,11 +3,8 @@ let assert = require('assert');
 let taskcluster = require('taskcluster-client');
 let delayer = require('./delayer');
 let shuffle = require('knuth-shuffle');
-let Biaser = require('./biaser.js');
 let rp = require('request-promise');
 let _ = require('lodash');
-
-let series = require('./influx-series');
 
 /**
  *
@@ -97,31 +94,11 @@ class Provisioner {
     assert(cfg.stateNewContainer);
     this.stateNewContainer = cfg.stateNewContainer;
 
-    // We should have an influx object
-    assert(cfg.influx);
-    this.influx = cfg.influx;
-
-    this.reportProvisioningIteration = series.provisionerIteration.reporter(this.influx);
-    this.reportAllProvisioningIterationDuration = series.allProvisioningIterationDuration.reporter(this.influx);
-
     // This is the ID of the provisioner.  It is used to interogate the queue
     // for pending tasks
     assert(cfg.provisionerId);
     assert(typeof cfg.provisionerId === 'string');
     this.provisionerId = cfg.provisionerId;
-
-    // We should have an influx instance
-    assert(cfg.influx);
-    this.influx = cfg.influx;
-
-    // Let's create a biaser
-    this.biaser = new Biaser({
-      influx: this.influx,
-      maxBiasAge: 20,
-      statsAge: '24h',
-      killRateMultiplier: 4,
-      emptyComboBias: 0.95,
-    });
   }
 
   async __filterBrokenWorkers(workerTypes, forSpawning) {
@@ -150,7 +127,6 @@ class Provisioner {
     if (disabled.length > 0) {
       let err = new Error('Found invalid worker types');
       err.types = disabled;
-      //this.monitor.reportError(err);
       log.warn({disabled}, 'found worker types which cannot launch, ignoring them');
     }
 
@@ -169,13 +145,6 @@ class Provisioner {
     log.info('loaded worker types');
     await this.awsManager.update();
     log.info('updated aws state');
-
-    try {
-      await this.biaser.fetchBiasInfo(this.awsManager.availableAZ(), []);
-      log.info('obtained bias info');
-    } catch (err) {
-      log.warn(err, 'error updating bias info, ignoring');
-    }
 
     let workerNames = workerTypes.map(w => w.workerType);
 
@@ -229,8 +198,7 @@ class Provisioner {
         let bids = worker.determineSpotBids(
             _.keys(this.awsManager.ec2),
             this.awsManager.__pricing,
-            change,
-            this.biaser);
+            change);
         for (let bid of bids) {
           forSpawning.push({workerType: worker, bid: bid});
         }
@@ -308,10 +276,6 @@ class Provisioner {
 
     let duration = new Date() - allProvisionerStart;
     log.info({duration}, 'provisioning iteration complete');
-    this.reportAllProvisioningIterationDuration({
-      provisionerId: this.provisionerId,
-      duration: duration,
-    });
   }
 
   /**
@@ -367,16 +331,6 @@ class Provisioner {
     if (pendingTasks > 0 && -change > pendingTasks) {
       log.error('THIS IS A MARKER TO MAKE US LOOK INTO BUG1297811');
     }
-
-    // Report on the stats for this iteration
-    this.reportProvisioningIteration({
-      provisionerId: this.provisionerId,
-      workerType: workerType.workerType,
-      pendingTasks: pendingTasks,
-      runningCapacity: runningCapacity,
-      pendingCapacity: pendingCapacity,
-      change: change,
-    });
 
     return change;
   }

@@ -25,7 +25,6 @@ let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
 let v1 = require('./api-v1');
-let series = require('./influx-series');
 let Container = require('./container');
 
 process.on('unhandledRejection', err => {
@@ -196,11 +195,9 @@ let load = loader({
 
   api: {
     requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'validator',
-      'publisher', 'influx', 'monitor'],
+      'publisher', 'monitor'],
     setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, validator,
-                   publisher, influx, monitor}) => {
-
-      let reportInstanceStarted = series.instanceStarted.reporter(influx);
+                   publisher, monitor}) => {
 
       let router = await v1.setup({
         context: {
@@ -211,7 +208,6 @@ let load = loader({
           pubKey: cfg.app.awsInstancePubkey,
           provisionerId: cfg.app.id,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
-          reportInstanceStarted: reportInstanceStarted,
           credentials: cfg.taskcluster.credentials,
           dmsApiKey: cfg.deadmanssnitch.api.key,
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
@@ -273,23 +269,15 @@ let load = loader({
     },
   },
 
-  influx: {
-    requires: ['cfg'],
-    setup: ({cfg}) => {
-      return new stats.NullDrain();
-    },
-  },
-
   awsManager: {
-    requires: ['cfg', 'ec2', 'influx', 'monitor', 'ec2manager'],
-    setup: ({cfg, ec2, influx, monitor, ec2manager}) => {
+    requires: ['cfg', 'ec2', 'monitor', 'ec2manager'],
+    setup: ({cfg, ec2, monitor, ec2manager}) => {
       return new AwsManager(
         ec2,
         cfg.app.id,
         cfg.app.awsKeyPrefix,
         cfg.app.awsInstancePubkey,
         cfg.app.maxInstanceLife,
-        influx,
         monitor.prefix('awsManager'),
         ec2manager,
         cfg.app.describeInstanceDelay,
@@ -307,10 +295,9 @@ let load = loader({
       'ec2',
       'stateContainer',
       'stateNewContainer',
-      'influx',
       'monitor',
     ],
-    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, influx, monitor}) => {
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, monitor}) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
       let provisioner = new provision.Provisioner({
@@ -319,7 +306,6 @@ let load = loader({
         queue: queue,
         provisionerId: cfg.app.id,
         taskcluster: cfg.taskcluster,
-        influx: influx,
         awsManager: awsManager,
         stateContainer: stateContainer,
         stateNewContainer: stateNewContainer,

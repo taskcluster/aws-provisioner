@@ -721,12 +721,11 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
  * of things run on each instance type.  The spot bid is calcuated at the one in the price
  * history multiplied by 1.3 to give a 30% buffer.
  */
-WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, change, biaser) {
+WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, change) {
   assert(managedRegions);
   assert(pricing);
   assert(change);
   assert(typeof change === 'number');
-  assert(biaser);
   let spotBids = [];
 
   let pricingData = pricing;
@@ -738,7 +737,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     let cheapestZone;
     let cheapestPrice;
     let cheapestBid;
-    let cheapestBias;
 
     // Utility Factors, by instance type
     let uf = {};
@@ -768,11 +766,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         for (let zone of zones) {
           try {
             let potentialBid = pricingData[region][type][zone];
-            let bias = biaser.getBias(region, zone, type);
-            if (region === 'us-west-2') {
-              bias *= 1.2;
-            }
-            let potentialPrice = potentialBid / uf[type] * bias;
+            let potentialPrice = potentialBid / uf[type];
             assert(typeof potentialBid === 'number');
             assert(typeof potentialPrice === 'number');
             if (!cheapestPrice) {
@@ -786,14 +780,12 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
                 type,
                 price: potentialPrice,
                 bid: potentialBid,
-                bias,
               });
               cheapestPrice = potentialPrice;
               cheapestRegion = region;
               cheapestType = type;
               cheapestZone = zone;
               cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
-              cheapestBias = bias;
             } else if (potentialPrice < cheapestPrice) {
               // If we find that we have a cheaper option, let's switch to it
               priceTrace.push({
@@ -804,14 +796,12 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
                 type,
                 price: potentialPrice,
                 bid: potentialBid,
-                bias,
               });
               cheapestPrice = potentialPrice;
               cheapestRegion = region;
               cheapestType = type;
               cheapestZone = zone;
               cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
-              cheapestBias = bias;
             } else {
               // If we're cheaper here, we'll ignore this option.
               priceTrace.push({
@@ -822,7 +812,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
                 type,
                 price: potentialPrice,
                 bid: potentialBid,
-                bias,
               });
             }
           } catch (err) {
@@ -869,7 +858,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         region: cheapestRegion,
         type: cheapestType,
         zone: cheapestZone,
-        bias: cheapestBias,
       };
       spotBids.push(finalBid);
       log.trace({
@@ -895,8 +883,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         workerType: this.workerType,
         bid: cheapestBid,
         max: 10,
-      }, '[alert-operator] exceptionally high bid');
-      return spotBids;
+      }, '[alert-operator] exceptionally high bid calculated');
+      return [];
     }
   }
   /* eslint-enable no-loop-func */

@@ -474,7 +474,7 @@ api.declare({
   method: 'put',
   route: '/secret/:token',
   name: 'createSecret',
-  scopes: [['aws-provisioner:create-secret']],
+  scopes: [['aws-provisioner:create-secret:<workerType>']],
   input: 'create-secret-request.json#',
   title: 'Create new Secret',
   stability:  API.stability.stable,
@@ -489,6 +489,8 @@ api.declare({
 }, async function(req, res) {
   let input = req.body;
   let token = req.params.token;
+
+  if (!req.satisfies({workerType: input.workerType})) { return undefined; }
 
   let secret;
   try {
@@ -599,10 +601,6 @@ api.declare({
   try {
     await this.Secret.load({
       token: token,
-    });
-
-    this.reportInstanceStarted({
-      id: instanceId,
     });
 
     return res.status(204).end();

@@ -57,11 +57,6 @@ defaults:
     username: !env PULSE_USERNAME
     password: !env PULSE_PASSWORD
 
-  influx:
-    connectionString: !env INFLUX_CONNECTION
-    maxDelay: 300
-    maxPendingPoints: 300
-
   aws:
     # Credentials with access to artifact buckets and
     # references/schemas.taskcluster.net if you wish to publish meta-data

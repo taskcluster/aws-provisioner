@@ -8,14 +8,6 @@ var makeRegion = mock.makeRegion;
 var makeInstanceType = mock.makeInstanceType;
 var makeWorkerType = mock.makeWorkerType;
 
-function createMockBiaser(bias) {
-  return {
-    getBias: function() {
-      return bias;
-    },
-  };
-}
-
 describe('worker type', function() {
   let subject;
 
@@ -361,10 +353,9 @@ describe('worker type', function() {
     });
 
     it('should pick the cheapest region, zone and type in one region', function() {
-      var actual = wType.determineSpotBids(['region1'], fakePricing(), 1, createMockBiaser(1));
+      var actual = wType.determineSpotBids(['region1'], fakePricing(), 1);
       var expected = [
         {
-          bias: 1,
           region: 'region1',
           type: 'type2',
           zone: 'zone2',
@@ -376,10 +367,9 @@ describe('worker type', function() {
     });
 
     it('should pick the cheapest region, zone and type in two regions', function() {
-      var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1, createMockBiaser(1));
+      var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
       var expected = [
         {
-          bias: 1,
           region: 'region2',
           type: 'type2',
           zone: 'zone3',
@@ -391,10 +381,9 @@ describe('worker type', function() {
     });
 
     it('should work with an empty region', function() {
-      var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1, createMockBiaser(1));
+      var actual = wType.determineSpotBids(['region1', 'region3'], fakePricing(), 1);
       var expected = [
         {
-          bias: 1,
           region: 'region1',
           type: 'type2',
           zone: 'zone2',
@@ -410,10 +399,9 @@ describe('worker type', function() {
         w.maxPrice = 10;
         w.minPrice = 8;
       });
-      var actual = wt.determineSpotBids(['region2'], fakePricing(), 1, createMockBiaser(1));
+      var actual = wt.determineSpotBids(['region2'], fakePricing(), 1);
       var expected = [
         {
-          bias: 1,
           region: 'region2',
           type: 'type2',
           zone: 'zone3',
@@ -428,22 +416,16 @@ describe('worker type', function() {
       var wt = await wType.modify(w => {
         w.maxPrice = 0.1;
       });
-      /* eslint-disable no-extra-parens, no-wrap-func */
-      (function() {
-        wt.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
-      }).should.throw();
-      /* eslint-enable no-extra-parens, no-wrap-func */
+      let result = wt.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
+      result.should.eql([]);
     });
 
     it('throw when we hit sanity threshold no matter what', async function() {
       var wt = await wType.modify(w => {
         w.maxPrice = 100000;
       });
-      /* eslint-disable no-extra-parens, no-wrap-func */
-      (function() {
-        wt.determineSpotBids(['region1', 'region2'], fakePricing(true), 1);
-      }).should.throw();
-      /* eslint-enable no-extra-parens, no-wrap-func */
+      let result = wt.determineSpotBids(['region1', 'region2'], fakePricing(true), 1);
+      result.should.eql([]);
     });
   });
 });

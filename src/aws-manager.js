@@ -2,7 +2,6 @@ let log = require('./log');
 let assert = require('assert');
 let shuffle = require('knuth-shuffle');
 let taskcluster = require('taskcluster-client');
-let series = require('./influx-series');
 let keyPairs = require('./key-pairs');
 let monitors = require('./monitors');
 let _ = require('lodash');
@@ -178,21 +177,17 @@ async function runAWSRequest(service, method, body) {
  * maxInstanceLife:
  *      absolute upper bounds of instance life.  This should never be hit, but
  *      is rather a safety limit to ensure we don't have things living forever.
- * influx:
- *      Instance of a taskcluster-lib-stats.stats.Influx class which is used to
- *      submit data points to an influx instance
  * monitor:
  *      Instance of a taskcluster-lib-stats.monitor which is used to
  *      submit data points to a statsum instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, influx, monitor, ec2manager, describeInstanceDelay, describeSpotRequestDelay) {
+  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, monitor, ec2manager, describeInstanceDelay, describeSpotRequestDelay) {
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
     assert(pubKey);
     assert(maxInstanceLife);
-    assert(influx);
     assert(monitor);
     assert(describeInstanceDelay);
     assert(describeSpotRequestDelay);
@@ -202,7 +197,6 @@ class AwsManager {
     this.keyPrefix = keyPrefix;
     this.pubKey = pubKey;
     this.maxInstanceLife = maxInstanceLife;
-    this.influx = influx;
     this.monitor = monitor;
     this.ec2manager = ec2manager;
 
@@ -239,15 +233,6 @@ class AwsManager {
 
     // Store the available availability zone
     this.__availableAZ = {};
-
-    // Set up influxdb and lib-monitor reporters
-    this.reportEc2ApiLag = series.ec2ApiLag.reporter(influx);
-    this.reportSpotRequestsSubmitted = series.spotRequestsSubmitted.reporter(influx);
-    this.reportSpotRequestsFulfilled = series.spotRequestsFulfilled.reporter(influx);
-    this.reportSpotRequestsDied = series.spotRequestsDied.reporter(influx);
-    this.reportInstanceTerminated = series.instanceTerminated.reporter(influx);
-    this.reportSpotPriceFloorFound = series.spotPriceFloorFound.reporter(influx);
-    this.reportAmiUsage = series.amiUsage.reporter(influx);
   }
 
   /**
@@ -510,7 +495,6 @@ class AwsManager {
     if (sr.Status.Code === 'price-too-low') {
       monitors.spotFloorFound(
         this.monitor,
-        this.reportSpotPriceFloorFound,
         sr.Region,
         sr.LaunchSpecification.Placement.AvailabilityZone,
         sr.LaunchSpecification.InstanceType,
@@ -594,7 +578,6 @@ class AwsManager {
       // spot request as successfully fulfilled.  This does not imply that
       monitors.spotRequestFulfilled(
         this.monitor,
-        this.reportSpotRequestsFulfilled,
         this.provisionerId,
         request.Region,
         request.LaunchSpecification.Placement.AvailabilityZone,
@@ -629,7 +612,6 @@ class AwsManager {
         // limit for bids
         monitors.spotRequestDied(
           this.monitor,
-          this.reportSpotRequestsDied,
           this.provisionerId,
           request.Region,
           request.LaunchSpecification.Placement.AvailabilityZone,
@@ -680,7 +662,6 @@ class AwsManager {
       // Let's track when the instance is shut down
       monitors.instanceTerminated(
         this.monitor,
-        this.reportInstanceTerminated,
         this.provisionerId,
         instance.Region,
         instance.Placement.AvailabilityZone,
@@ -715,7 +696,6 @@ class AwsManager {
         if (price) {
           monitors.spotFloorFound(
             this.monitor,
-            this.reportSpotPriceFloorFound,
             instance.Region,
             instance.Placement.AvailabilityZone,
             instance.InstanceType,
@@ -1220,7 +1200,6 @@ class AwsManager {
         // Now that it's shown up, we'll remove it from the internal state
         monitors.lag(
           this.monitor,
-          this.reportEc2ApiLag,
           this.provisionerId,
           request.request.Region,
           request.request.LaunchSpecification.Placement.AvailabilityZone,
@@ -1237,7 +1216,6 @@ class AwsManager {
         // forever, which could bog down the system
         monitors.lag(
           this.monitor,
-          this.reportEc2ApiLag,
           this.provisionerId,
           request.request.Region,
           request.request.LaunchSpecification.Placement.AvailabilityZone,
@@ -1338,7 +1316,6 @@ class AwsManager {
 
     monitors.spotRequestSubmitted(
       this.monitor,
-      this.reportSpotRequestsSubmitted,
       this.provisionerId,
       info.bid.region,
       info.bid.zone,
@@ -1350,7 +1327,6 @@ class AwsManager {
 
     monitors.amiUsage(
       this.monitor,
-      this.reportAmiUsage,
       this.provisionerId,
       info.bid.region,
       info.bid.zone,
