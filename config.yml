@@ -85,9 +85,6 @@ production:
     publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
-    iterationInterval: !env ITERATION_INTERVAL
-    describeInstanceDelay: !env DESCRIBE_INSTANCE_DELAY
-    describeSpotRequestDelay: !env DESCRIBE_SPOT_REQUEST_DELAY
     allowedRegions: !env:list ALLOWED_REGIONS
   monitor:
     project: 'aws-provisioner'
