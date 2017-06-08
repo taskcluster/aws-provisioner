@@ -3,9 +3,9 @@
 defaults:
   app:
     publishMetaData: !env:bool PUBLISH_METADATA
-    iterationInterval: !env ITERATION_INTERVAL
-    describeInstanceDelay: !env DESCRIBE_INSTANCE_DELAY
-    describeSpotRequestDelay: !env DESCRIBE_SPOT_REQUEST_DELAY
+    iterationInterval: !env:number ITERATION_INTERVAL
+    describeInstanceDelay: !env:number DESCRIBE_INSTANCE_DELAY
+    describeSpotRequestDelay: !env:number DESCRIBE_SPOT_REQUEST_DELAY
     maxInstanceLife: '- 96 hours'
     id: !env PROVISIONER_ID
     workerTypeTableName: DevWorkerTypes2
