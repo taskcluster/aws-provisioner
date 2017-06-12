@@ -402,6 +402,7 @@ let load = loader({
           agent: require('http').globalAgent,
           baseUrl: ec2ManagerBaseUrl,
           credentials: cfg.taskcluster.credentials,
+          timeout: 2 * 1000,
         });
 
         return client;
