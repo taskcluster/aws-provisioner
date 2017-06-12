@@ -182,7 +182,19 @@ async function runAWSRequest(service, method, body) {
  *      submit data points to a statsum instance
  */
 class AwsManager {
-  constructor(ec2, provisionerId, keyPrefix, pubKey, maxInstanceLife, monitor, ec2manager, describeInstanceDelay, describeSpotRequestDelay) {
+
+  constructor(
+    ec2,
+    provisionerId,
+    keyPrefix,
+    pubKey,
+    maxInstanceLife,
+    monitor,
+    ec2manager,
+    describeInstanceDelay,
+    describeSpotRequestDelay
+  ) {
+    
     assert(ec2);
     assert(provisionerId);
     assert(keyPrefix);
