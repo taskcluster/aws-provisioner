@@ -827,7 +827,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     }
 
     if (!cheapestBid) {
-      throw new Error('Could not create any bid');
+      throw new Error('Could not create any bid for ' + this.workerType);
     }
 
     if (cheapestPrice < this.minPrice) {
