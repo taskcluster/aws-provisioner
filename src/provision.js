@@ -99,6 +99,9 @@ class Provisioner {
     assert(cfg.provisionerId);
     assert(typeof cfg.provisionerId === 'string');
     this.provisionerId = cfg.provisionerId;
+
+    assert(cfg.monitor);
+    this.monitor = cfg.monitor;
   }
 
   async __filterBrokenWorkers(workerTypes, forSpawning) {
@@ -168,45 +171,59 @@ class Provisioner {
 
     let forSpawning = [];
 
-    await Promise.all(workerTypes.map(async worker => {
+    // We want to make sure that at least a single worker type worked.  If
+    // that's the case, then we'll assume that other failures are related to
+    // worker type configuration and give up on them
+    let hadSuccess = false;
+    for (let worker of workerTypes) {
       let wtLog = log.child({workerType: worker.workerType});
-      let change = await this.changeForType(worker);
-      wtLog.info({change}, 'determined change');
-
-      // This is a slightly modified version of the aws objects
-      // which are made smaller to fit into azure storage entities
-
-      let state;
       try {
-        // This does create a bunch of extra logs... darn!
-        state = this.awsManager.stateForStorage(worker.workerType);
-        await this.stateContainer.write(worker.workerType, state);
-        wtLog.trace('wrote state to azure');
-      } catch (err) {
-        wtLog.error(err, 'error writing state to azure');
-      }
+        let change = await this.changeForType(worker);
+        wtLog.info({change}, 'determined change');
 
-      // write in azure using azure-blob-storage
-      /*try {
-        await this.stateNewContainer.createDataBlockBlob({name: worker.workerType}, state);
-        wtLog.trace('wrote state to azure using azure-blob-storage');
-      } catch (err) {
-        wtLog.error(err, 'error writing state using azure-blob-storage');
-      }*/
+        // This is a slightly modified version of the aws objects
+        // which are made smaller to fit into azure storage entities
 
-      if (change > 0) {
-        let bids = worker.determineSpotBids(
-            _.keys(this.awsManager.ec2),
-            this.awsManager.__pricing,
-            change);
-        for (let bid of bids) {
-          forSpawning.push({workerType: worker, bid: bid});
+        let state;
+        try {
+          // This does create a bunch of extra logs... darn!
+          state = this.awsManager.stateForStorage(worker.workerType);
+          await this.stateContainer.write(worker.workerType, state);
+          wtLog.trace('wrote state to azure');
+        } catch (err) {
+          wtLog.error(err, 'error writing state to azure');
         }
-      } else if (change < 0) {
-        let capToKill = -change;
-        await this.awsManager.killCapacityOfWorkerType(worker, capToKill, ['pending', 'spotReq']);
+
+        // write in azure using azure-blob-storage
+        /*try {
+          await this.stateNewContainer.createDataBlockBlob({name: worker.workerType}, state);
+          wtLog.trace('wrote state to azure using azure-blob-storage');
+        } catch (err) {
+          wtLog.error(err, 'error writing state using azure-blob-storage');
+        }*/
+
+        if (change > 0) {
+          let bids = worker.determineSpotBids(
+              _.keys(this.awsManager.ec2),
+              this.awsManager.__pricing,
+              change);
+          for (let bid of bids) {
+            forSpawning.push({workerType: worker, bid: bid});
+          }
+        } else if (change < 0) {
+          let capToKill = -change;
+          await this.awsManager.killCapacityOfWorkerType(worker, capToKill, ['pending', 'spotReq']);
+        }
+        hadSuccess = true;
+      } catch (err) {
+        wtLog.error({err, workerType: worker.workerType}, 'error provisioning this worker type, skipping');
+        this.monitor.reportError(err, 'warning', {workerType: worker.workerType});
       }
-    }));
+    }
+
+    if (!hadSuccess) {
+      throw new Error('Not a single worker type was able to run the provisioning logic');
+    }
 
     // There's nothing to do if we have no bids
     if (forSpawning.length === 0) {
@@ -257,6 +274,7 @@ class Provisioner {
               region: toSpawn.bid.region,
               zone: toSpawn.bid.zone,
             }, 'too many spot requests of this type in region');
+            this.
           } else {
             rLog.error({
               err, 
