@@ -165,6 +165,11 @@ class Provisioner {
       log.error(err, 'error during housekeeping tasks');
     }
 
+    if (workerTypes.length === 0) {
+      log.info('no worker types, skipping iteration, but doing housekeeping');
+      return;
+    }
+
     log.info({
       workerTypes: workerNames,
     }, 'configured worker types');
@@ -222,8 +227,11 @@ class Provisioner {
     }
 
     if (!hadSuccess) {
-      throw new Error('Not a single worker type was able to run the provisioning logic');
+      throw new Error('Not a single worker type was able to run the provisioning change computation logic');
     }
+
+    // Reset the variable back to false for use to see if .spawn() calls work
+    hadSuccess = false;
 
     // There's nothing to do if we have no bids
     if (forSpawning.length === 0) {
@@ -265,6 +273,7 @@ class Provisioner {
 
         try {
           await this.spawn(toSpawn.workerType, toSpawn.bid);
+          hadSuccess = true;
         } catch (err) {
           if (err.code === 'MaxSpotInstanceCountExceeded') {
             rLog.warn({
@@ -274,7 +283,6 @@ class Provisioner {
               region: toSpawn.bid.region,
               zone: toSpawn.bid.zone,
             }, 'too many spot requests of this type in region');
-            this.
           } else {
             rLog.error({
               err, 
@@ -291,6 +299,10 @@ class Provisioner {
     }));
 
     log.info('finished submiting spot requests');
+
+    if (!hadSuccess) {
+      throw new Error('Not a single spot request was submitted with success in an iteration');
+    }
 
     let duration = new Date() - allProvisionerStart;
     log.info({duration}, 'provisioning iteration complete');
