@@ -309,12 +309,13 @@ let load = loader({
         awsManager: awsManager,
         stateContainer: stateContainer,
         stateNewContainer: stateNewContainer,
+        monitor: monitor
       });
 
       let i = new Iterate({
         maxIterationTime: 1000 * 60 * 15, // 15 minutes
         watchDog: 1000 * 60 * 15, // 15 minutes
-        maxFailures: 1,
+        maxFailures: 10,
         waitTime: cfg.app.iterationInterval,
         dmsConfig: {
           apiKey: cfg.deadmanssnitch.api.key,
@@ -339,6 +340,7 @@ let load = loader({
             state.stats.consecFail++;
             state.stats.overallFail++;
             log.warn(err, 'provisioning iteration failed');
+            this.monitor.reportError(err, 'warning', {iterationFailure: true});
             throw err;
           }
         },
