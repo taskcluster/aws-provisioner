@@ -306,81 +306,84 @@ class AwsManager {
       // the API
 
       // Instances
-      for (let state of ['running', 'pending', 'shutting-down', 'terminated', 'stopping']) {
-        let instances = await runAWSRequest(ec2, 'describeInstances', {
-          Filters: [
-            {
-              Name: 'key-name',
-              Values: [this.keyPrefix + '*'],
-            },
-            {
-              Name: 'instance-state-name',
-              Values: [state],
-            },
-          ],
-        });
-        await delayer(this.describeInstanceDelay)();
-        rLog.info({state}, 'fetched instances in state for region');
-        for (let reservation of instances.Reservations) {
-          for (let instance of reservation.Instances) {
-            let workerType = this.parseKeyPairName(instance.KeyName).workerType;
-            // Maybe use objFilter here
-            let filtered = instance;
-            filtered.Region = region;
-            filtered.WorkerType = workerType;
-            if (state === 'pending' || state === 'running') {
-              apiState.instances.push(filtered);
-            } else { 
-              deadState.instances.push(filtered);
-            }
+      let instanceStates = ['running', 'pending', 'shutting-down', 'terminated', 'stopping'];
+
+      let instances = await runAWSRequest(ec2, 'describeInstances', {
+        Filters: [
+          {
+            Name: 'key-name',
+            Values: [this.keyPrefix + '*'],
+          },
+          {
+            Name: 'instance-state-name',
+            Values: instanceStates,
+          },
+        ],
+      });
+      await delayer(this.describeInstanceDelay)();
+      rLog.info('fetched instances in region');
+      for (let reservation of instances.Reservations) {
+        for (let instance of reservation.Instances) {
+          let workerType = this.parseKeyPairName(instance.KeyName).workerType;
+          // Maybe use objFilter here
+          let filtered = instance;
+          filtered.Region = region;
+          filtered.WorkerType = workerType;
+          let state = filtered.State.Name;
+          if (state === 'pending' || state === 'running') {
+            apiState.instances.push(filtered);
+          } else { 
+            deadState.instances.push(filtered);
           }
-        };
-      }
+        }
+      };
 
       // Living spot requests
       // In a list to keep the namespace clean
-      for (let state of ['open', 'cancelled', 'failed', 'closed']) {
-        let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
-          Filters: [
-            {
-              Name: 'launch.key-name',
-              Values: [this.keyPrefix + '*'],
-            }, {
-              Name: 'state',
-              Values: [state],
-            },
-          ],
-        });
-        await delayer(this.describeSpotRequestDelay)();
+      let requestStates = ['open', 'cancelled', 'failed', 'closed'];
 
-        rLog.info({state}, 'fetched requests in state for region');
+      let spotRequests = await runAWSRequest(ec2, 'describeSpotInstanceRequests', {
+        Filters: [
+          {
+            Name: 'launch.key-name',
+            Values: [this.keyPrefix + '*'],
+          }, {
+            Name: 'state',
+            Values: requestStates,
+          },
+        ],
+      });
+      // Disabled because we don't really need it in the single-request world
+      //await delayer(this.describeSpotRequestDelay)();
 
-        let stalledSRIds = [];
+      rLog.info('fetched requests in region');
 
-        // Stalled requests are those which have taken way too long to be
-        // fulfilled.  We'll consider them dead after a certain amount of time
-        // and make new requests for their pending tasks
-        for (let request of spotRequests.SpotInstanceRequests) {
-          let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
-          let filtered = request;
-          filtered.Region = region;
-          filtered.WorkerType = workerType;
-          if (state === 'open') {
-            if (this._spotRequestStalled(filtered)) {
-              stalledSRIds.push(filtered.SpotInstanceRequestId);
-            } else {
-              apiState.requests.push(filtered);
-            }
+      let stalledSRIds = [];
+
+      // Stalled requests are those which have taken way too long to be
+      // fulfilled.  We'll consider them dead after a certain amount of time
+      // and make new requests for their pending tasks
+      for (let request of spotRequests.SpotInstanceRequests) {
+        let workerType = this.parseKeyPairName(request.LaunchSpecification.KeyName).workerType;
+        let filtered = request;
+        filtered.Region = region;
+        filtered.WorkerType = workerType;
+        let state = filtered.State;
+        if (state === 'open') {
+          if (this._spotRequestStalled(filtered)) {
+            stalledSRIds.push(filtered.SpotInstanceRequestId);
           } else {
-            deadState.requests.push(filtered);
+            apiState.requests.push(filtered);
           }
+        } else {
+          deadState.requests.push(filtered);
         }
+      }
 
-        // Request that stalled spot requests be cancelled
-        if (stalledSRIds.length > 0) {
-          await this.killCancel(region, [], stalledSRIds);
-          rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
-        }
+      // Request that stalled spot requests be cancelled
+      if (stalledSRIds.length > 0) {
+        await this.killCancel(region, [], stalledSRIds);
+        rLog.info({stalledSpotRequests: stalledSRIds}, 'killed stalled spot requests');
       }
 
       // Find all the available availability zones
