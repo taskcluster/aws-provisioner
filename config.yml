@@ -135,7 +135,7 @@ development:
       - 'us-east-1'
       - 'us-east-2'
       - 'eu-central-1'
-    iterationInterval: 10
+    iterationInterval: 1
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
   ec2manager:

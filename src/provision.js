@@ -221,7 +221,7 @@ class Provisioner {
 
         } else if (change < 0) {
           let capToKill = -change;
-          wtLog.info({capToKill}, 'We could ask for some spot requests to be cancelled, but thats not implemented');
+          wtLog.info({count: capToKill}, 'Have too much capacity');
         }
         hadSuccess = true;
       } catch (err) {
@@ -360,19 +360,13 @@ class Provisioner {
 
     let runningCapacity = 0;
     let pendingCapacity = 0;
-    let spotReqCap = 0;
+
     for (let {instanceType, count, type} of capacityStats.pending) {
-      let capacity = count * workerType.capacityOfType(instanceType);
-      if (type === 'instances') {
-        pendingCapacity += capacity;
-      } else if (type === 'spot-request') {
-        spotReqCap += capacity;
-      }
+      pendingCapacity += count * workerType.capacityOfType(instanceType);
     }
 
     for (let {instanceType, count, type} of capacityStats.running) {
-      let capacity = count * workerType.capacityOfType(instanceType);
-      runningCapacity += capacity;
+      runningCapacity += count * workerType.capacityOfType(instanceType);
     }
 
     let change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pendingTasks);
@@ -382,9 +376,7 @@ class Provisioner {
       pendingTasks: pendingTasks,
       runningCapacity: runningCapacity,
       pendingCapacity: pendingCapacity,
-      spotReqCap: spotReqCap,
       change: change,
-            
     }, 'changeForType outcome');
 
     return change;
