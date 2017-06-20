@@ -155,6 +155,18 @@ class Provisioner {
 
     let workerNames = workerTypes.map(w => w.workerType);
 
+    // Kill anything which is a rogue
+    try {
+      let extantWorkerTypes = await this.ec2manager.listWorkerTypes();
+      let rogues = extantWorkerTypes.filter(x => !workerNames.includes(x));
+      debugger;
+      await Promise.all(rogues.map(x => this.ec2manager.terminateWorkerType(x)));
+      await Promise.all(rogues.map(x => this.ec2manager.removeKeyPair(x)));
+      log.info({rogues}, 'killed rogue worker types');
+    } catch (err) {
+      log.error({err}, 'Rogue killer error');
+    }
+
     if (workerTypes.length === 0) {
       log.info('no worker types');
       return;
