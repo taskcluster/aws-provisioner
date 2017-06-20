@@ -5,6 +5,7 @@ let delayer = require('./delayer');
 let shuffle = require('knuth-shuffle');
 let rp = require('request-promise');
 let _ = require('lodash');
+let slugid = require('slugid');
 
 /**
  *
@@ -73,6 +74,9 @@ class Provisioner {
     assert(typeof cfg === 'object');
     assert(cfg.awsManager); //  eslint-disable-line no-alert, quotes, semi
     this.awsManager = cfg.awsManager;
+
+    assert(cfg.ec2manager);
+    this.ec2manager = cfg.ec2manager;
 
     // We should have a WorkerType Entity
     assert(cfg.WorkerType);
@@ -151,22 +155,8 @@ class Provisioner {
 
     let workerNames = workerTypes.map(w => w.workerType);
 
-    try {
-      await this.awsManager.ensureTags();
-      log.info('resources tagged');
-      await this.awsManager.rogueKiller(workerNames);
-      log.info('rogue resources killed');
-      await this.awsManager.zombieKiller();
-      log.info('zombie resources killed');
-      for (let name of workerNames) {
-        await this.awsManager.createKeyPair(name);
-      }
-    } catch (err) {
-      log.error(err, 'error during housekeeping tasks');
-    }
-
     if (workerTypes.length === 0) {
-      log.info('no worker types, skipping iteration, but doing housekeeping');
+      log.info('no worker types');
       return;
     }
 
@@ -181,6 +171,7 @@ class Provisioner {
     // worker type configuration and give up on them
     let hadSuccess = false;
     for (let worker of workerTypes) {
+      await this.ec2manager.ensureKeyPair(worker.workerType);
       let wtLog = log.child({workerType: worker.workerType});
       try {
         let change = await this.changeForType(worker);
@@ -192,7 +183,7 @@ class Provisioner {
         let state;
         try {
           // This does create a bunch of extra logs... darn!
-          state = this.awsManager.stateForStorage(worker.workerType);
+          state = await this.awsManager.stateForStorage(worker.workerType);
           await this.stateContainer.write(worker.workerType, state);
           wtLog.trace('wrote state to azure');
         } catch (err) {
@@ -215,9 +206,10 @@ class Provisioner {
           for (let bid of bids) {
             forSpawning.push({workerType: worker, bid: bid});
           }
+
         } else if (change < 0) {
           let capToKill = -change;
-          await this.awsManager.killCapacityOfWorkerType(worker, capToKill, ['pending', 'spotReq']);
+          wtLog.info({capToKill}, 'We could ask for some spot requests to be cancelled, but thats not implemented');
         }
         hadSuccess = true;
       } catch (err) {
@@ -264,48 +256,39 @@ class Provisioner {
       let inRegion = orderThingsInRegion(byRegion[region]);
       assert(beforeOrderingLength === inRegion.length);
 
-      let endLoopAt = new Date();
-      endLoopAt.setMinutes(endLoopAt.getMinutes() + 5);
-      log.debug({inRegion: inRegion || 'empty, darn', endLoopAt}, 'about to do a loop');
-      while (new Date() < endLoopAt && inRegion.length > 0) {
+      let attempts = inRegion.length * 2;
+
+      while (inRegion.length > 0 && attempts > 0) {
         log.info('asking to spawn instance');
         let toSpawn = inRegion.shift();
+        attempts--;
 
         try {
           await this.spawn(toSpawn.workerType, toSpawn.bid);
           hadSuccess = true;
         } catch (err) {
-          if (err.code === 'MaxSpotInstanceCountExceeded') {
-            rLog.warn({
-              err,
-              workerType: toSpawn.workerType.workerType,
-              instanceType: toSpawn.bid.type,
-              region: toSpawn.bid.region,
-              zone: toSpawn.bid.zone,
-            }, 'too many spot requests of this type in region');
-          } else {
-            rLog.error({
-              err, 
-              workerType: toSpawn.workerType.workerType,
-              instanceType: toSpawn.bid.type,
-              region: toSpawn.bid.region,
-              zone: toSpawn.bid.zone,
-            }, 'error submitting spot request');
-          }
+          rLog.error({
+            err, 
+            workerType: toSpawn.workerType.workerType,
+            instanceType: toSpawn.bid.type,
+            region: toSpawn.bid.region,
+            zone: toSpawn.bid.zone,
+          }, 'error submitting spot request');
+          inRegion.push(toSpawn);
         }
       }
 
       rLog.info('finished submiting spot requests in region');
     }));
 
-    log.info('finished submiting spot requests');
+    log.info('finished submiting all spot requests');
 
     if (!hadSuccess) {
       throw new Error('Not a single spot request was submitted with success in an iteration');
     }
 
     let duration = new Date() - allProvisionerStart;
-    log.info({duration}, 'provisioning iteration complete');
+    log.info({duration}, 'provisioning iteration completed');
   }
 
   /**
@@ -318,6 +301,15 @@ class Provisioner {
 
     let launchInfo = workerType.createLaunchSpec(bid);
 
+    let spawnLog = log.child({
+        price: bid.price,
+        workerType: launchInfo.workerType,
+        region: bid.region,
+        zone: bid.zone,
+        instanceType: bid.type,
+    });
+
+
     await this.Secret.create({
       token: launchInfo.securityToken,
       workerType: workerType.workerType,
@@ -327,7 +319,19 @@ class Provisioner {
     });
     log.info({token: launchInfo.securityToken}, 'created secret');
 
-    return this.awsManager.requestSpotInstance(launchInfo, bid);
+    let clientToken = slugid.nice();
+    
+    try {
+      let spotRequest = await this.ec2manager.requestSpotInstance(workerType.workerType, {
+        ClientToken: clientToken,
+        Region: bid.region,
+        SpotPrice: bid.price,
+        LaunchSpecification: launchInfo.launchSpec,
+      });
+      spawnLog.info('submitted spot request'); 
+    } catch (err) {
+      spawnLog.error({err}, 'failed to submit spot request');
+    }
   };
 
   /**
@@ -335,15 +339,29 @@ class Provisioner {
    */
   async changeForType(workerType) {
     let wtLog = log.child({workerType: workerType.workerType});
-    let result;
-    result = await this.queue.pendingTasks(this.provisionerId, workerType.workerType);
-    let pendingTasks = result.pendingTasks;
-    wtLog.info({pendingTasks}, 'got pending tasks count');
+    let result = await this.queue.pendingTasks(this.provisionerId, workerType.workerType);
 
-    let runningCapacity = this.awsManager.capacityForType(workerType, ['running']);
-    let spotReqCap = this.awsManager.capacityForType(workerType, ['spotReq']);
-    let pendingInstCapacity = this.awsManager.capacityForType(workerType, ['pending']);
-    let pendingCapacity = pendingInstCapacity + spotReqCap;
+    let pendingTasks = result.pendingTasks;
+    wtLog.info({pendingTasks}, 'determined number of pending tasks');
+
+    let capacityStats = await this.ec2manager.workerTypeStats(workerType.workerType);
+
+    let runningCapacity = 0;
+    let pendingCapacity = 0;
+    let spotReqCap = 0;
+    for (let {instanceType, count, type} of capacityStats.pending) {
+      let capacity = count * workerType.capacityOfType(instanceType);
+      if (type === 'instances') {
+        pendingCapacity += capacity;
+      } else if (type === 'spot-request') {
+        spotReqCap += capacity;
+      }
+    }
+
+    for (let {instanceType, count, type} of capacityStats.running) {
+      let capacity = count * workerType.capacityOfType(instanceType);
+      runningCapacity += capacity;
+    }
 
     let change = workerType.determineCapacityChange(runningCapacity, pendingCapacity, pendingTasks);
 
@@ -353,14 +371,9 @@ class Provisioner {
       runningCapacity: runningCapacity,
       pendingCapacity: pendingCapacity,
       spotReqCap: spotReqCap,
-      pendingInstCapacity: pendingInstCapacity,
       change: change,
             
     }, 'changeForType outcome');
-
-    if (pendingTasks > 0 && -change > pendingTasks) {
-      log.error('THIS IS A MARKER TO MAKE US LOOK INTO BUG1297811');
-    }
 
     return change;
   }
