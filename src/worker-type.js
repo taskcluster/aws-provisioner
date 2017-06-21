@@ -371,7 +371,6 @@ WorkerType.prototype.capacityOfType = function(instanceType) {
  */
 WorkerType.prototype.createLaunchSpec = function(bid) {
   assert(bid);
-  debugger;
   return WorkerType.createLaunchSpec(bid,
       this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl, this.pubKey, this.workerType);
 };

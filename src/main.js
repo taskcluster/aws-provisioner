@@ -339,7 +339,7 @@ let load = loader({
             state.stats.consecFail++;
             state.stats.overallFail++;
             log.warn(err, 'provisioning iteration failed');
-            this.monitor.reportError(err, 'warning', {iterationFailure: true});
+            monitor.reportError(err, 'warning', {iterationFailure: true});
             throw err;
           }
         },
@@ -374,9 +374,6 @@ let load = loader({
           } else {
             log.fatal(err, 'fatal error, exiting');
           }
-          // Leave this here as it's a likely place that we'll all want to drop
-          // into the debugger
-          debugger;
           process.exit(1);
           // Call the rejection method to be complete and in case someone's
           // overwriting the process.exit method
