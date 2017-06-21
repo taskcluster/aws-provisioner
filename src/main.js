@@ -295,7 +295,17 @@ let load = loader({
       'stateNewContainer',
       'monitor',
     ],
-    setup: async ({cfg, awsManager, ec2manager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, monitor}) => {
+    setup: async ({
+      cfg,
+      awsManager,
+      ec2manager,
+      WorkerType,
+      Secret,
+      ec2,
+      stateContainer,
+      stateNewContainer,
+      monitor,
+    }) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
       let provisioner = new provision.Provisioner({

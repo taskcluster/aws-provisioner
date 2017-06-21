@@ -309,13 +309,12 @@ class Provisioner {
     let launchInfo = workerType.createLaunchSpec(bid);
 
     let spawnLog = log.child({
-        price: bid.price,
-        workerType: launchInfo.workerType,
-        region: bid.region,
-        zone: bid.zone,
-        instanceType: bid.type,
+      price: bid.price,
+      workerType: launchInfo.workerType,
+      region: bid.region,
+      zone: bid.zone,
+      instanceType: bid.type,
     });
-
 
     await this.Secret.create({
       token: launchInfo.securityToken,
