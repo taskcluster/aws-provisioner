@@ -275,13 +275,10 @@ let load = loader({
       return new AwsManager(
         ec2,
         cfg.app.id,
-        cfg.app.awsKeyPrefix,
-        cfg.app.awsInstancePubkey,
-        cfg.app.maxInstanceLife,
         monitor.prefix('awsManager'),
         ec2manager,
-        cfg.app.describeInstanceDelay,
-        cfg.app.describeSpotRequestDelay
+        cfg.app.awsKeyPrefix,
+        cfg.app.awsInstancePubkey,
       );
     },
   },
@@ -290,6 +287,7 @@ let load = loader({
     requires: [
       'cfg',
       'awsManager',
+      'ec2manager',
       'WorkerType',
       'Secret',
       'ec2',
@@ -297,7 +295,7 @@ let load = loader({
       'stateNewContainer',
       'monitor',
     ],
-    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, monitor}) => {
+    setup: async ({cfg, awsManager, ec2manager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, monitor}) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
 
       let provisioner = new provision.Provisioner({
@@ -307,9 +305,10 @@ let load = loader({
         provisionerId: cfg.app.id,
         taskcluster: cfg.taskcluster,
         awsManager: awsManager,
+        ec2manager: ec2manager,
         stateContainer: stateContainer,
         stateNewContainer: stateNewContainer,
-        monitor: monitor
+        monitor: monitor,
       });
 
       let i = new Iterate({
@@ -340,7 +339,7 @@ let load = loader({
             state.stats.consecFail++;
             state.stats.overallFail++;
             log.warn(err, 'provisioning iteration failed');
-            this.monitor.reportError(err, 'warning', {iterationFailure: true});
+            monitor.reportError(err, 'warning', {iterationFailure: true});
             throw err;
           }
         },
@@ -375,9 +374,6 @@ let load = loader({
           } else {
             log.fatal(err, 'fatal error, exiting');
           }
-          // Leave this here as it's a likely place that we'll all want to drop
-          // into the debugger
-          debugger;
           process.exit(1);
           // Call the rejection method to be complete and in case someone's
           // overwriting the process.exit method
@@ -392,26 +388,21 @@ let load = loader({
   ec2manager: {
     requires: ['cfg'],
     setup: async ({cfg}) => {
-      try {
-        let ec2ManagerBaseUrl = cfg.ec2manager.baseUrl;
+      let ec2ManagerBaseUrl = cfg.ec2manager.baseUrl;
 
-        let reference = await request.get(ec2ManagerBaseUrl + '/internal/api-reference');
-        reference = JSON.parse(reference);
+      let reference = await request.get(ec2ManagerBaseUrl + '/internal/api-reference');
+      reference = JSON.parse(reference);
 
-        let clientClass = taskcluster.createClient(reference);
+      let clientClass = taskcluster.createClient(reference);
 
-        let client = new clientClass({
-          agent: require('http').globalAgent,
-          baseUrl: ec2ManagerBaseUrl,
-          credentials: cfg.taskcluster.credentials,
-          timeout: 2 * 1000,
-        });
+      let client = new clientClass({
+        agent: require('http').globalAgent,
+        baseUrl: ec2ManagerBaseUrl,
+        credentials: cfg.taskcluster.credentials,
+        timeout: 2 * 1000,
+      });
 
-        return client;
-      } catch (err) {
-        log.info({err}, 'error creating ec2manager');
-        return undefined;
-      }
+      return client;
     },
   },
 
