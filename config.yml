@@ -102,7 +102,6 @@ staging:
     publishMetaData: false
     statsComponent: staging-aws
     awsKeyPrefix: "ec2-manager-staging:"
-    iterationInterval: 300
     describeInstanceDelay: 5000
     describeSpotRequestDelay: 5000
     allowedRegions: !env:list ALLOWED_REGIONS
@@ -137,7 +136,6 @@ development:
       - 'us-east-1'
       - 'us-east-2'
       - 'eu-central-1'
-    iterationInterval: 1
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
   ec2manager:
@@ -157,7 +155,6 @@ test:
       - 'us-west-2'
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
     tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    iterationInterval: 1
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
   server:
