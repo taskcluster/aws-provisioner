@@ -342,6 +342,7 @@ class Provisioner {
       spawnLog.info('submitted spot request'); 
     } catch (err) {
       spawnLog.error({err}, 'failed to submit spot request');
+      throw err;
     }
   };
 
