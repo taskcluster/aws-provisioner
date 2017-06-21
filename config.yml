@@ -101,7 +101,7 @@ staging:
     workerStateTableName: StagingWorkerState
     publishMetaData: false
     statsComponent: staging-aws
-    awsKeyPrefix: "staging-aws-managed:"
+    awsKeyPrefix: "ec2-manager-staging:"
     iterationInterval: 300
     describeInstanceDelay: 5000
     describeSpotRequestDelay: 5000
