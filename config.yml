@@ -157,7 +157,7 @@ test:
       - 'us-west-2'
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
     tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    iterationInterval: 120
+    iterationInterval: 1
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
   server:
