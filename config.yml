@@ -115,6 +115,8 @@ staging:
     env: development
     forceSSL: true
     trustProxy: true
+  ec2manager:
+    baseUrl: https://ec2-manager-staging.herokuapp.com/v1
 
 development:
   deadmanssnitch:
