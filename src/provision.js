@@ -267,12 +267,9 @@ class Provisioner {
       let inRegion = orderThingsInRegion(byRegion[region]);
       assert(beforeOrderingLength === inRegion.length);
 
-      let attempts = inRegion.length * 2;
-
-      while (inRegion.length > 0 && attempts > 0) {
+      while (inRegion.length) {
         log.info('asking to spawn instance');
         let toSpawn = inRegion.shift();
-        attempts--;
 
         try {
           await this.spawn(toSpawn.workerType, toSpawn.bid);
@@ -285,7 +282,6 @@ class Provisioner {
             region: toSpawn.bid.region,
             zone: toSpawn.bid.zone,
           }, 'error submitting spot request');
-          inRegion.push(toSpawn);
         }
       }
 
