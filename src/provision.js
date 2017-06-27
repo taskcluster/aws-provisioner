@@ -267,6 +267,10 @@ class Provisioner {
       let inRegion = orderThingsInRegion(byRegion[region]);
       assert(beforeOrderingLength === inRegion.length);
 
+      // Since we're having very small intervals between iterations now that
+      // we're using EC2-Manager we should limit the max iteration duration
+      inRegion = inRegion.slice(0, 200);
+
       while (inRegion.length) {
         log.info('asking to spawn instance');
         let toSpawn = inRegion.shift();

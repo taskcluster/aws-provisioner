@@ -126,6 +126,7 @@ development:
     account: jungle
   app:
     id: aws-provisioner-dev
+    iterationInterval: 10
     awsKeyPrefix: "aws-provisioner-dev:"
     awsInstancePubkey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbPJ9W0lOXMQX8+ooo054m96IRcyhEJZ+ocdBqklFSlyC+6UZPwDBoY3lmT1PPOE/niVYKjSGqGtnw9Y0iSEE1MuNvrLDzmFd3+mmHOhHVs6buDOdIFS+MXVyjcdhRoZBqCNg1tz9vvq1NXzYZ4DIWo8xQG/Xq5EKcsgRiitl6VfssCw6jZla8YEQ7ARk8EqJ1BbaMfW8PceiqkmpL/SPNnFyKkbnfVkiqjYarLJJZaW21Wq7eEcZZdUOaHuSpFdNlfGORuDD35VjQDNB+QximDrAEDUN2LOKmS718Yf6+w2k72PZkHwMUHxA4GvlkQO61v+Jm/A2fYTp3QPtQuKuh'
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
