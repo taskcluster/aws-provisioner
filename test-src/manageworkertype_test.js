@@ -14,7 +14,7 @@ var makeWorkerState = mock.makeWorkerState;
 var main = require('../lib/main');
 var helper = require('./helper');
 
-describe('provisioner worker type api', () => {
+describe.only('provisioner worker type api', () => {
 
   var id = slugid.nice();
   var workerTypeDefinition = makeWorkerType();
@@ -137,10 +137,9 @@ describe('provisioner worker type api', () => {
   });
 
   describe('listWorkerTypeSummaries()', () => {
-    it('should return correctly calculated summary values for a defined workerType',
+    it('should return calculated summary values for a defined workerType',
       async () => {
         await WorkerType.create(id, testWorkerType);
-        await stateContainer.write(id, testWorkerState);
 
         let summaries = await client.listWorkerTypeSummaries();
         assume(summaries).to.deeply.equal([{
@@ -203,56 +202,6 @@ describe('provisioner worker type api', () => {
       await WorkerType.create(id, testWorkerType);
 
       assume(await client.state(id)).to.deeply.equal({
-        workerType: id,
-        instances: [],
-        requests: [],
-        internalTrackedRequests: [],
-        summary: {
-          workerType: id,
-          minCapacity: 0,
-          maxCapacity: 20,
-          requestedCapacity: 0,
-          pendingCapacity: 0,
-          runningCapacity: 0,
-        },
-      });
-    });
-  });
-
-  describe('newState()', () => {
-    it('should return 404 for a nonexistent workerType', async () => {
-      try {
-        await client.newState('no-such');
-        assume(false);
-      } catch (err) {
-        assume(err.statusCode).equals(404);
-      }
-    });
-
-    it('should return a list of instances and a summary', async () => {
-      await WorkerType.create(id, testWorkerType);
-      await stateContainer.write(id, testWorkerState);
-
-      assume(await client.newState(id)).to.deeply.equal({
-        workerType: id,
-        instances: testWorkerState.instances,
-        requests: testWorkerState.requests,
-        internalTrackedRequests: testWorkerState.internalTrackedRequests,
-        summary: {
-          workerType: id,
-          minCapacity: 0,
-          maxCapacity: 20,
-          requestedCapacity: 6,
-          pendingCapacity: 1,
-          runningCapacity: 3,
-        },
-      });
-    });
-
-    it('should return an empty (but not 404) response when no state is available', async () => {
-      await WorkerType.create(id, testWorkerType);
-
-      assume(await client.newState(id)).to.deeply.equal({
         workerType: id,
         instances: [],
         requests: [],

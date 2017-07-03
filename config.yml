@@ -151,7 +151,7 @@ test:
     publishMetaData: false
     statsComponent: aws-provisioner-test
     awsKeyPrefix: "aws-provisioner-test-managed:"
-    awsInstancePubkey: 'fake-pubkey'
+    awsInstancePubkey: 'ssh-rsa fake-pubkey'
     allowedRegions:
       - 'us-west-2'
     tableSigningKey:          not-a-secret-so-you-cant-guess-it
