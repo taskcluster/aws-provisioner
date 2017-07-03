@@ -90,14 +90,6 @@ class Provisioner {
     assert(cfg.queue);
     this.queue = cfg.queue;
 
-    // We should have Azure Blob Storage info
-    assert(cfg.stateContainer);
-    this.stateContainer = cfg.stateContainer;
-
-    // We should have Azure Blob Storage info
-    assert(cfg.stateNewContainer);
-    this.stateNewContainer = cfg.stateNewContainer;
-
     // This is the ID of the provisioner.  It is used to interogate the queue
     // for pending tasks
     assert(cfg.provisionerId);
@@ -187,27 +179,6 @@ class Provisioner {
       try {
         let change = await this.changeForType(worker);
         wtLog.info({change}, 'determined change');
-
-        // This is a slightly modified version of the aws objects
-        // which are made smaller to fit into azure storage entities
-
-        let state;
-        try {
-          // This does create a bunch of extra logs... darn!
-          state = await this.awsManager.stateForStorage(worker.workerType);
-          await this.stateContainer.write(worker.workerType, state);
-          wtLog.trace('wrote state to azure');
-        } catch (err) {
-          wtLog.error(err, 'error writing state to azure');
-        }
-
-        // write in azure using azure-blob-storage
-        /*try {
-          await this.stateNewContainer.createDataBlockBlob({name: worker.workerType}, state);
-          wtLog.trace('wrote state to azure using azure-blob-storage');
-        } catch (err) {
-          wtLog.error(err, 'error writing state using azure-blob-storage');
-        }*/
 
         if (change > 0) {
           let bids = worker.determineSpotBids(
