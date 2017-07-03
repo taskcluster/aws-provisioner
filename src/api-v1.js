@@ -127,7 +127,7 @@ api.declare({
   let result = await Promise.all(workerTypes.map(async (workerType) => {
     let workerState;
     try {
-      workerState = await this.ec2manager.workerTypeState(workerType.workerType);
+      workerState = await this.ec2manager.workerTypeStats(workerType.workerType);
     } catch (err) { }
     return workerTypeSummary(workerType, workerState);
   }));
@@ -686,10 +686,6 @@ api.declare({
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
-  scopes: [
-    ['aws-provisioner:view-worker-type:<workerType>'],
-    ['aws-provisioner:manage-worker-type:<workerType>'],
-  ],
   deferAuth: true,
   stability:  API.stability.stable,
   description: [
@@ -701,10 +697,7 @@ api.declare({
 }, async function(req, res) {
   let workerType;
   let workerState;
-
-  if (!req.satisfies({workerType: req.params.workerType})) {
-    return;
-  }
+  let workerStats;
 
   try {
     workerType = await this.WorkerType.load({workerType: req.params.workerType});
@@ -721,8 +714,11 @@ api.declare({
   try {
     workerState = await this.ec2manager.workerTypeState(workerType.workerType);
   } catch (err) { }
+  try {
+    workerStats = await this.ec2manager.workerTypeStats(workerType.workerType);
+  } catch (err) { }
 
-  let instance = [];
+  let instances = [];
   let requests = [];
 
   // TODO: Anything which defaults to 'not-known' should be removed once the
@@ -758,11 +754,11 @@ api.declare({
 
   res.reply({
     workerType: workerType.workerType,
-    instances: workerState ? workerState.instances : [],
-    requests: workerState ? workerState.requests : [],
+    instances: instances,
+    requests: requests,
     // here for compatibility with the UI
     internalTrackedRequests: [],
-    summary: workerTypeSummary(workerType, workerState),
+    summary: workerTypeSummary(workerType, workerStats),
   });
 });
 
