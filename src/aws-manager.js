@@ -369,6 +369,11 @@ class AwsManager {
       let launchSpecsRegion = worker.instanceTypes.map(t => launchSpecs[r.region][t.instanceType].launchSpec);
       let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups)));
 
+      if (allSGForRegion.length === 0) {
+        log.info({workerType: worker.workerType}, 'no security groups configured');
+        return;
+      }
+
       let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
       log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
       if (!hasAllRequiredSG) {

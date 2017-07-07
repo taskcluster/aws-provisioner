@@ -85,6 +85,31 @@ describe('provisioner worker type api', () => {
     }
   });
 
+  it('should create worker with no security group specified', async () => {
+    let missingSecurityGroup = makeWorkerType({
+      launchSpec: {},
+    });
+    try {
+      await client.createWorkerType(id, missingSecurityGroup);
+      return Promise.reject();
+    } catch (err) {
+      return Promise.resolve();
+    }
+  });
+
+  it('should create worker with empty security group list specified', async () => {
+    let missingSecurityGroup = makeWorkerType({
+      launchSpec: {
+        SecurityGroups: [],
+      },
+    });
+    try {
+      await client.createWorkerType(id, missingSecurityGroup);
+      return Promise.reject();
+    } catch (err) {
+      return Promise.resolve();
+    }
+  });
   it('should be able to create a worker (idempotent)', async () => {
     debug('### Create workerType');
     await client.createWorkerType(id, workerTypeDefinition);
