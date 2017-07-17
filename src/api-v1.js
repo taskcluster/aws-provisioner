@@ -24,7 +24,7 @@ let api = new API({
   title: 'AWS Provisioner API Documentation',
   description: [
     'The AWS Provisioner is responsible for provisioning instances on EC2 for use in',
-    'TaskCluster.  The provisioner maintains a set of worker configurations which',
+    'Taskcluster.  The provisioner maintains a set of worker configurations which',
     'can be managed with an API that is typically available at',
     'aws-provisioner.taskcluster.net/v1.  This API can also perform basic instance',
     'management tasks in addition to maintaining the internal state of worker type',

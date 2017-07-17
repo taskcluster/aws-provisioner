@@ -1,11 +1,11 @@
-TaskCluster AWS Provisioner
+Taskcluster AWS Provisioner
 ===========================
 
 [![Build Status](https://travis-ci.org/taskcluster/aws-provisioner.svg?branch=master)](https://travis-ci.org/taskcluster/taskcluster-aws-provisioner)
 *NOTE* Travis being green does not mean that we're good to deploy to production!
 
 The AWS Provisioner is responsible for starting Amazon EC2 instances to perform
-tasks in the TaskCluster queue.  It monitors queue lengths and uses spot
+tasks in the Taskcluster queue.  It monitors queue lengths and uses spot
 bidding to maximize the cost-effectiveness of its resources.
 
 Hacking AWS Provisioner
@@ -21,7 +21,7 @@ ask another developer for a copy of theirs.  The configuration should look
 something like that in ``user-config-example.yml``.
 
 You can create your own `pulse` credentials at https://pulseguardian.mozilla.org.
-You'll need to get the Azure configuration from another TaskCluster developer.
+You'll need to get the Azure configuration from another Taskcluster developer.
 The AWS user can be found in the shared notes in Lastpass.
 
 The unit test suite only covers the API of the provisioner.  Changes to the
