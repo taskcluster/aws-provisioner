@@ -338,6 +338,10 @@ class AwsManager {
     }
 
     await Promise.all(worker.regions.map(async r => {
+      if (!this.ec2[r.region]) {
+        // this region is not in cfg.app.allowedRegions
+        return;
+      }
       await Promise.all(worker.instanceTypes.map(async t => {
         let launchSpec = launchSpecs[r.region][t.instanceType].launchSpec;
 
