@@ -429,6 +429,25 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   }
   assert(foundRegion, 'Region for workertype not found');
 
+  // Find the AZ object, if any
+  let selectedAZ = {};
+  let foundAZ = false;
+  for (let r of worker.AZs || []) {
+    if (r.availabilityZone === bid.zone) {
+      // We want to make sure that we've not already found this AZ
+      if (foundAZ) {
+        throw new Error('AZ must be unique');
+      }
+      foundAZ = true;
+      selectedAZ.launchSpec = r.launchSpec || {};
+      selectedAZ.userData = r.userData || {};
+      selectedAZ.secrets = r.secrets || {};
+      selectedAZ.availabilityZone = r.availabilityZone;
+      // Remember that we need to have an ImageId
+      assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
+    }
+  }
+
   // Find the instanceType overwrites object, assert if type is not found
   let selectedInstanceType = {};
   let foundInstanceType = false;
@@ -489,6 +508,9 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   for (let x of ['launchSpec', 'userData', 'secrets']) {
     config[x] = lodash.cloneDeep(worker[x] || {});
     lodash.assign(config[x], selectedRegion[x]);
+    if (foundAZ) {
+      lodash.assign(config[x], selectedAZ[x]);
+    }
     lodash.assign(config[x], selectedInstanceType[x]);
   }
 
@@ -496,15 +518,17 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   config.launchSpec.KeyName = keyPairs.createKeyPairName(keyPrefix, pubKey, workerName);
   config.launchSpec.InstanceType = bid.type;
 
-  // We want to make sure that we overwrite the least that we need
-  // to, so we check if there's already an object and set the key
-  // in that case
-  if (!config.launchSpec.Placement) {
-    config.launchSpec.Placement = {
-      AvailabilityZone: bid.zone,
-    };
-  } else {
-    config.launchSpec.Placement.AvailabilityZone = bid.zone;
+  // Only set the placement if a SubnetId wasn't specified.  Placement only
+  // works for EC2-Classic, so for non-classic VPCs the SubnetId must be
+  // given explicitly
+  if (!config.launchSpec.SubnetId) {
+    if (!config.launchSpec.Placement) {
+      config.launchSpec.Placement = {
+        AvailabilityZone: bid.zone,
+      };
+    } else {
+      config.launchSpec.Placement.AvailabilityZone = bid.zone;
+    }
   }
 
   // Here are the minimum number of things which must be stored in UserData.

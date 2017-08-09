@@ -180,6 +180,34 @@ properties:
         - secrets
         - userData
         - scopes
+  availabilityZones:
+    type: array
+    items:
+      type: object
+      description: Availability zone configuration
+      properties:
+        availabilityZone:
+          type: string
+          description: |
+            The AWS availability zone being configured.  Example: eu-central-1b
+        launchSpec:
+          type: object
+          description: |
+            LaunchSpecification entries unique to this AZ
+        secrets:
+          type: object
+          description: |
+            Static Secrets unique to this AZ
+          default: {}
+        userData:
+          type: object
+          description: |
+            UserData entries unique to this AZ
+          default: {}
+      additionalProperties: false
+      required:
+        - availabilityZone
+        - launchSpec
 additionalProperties: false
 required:
   - launchSpec
