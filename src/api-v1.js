@@ -224,6 +224,7 @@ api.declare({
       'canUseSpot',
       'instanceTypes',
       'regions',
+      'availabilityZones',
     ].every((key) => {
       return _.isEqual(wType[key], input[key]);
     });

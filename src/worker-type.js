@@ -251,6 +251,40 @@ WorkerType = WorkerType.configure({
   context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
 });
 
+// add availabilityZones
+WorkerType = WorkerType.configure({
+  version: 5,
+  signEntities: true,
+  properties: {
+    // These fields are documented in previous versions of this entity
+    workerType: Entity.types.String,
+    minCapacity: Entity.types.Number,
+    maxCapacity: Entity.types.Number,
+    scalingRatio: Entity.types.Number,
+    minPrice: Entity.types.Number,
+    maxPrice: Entity.types.Number,
+    canUseOndemand: Entity.types.JSON,
+    canUseSpot: Entity.types.JSON,
+    instanceTypes: Entity.types.JSON,
+    regions: Entity.types.JSON,
+    lastModified: Entity.types.Date,
+    userData: Entity.types.JSON,
+    launchSpec: Entity.types.JSON,
+    secrets: Entity.types.EncryptedJSON,
+    scopes: Entity.types.JSON,
+    description: Entity.types.String,
+    owner: Entity.types.String,
+    /* This is a JSON object which contains AZ-specific information.
+     * Its shape matches the API schema. */
+    availabilityZones: Entity.types.JSON, // NEW
+  },
+  migrate: item => {
+    item.availabilityZones = [];
+    return item;
+  },
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+});
+
 /**
  * Create a workerType in the table.  The properties
  * should not have a workerType key since that will be
