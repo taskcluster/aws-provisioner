@@ -177,6 +177,10 @@ api.declare({
   let input = req.body;
   let workerType = req.params.workerType;
 
+  if (!input.availabilityZones) {
+    input.availabilityZones = [];
+  }
+
   input.lastModified = new Date();
 
   // Authenticate request with parameterized scope
@@ -283,6 +287,10 @@ api.declare({
   let workerType = req.params.workerType;
 
   let modDate = new Date();
+
+  if (!input.availabilityZones) {
+    input.availabilityZones = [];
+  }
 
   input.lastModified = modDate;
 
@@ -498,6 +506,7 @@ api.declare({
     secret = await this.Secret.create({
       token: token,
       workerType: input.workerType,
+      availabilityZones: [],
       secrets: input.secrets,
       scopes: input.scopes,
       expiration: new Date(input.expiration),

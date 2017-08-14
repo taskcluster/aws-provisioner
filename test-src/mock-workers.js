@@ -50,6 +50,7 @@ var baseWorkerType = {
       scopes: [],
     },
   ],
+  availabilityZones: [],
 };
 
 function makeRegion(overwrites) {
