@@ -80,21 +80,22 @@ function workerTypeSummary(workerType, workerState) {
   }
 
   let capacities = {};
+
   workerType.instanceTypes.forEach(instanceType => {
     capacities[instanceType.instanceType] = instanceType.capacity;
   });
 
-  workerState.instances.forEach(instance => {
-    if (instance.state === 'running') {
-      summary.runningCapacity += capacities[instance.type] || 0;
-    } else if (instance.state === 'pending') {
-      summary.pendingCapacity += capacities[instance.type] || 0;
-    } // note that other states are ignored
-  });
+  for (let resource of workerState.running) {
+    summary.runningCapacity += capacities[resource.instanceType] || 0;
+  }
 
-  workerState.requests.forEach(request => {
-    summary.requestedCapacity += capacities[request.type] || 0;
-  });
+  for (let resource of workerState.pending) {
+    if (resource.type === 'instance') {
+      summary.pendingCapacity += capacities[resource.instanceType] || 0;
+    } else {
+      summary.requestedCapacity += capacities[resource.instanceType] || 0;
+    }
+  }
 
   return summary;
 }
@@ -126,12 +127,8 @@ api.declare({
   let result = await Promise.all(workerTypes.map(async (workerType) => {
     let workerState;
     try {
-      workerState = await this.stateContainer.read(workerType.workerType);
-    } catch (err) {
-      if (err.code !== 'BlobNotFound') {
-        throw err;
-      }
-    }
+      workerState = await this.ec2manager.workerTypeStats(workerType.workerType);
+    } catch (err) { }
     return workerTypeSummary(workerType, workerState);
   }));
 
@@ -690,10 +687,6 @@ api.declare({
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
-  scopes: [
-    ['aws-provisioner:view-worker-type:<workerType>'],
-    ['aws-provisioner:manage-worker-type:<workerType>'],
-  ],
   deferAuth: true,
   stability:  API.stability.stable,
   description: [
@@ -705,10 +698,7 @@ api.declare({
 }, async function(req, res) {
   let workerType;
   let workerState;
-
-  if (!req.satisfies({workerType: req.params.workerType})) {
-    return;
-  }
+  let workerStats;
 
   try {
     workerType = await this.WorkerType.load({workerType: req.params.workerType});
@@ -723,76 +713,53 @@ api.declare({
   }
 
   try {
-    workerState = await this.stateContainer.read(workerType.workerType);
-  } catch (err) {
-    if (err.code !== 'BlobNotFound') {
-      throw err;
+    workerState = await this.ec2manager.workerTypeState(workerType.workerType);
+  } catch (err) { }
+  try {
+    workerStats = await this.ec2manager.workerTypeStats(workerType.workerType);
+  } catch (err) { }
+
+  let instances = [];
+  let requests = [];
+
+  // TODO: Anything which defaults to 'not-known' should be removed once the
+  // ec2-manager pr#16 is definitely live
+  if (workerState) {
+    for (let instance of workerState.instances) {
+      instances.push({
+        id: instance.id,
+        srId: instance.srid || '',
+        ami: instance.imageid || 'not-known',
+        type: instance.instancetype,
+        region: instance.region,
+        zone: instance.az || 'not-known',
+        state: instance.state,
+        launch: instance.launched || 'not-known',
+      });
+    }
+
+    for (let request of workerState.requests) {
+      requests.push({
+        id: request.id,
+        ami: request.imageid || 'not-known',
+        type: request.instancetype,
+        region: request.region,
+        zone: request.az || 'not-known',
+        time: request.created || 'not-known',
+        visibleToEC2Api: true,
+        status: request.status,
+        state: request.state,
+      });
     }
   }
 
   res.reply({
     workerType: workerType.workerType,
-    instances: workerState ? workerState.instances : [],
-    requests: workerState ? workerState.requests : [],
+    instances: instances,
+    requests: requests,
     // here for compatibility with the UI
     internalTrackedRequests: [],
-    summary: workerTypeSummary(workerType, workerState),
-  });
-});
-
-api.declare({
-  method: 'get',
-  route: '/new-state/:workerType',
-  name: 'newState',
-  title: 'Get AWS State for a worker type',
-  scopes: [
-    ['aws-provisioner:view-worker-type:<workerType>'],
-    ['aws-provisioner:manage-worker-type:<workerType>'],
-  ],
-  deferAuth: true,
-  stability:  API.stability.stable,
-  description: [
-    'Return the state of a given workertype as stored by the provisioner. ',
-    'This state is stored as three lists: 1 for running instances, 1 for',
-    'pending requests.  The `summary` property contains an updated summary',
-    'similar to that returned from `listWorkerTypeSummaries`.',
-  ].join('\n'),
-}, async function(req, res) {
-  let workerType;
-  let workerState;
-
-  if (!req.satisfies({workerType: req.params.workerType})) {
-    return;
-  }
-
-  try {
-    workerType = await this.WorkerType.load({workerType: req.params.workerType});
-  } catch (err) {
-    if (err.code === 'ResourceNotFound') {
-      res.status(404).json({
-        message: req.params.workerType + ' does not have any state information',
-      }).end();
-    } else {
-      throw err;
-    }
-  }
-
-  try {
-    let workerStateBlob = await this.stateNewContainer.load(workerType.workerType, true);
-    workerState = workerStateBlob.content;
-  } catch (err) {
-    if (err.code !== 'BlobNotFound') {
-      throw err;
-    }
-  }
-
-  res.reply({
-    workerType: workerType.workerType,
-    instances: workerState ? workerState.instances : [],
-    requests: workerState ? workerState.requests : [],
-    // here for compatibility with the UI
-    internalTrackedRequests: [],
-    summary: workerTypeSummary(workerType, workerState),
+    summary: workerTypeSummary(workerType, workerStats),
   });
 });
 

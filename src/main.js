@@ -17,7 +17,6 @@ let stats = require('taskcluster-lib-stats');
 let docs = require('taskcluster-lib-docs');
 let Iterate = require('taskcluster-lib-iterate');
 let azure = require('azure-storage');
-let DataContainer = require('azure-blob-storage-temp-fork').default;
 
 let workerType = require('./worker-type');
 let secret = require('./secret');
@@ -25,7 +24,6 @@ let AwsManager = require('./aws-manager');
 let provision = require('./provision');
 let exchanges = require('./exchanges');
 let v1 = require('./api-v1');
-let Container = require('./container');
 
 process.on('unhandledRejection', err => {
   log.fatal({err}, '[alert-operator] UNHANDLED REJECTION!');
@@ -40,35 +38,6 @@ let load = loader({
   cfg: {
     requires: ['profile'],
     setup: ({profile}) => config({profile}),
-  },
-
-  stateContainer: {
-    requires: ['cfg', 'profile'],
-    setup: async ({cfg, profile}) => {
-      // Azure Storage doesn't have promises, but we're using it in so few
-      // places it doesn't make sense to write a full promise wrapper.
-      // Instead, we'll just wrap as needed.
-      // TODO: Use ExponentialRetryPolicyFilter
-      let container = `worker-state-${profile}`;
-      return Container(cfg.azureBlob.accountName, cfg.azureBlob.accountKey, container);
-    },
-  },
-
-  stateNewContainer: {
-    requires: ['cfg', 'profile'],
-    setup: async ({cfg, profile}) => {
-      let container = `worker-state-${profile}`;
-      let schema = await fs.readFile(`${__dirname}/../schemas/state-definition.json`, 'utf8');
-      let schemaObj = JSON.parse(schema);
-      let options = {
-        account: cfg.azureBlob.accountName,
-        credentials: cfg.taskcluster.credentials,
-        container: container,
-        schema: schemaObj,
-      };
-      let dataContainer = await DataContainer(options);
-      return dataContainer;
-    },
   },
 
   monitor: {
@@ -194,9 +163,9 @@ let load = loader({
   },
 
   api: {
-    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'stateContainer', 'stateNewContainer', 'validator',
+    requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'validator', 'ec2manager',
       'publisher', 'monitor'],
-    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, stateContainer, stateNewContainer, validator,
+    setup: async ({cfg, awsManager, WorkerType, Secret, ec2, validator, ec2manager,
                    publisher, monitor}) => {
 
       let router = await v1.setup({
@@ -212,9 +181,8 @@ let load = loader({
           dmsApiKey: cfg.deadmanssnitch.api.key,
           iterationSnitch: cfg.deadmanssnitch.iterationSnitch,
           ec2: ec2,
-          stateContainer: stateContainer,
-          stateNewContainer: stateNewContainer,
           awsManager: awsManager,
+          ec2manager: ec2manager,
         },
         validator: validator,
         authBaseUrl: cfg.taskcluster.authBaseUrl,
@@ -291,8 +259,6 @@ let load = loader({
       'WorkerType',
       'Secret',
       'ec2',
-      'stateContainer',
-      'stateNewContainer',
       'monitor',
     ],
     setup: async ({
@@ -302,8 +268,6 @@ let load = loader({
       WorkerType,
       Secret,
       ec2,
-      stateContainer,
-      stateNewContainer,
       monitor,
     }) => {
       let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
@@ -316,8 +280,6 @@ let load = loader({
         taskcluster: cfg.taskcluster,
         awsManager: awsManager,
         ec2manager: ec2manager,
-        stateContainer: stateContainer,
-        stateNewContainer: stateNewContainer,
         monitor: monitor,
       });
 

@@ -431,48 +431,6 @@ class AwsManager {
   async killCapacityOfWorkerType(workerType, count, states) {
     throw new Error('This function is semi-deprecated');
   }
-
-  /**
-   * TODO: Write something that translates the EC2-Manager state stuff to this format
-   */
-  async stateForStorage(workerName) {
-    let instances = [];
-    let requests = [];
-    let allState = await this.ec2manager.workerTypeState(workerName);
-
-    for (let instance of allState.instances) {
-      instances.push({
-        id: instance.id,
-        srId: instance.srid || '',
-        ami: 'add-me',
-        type: instance.instancetype,
-        region: instance.region,
-        zone: 'add-me',
-        state: instance.state,
-        launch: 'add-me',
-      });
-    }
-
-    for (let request of allState.requests) {
-      requests.push({
-        id: request.id,
-        ami: 'add-me',
-        type: request.instancetype,
-        region: request.region,
-        zone: 'add-me',
-        time: 'add-me',
-        visibleToEC2Api: true,
-        status: request.status,
-        state: request.state,
-      });
-    }
-
-    return {
-      workerType: workerName,
-      instances,
-      requests,
-    };
-  }
 }
 
 AwsManager.runAWSRequest = runAWSRequest;
