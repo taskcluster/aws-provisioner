@@ -22,7 +22,6 @@ describe.only('provisioner worker type api', () => {
   workerTypeChanged.maxCapacity = 15;
 
   let WorkerType;
-  let stateContainer;
 
   let client;
 
@@ -49,14 +48,12 @@ describe.only('provisioner worker type api', () => {
 
   before(async () => {
     WorkerType = await main('WorkerType', {process: 'WorkerType', profile: 'test'});
-    stateContainer = await main('stateContainer', {process: 'stateContainer', profile: 'test'});
 
     client = helper.getClient();
   });
 
   beforeEach(async () => {
     await main('tableCleaner', {process: 'tableCleaner', profile: 'test'});
-    await stateContainer.remove(id);
   });
 
   it('should refuse to create worker with missing ami', async () => {
@@ -180,7 +177,6 @@ describe.only('provisioner worker type api', () => {
 
     it('should return a list of instances and a summary', async () => {
       await WorkerType.create(id, testWorkerType);
-      await stateContainer.write(id, testWorkerState);
 
       assume(await client.state(id)).to.deeply.equal({
         workerType: id,

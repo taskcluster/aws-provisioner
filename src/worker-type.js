@@ -692,7 +692,6 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     }
   }
   if (errors.length > 0) {
-    console.dir(errors);
     let err = new Error('Launch specifications are invalid');
     err.code = 'InvalidLaunchSpecifications';
     err.reasons = errors;

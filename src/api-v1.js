@@ -125,10 +125,7 @@ api.declare({
 
   // now gather worker state information for each one, in parallel
   let result = await Promise.all(workerTypes.map(async (workerType) => {
-    let workerState;
-    try {
-      workerState = await this.ec2manager.workerTypeStats(workerType.workerType);
-    } catch (err) { }
+    let workerState = await this.ec2manager.workerTypeStats(workerType.workerType);
     return workerTypeSummary(workerType, workerState);
   }));
 
@@ -441,7 +438,6 @@ api.declare({
   if (!req.satisfies({workerType: workerType})) { return undefined; }
 
   try {
-    await this.stateContainer.remove(workerType);
     await this.WorkerType.remove({workerType: workerType}, true);
     await that.publisher.workerTypeRemoved({
       workerType: workerType,
@@ -706,8 +702,6 @@ api.declare({
   ].join('\n'),
 }, async function(req, res) {
   let workerType;
-  let workerState;
-  let workerStats;
 
   try {
     workerType = await this.WorkerType.load({workerType: req.params.workerType});
@@ -721,40 +715,36 @@ api.declare({
     }
   }
 
-  try {
-    workerState = await this.ec2manager.workerTypeState(workerType.workerType);
-  } catch (err) { }
-  try {
-    workerStats = await this.ec2manager.workerTypeStats(workerType.workerType);
-  } catch (err) { }
+  let [workerState, workerStats] = await Promise.all([
+    this.ec2manager.workerTypeState(workerType.workerType),
+    this.ec2manager.workerTypeStats(workerType.workerType),
+  ]);
 
   let instances = [];
   let requests = [];
 
-  // TODO: Anything which defaults to 'not-known' should be removed once the
-  // ec2-manager pr#16 is definitely live
   if (workerState) {
     for (let instance of workerState.instances) {
       instances.push({
         id: instance.id,
-        srId: instance.srid || '',
-        ami: instance.imageid || 'not-known',
+        srId: instance.srid || 'ondemand',
+        ami: instance.imageid,
         type: instance.instancetype,
         region: instance.region,
-        zone: instance.az || 'not-known',
+        zone: instance.az,
         state: instance.state,
-        launch: instance.launched || 'not-known',
+        launch: instance.launched,
       });
     }
 
     for (let request of workerState.requests) {
       requests.push({
         id: request.id,
-        ami: request.imageid || 'not-known',
+        ami: request.imageid,
         type: request.instancetype,
         region: request.region,
-        zone: request.az || 'not-known',
-        time: request.created || 'not-known',
+        zone: request.az,
+        time: request.created,
         visibleToEC2Api: true,
         status: request.status,
         state: request.state,
