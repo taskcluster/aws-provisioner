@@ -14,7 +14,7 @@ var makeWorkerState = mock.makeWorkerState;
 var main = require('../lib/main');
 var helper = require('./helper');
 
-describe.only('provisioner worker type api', () => {
+describe('provisioner worker type api', () => {
 
   var id = slugid.nice();
   var workerTypeDefinition = makeWorkerType();
@@ -134,7 +134,7 @@ describe.only('provisioner worker type api', () => {
   });
 
   describe('listWorkerTypeSummaries()', () => {
-    it('should return calculated summary values for a defined workerType',
+    it.skip('should return calculated summary values for a defined workerType',
       async () => {
         await WorkerType.create(id, testWorkerType);
 
@@ -166,6 +166,7 @@ describe.only('provisioner worker type api', () => {
   });
 
   describe('state()', () => {
+    let stateClient;
     it('should return 404 for a nonexistent workerType', async () => {
       try {
         await client.state('no-such');
@@ -175,7 +176,7 @@ describe.only('provisioner worker type api', () => {
       }
     });
 
-    it('should return a list of instances and a summary', async () => {
+    it.skip('should return a list of instances and a summary', async () => {
       await WorkerType.create(id, testWorkerType);
 
       assume(await client.state(id)).to.deeply.equal({
