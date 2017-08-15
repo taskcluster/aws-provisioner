@@ -86,12 +86,12 @@ function workerTypeSummary(workerType, workerState) {
   });
 
   for (let resource of workerState.running) {
-    let change = capacities[resource.instanceType] * resource.count;
+    let change = (capacities[resource.instanceType] || 1) * resource.count;
     summary.runningCapacity += change;
   }
 
   for (let resource of workerState.pending) {
-    let change = capacities[resource.instanceType] * resource.count;
+    let change = (capacities[resource.instanceType] || 1) * resource.count;
     if (resource.type === 'instance') {
       summary.pendingCapacity += change;
     } else {
