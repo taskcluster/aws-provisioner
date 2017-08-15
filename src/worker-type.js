@@ -466,7 +466,8 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   // Find the AZ object, if any
   let selectedAZ = {};
   let foundAZ = false;
-  for (let r of worker.AZs || []) {
+  let availabilityZones = worker.availabilityZones || [];
+  for (let r of availabilityZones) {
     if (r.availabilityZone === bid.zone) {
       // We want to make sure that we've not already found this AZ
       if (foundAZ) {
@@ -477,10 +478,9 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
       selectedAZ.userData = r.userData || {};
       selectedAZ.secrets = r.secrets || {};
       selectedAZ.availabilityZone = r.availabilityZone;
-      // Remember that we need to have an ImageId
-      assert(r.launchSpec && r.launchSpec.ImageId, 'ImageId is required in region config');
     }
   }
+  assert(availabilityZones.length == 0 || foundAz, bid.zone + ' not found in worker.availabilityZones');
 
   // Find the instanceType overwrites object, assert if type is not found
   let selectedInstanceType = {};
