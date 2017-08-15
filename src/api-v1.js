@@ -86,14 +86,16 @@ function workerTypeSummary(workerType, workerState) {
   });
 
   for (let resource of workerState.running) {
-    summary.runningCapacity += capacities[resource.instanceType] || 0;
+    let change = capacities[resource.instanceType] * resource.count;
+    summary.runningCapacity += change;
   }
 
   for (let resource of workerState.pending) {
+    let change = capacities[resource.instanceType] * resource.count;
     if (resource.type === 'instance') {
-      summary.pendingCapacity += capacities[resource.instanceType] || 0;
+      summary.pendingCapacity += change;
     } else {
-      summary.requestedCapacity += capacities[resource.instanceType] || 0;
+      summary.requestedCapacity += change;
     }
   }
 
@@ -125,8 +127,8 @@ api.declare({
 
   // now gather worker state information for each one, in parallel
   let result = await Promise.all(workerTypes.map(async (workerType) => {
-    let workerState = await this.ec2manager.workerTypeStats(workerType.workerType);
-    return workerTypeSummary(workerType, workerState);
+    let workerStats = await this.ec2manager.workerTypeStats(workerType.workerType);
+    return workerTypeSummary(workerType, workerStats);
   }));
 
   return res.reply(result);
