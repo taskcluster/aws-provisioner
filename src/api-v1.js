@@ -298,12 +298,10 @@ api.declare({
   let launchInfo = await this.awsManager.workerTypeCanLaunch(workerForValidation, this.WorkerType);
   if (!launchInfo.canLaunch) {
     log.debug({launchInfo}, 'cannot launch this worker type submission');
-    return res.status(400).json({
-      message: 'Invalid workerType: ' + JSON.stringify(launchInfo.reasons.map(e => e.stack || e)),
-      error: {
-        reasons: launchInfo.reasons,
-      },
-    });
+    return res.reportError(
+        'InputError',
+        'Invalid workerType: ' + launchInfo.reasons.join('; '),
+        {reasons: launchInfo.reasons});
   }
 
   let wType = await this.WorkerType.load({workerType: workerType});

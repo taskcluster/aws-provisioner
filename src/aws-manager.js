@@ -333,7 +333,11 @@ class AwsManager {
       }
     } catch (err) {
       returnValue.canLaunch = false;
-      returnValue.reasons.push(err);
+      if (err.code === 'InvalidLaunchSpecifications') {
+        returnValue.reasons = err.reasons;
+      } else {
+        returnValue.reasons.push(err.toString());
+      }
       return returnValue;
     }
 
