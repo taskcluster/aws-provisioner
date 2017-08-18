@@ -480,7 +480,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
       selectedAZ.availabilityZone = az.availabilityZone;
     }
   }
-  assert(availabilityZones.length == 0 || foundAz, bid.zone + ' not found in worker.availabilityZones');
+  assert(availabilityZones.length == 0 || foundAZ, bid.zone + ' not found in worker.availabilityZones');
 
   // Find the instanceType overwrites object, assert if type is not found
   let selectedInstanceType = {};
