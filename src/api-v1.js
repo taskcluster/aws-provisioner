@@ -673,7 +673,7 @@ api.declare({
   let worker = await this.WorkerType.load({workerType: workerType});
   let outcome;
   try {
-    outcome = worker.testLaunchSpecs();
+    outcome = worker.testLaunchSpecs(this.awsManager);
   } catch (err) {
     outcome = [];
     if (err.reasons) {

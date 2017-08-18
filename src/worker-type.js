@@ -414,14 +414,15 @@ WorkerType.prototype.createLaunchSpec = function(bid) {
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.prototype.testLaunchSpecs = function() {
+WorkerType.prototype.testLaunchSpecs = function(awsManager) {
   return WorkerType.testLaunchSpecs(
       this,
       this.keyPrefix,
       this.provisionerId,
       this.provisionerBaseUrl,
       this.pubKey,
-      this.workerType);
+      this.workerType,
+      awsManager);
 };
 
 /**
@@ -655,7 +656,8 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
  * function will throw if there is an error found or will return
  * a dictionary of all the launch specs!
  */
-WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisionerBaseUrl, pubKey, workerName) {
+WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId,
+                                      provisionerBaseUrl, pubKey, workerName, awsManager) {
   assert(worker);
   assert(keyPrefix);
   assert(provisionerId);
@@ -667,27 +669,38 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
   for (let r of worker.regions) {
     let region = r.region;
     launchSpecs[region] = {};
-    for (let t of worker.instanceTypes) {
-      let type = t.instanceType;
-      try {
-        let bid = {
-          price: 1,
-          truePrice: 1,
-          region: region,
-          type: type,
-          zone: 'fakezone1',
-        };
-        let x = WorkerType.createLaunchSpec(
-            bid,
-            worker,
-            keyPrefix,
-            provisionerId,
-            provisionerBaseUrl,
-            pubKey,
-            workerName);
-        launchSpecs[region][type] = x;
-      } catch (e) {
-        errors.push(e.toString());
+
+    // look at all defined AZs in this region, per AWS
+    let availabilityZones = awsManager.availableAZ()[region];
+    if (!availabilityZones || !availabilityZones.length) {
+      errors.push(`AWS does not define AZ's for ${region}, or region not in ALLOWED_REGIONS`);
+      continue;
+    }
+
+    for (let az of availabilityZones) {
+      launchSpecs[region][az] = {};
+      for (let t of worker.instanceTypes) {
+        let type = t.instanceType;
+        try {
+          let bid = {
+            price: 1,
+            truePrice: 1,
+            region: region,
+            type: type,
+            zone: az,
+          };
+          let x = WorkerType.createLaunchSpec(
+              bid,
+              worker,
+              keyPrefix,
+              provisionerId,
+              provisionerBaseUrl,
+              pubKey,
+              workerName);
+          launchSpecs[region][az][type] = x;
+        } catch (e) {
+          errors.push(`${region}/${az}/${type}: ${e}`);
+        }
       }
     }
   }
