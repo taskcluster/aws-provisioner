@@ -687,7 +687,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
             workerName);
         launchSpecs[region][type] = x;
       } catch (e) {
-        errors.push(e);
+        errors.push(e.toString());
       }
     }
   }
