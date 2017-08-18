@@ -326,65 +326,77 @@ class AwsManager {
             this.provisionerId,
             'http://taskcluster.net/fake-provisioner-base-url',
             this.pubKey,
-            worker.workerType
+            worker.workerType,
+            this
         );
       } else {
-        launchSpecs = worker.testLaunchSpecs();
+        launchSpecs = worker.testLaunchSpecs(this);
       }
     } catch (err) {
       returnValue.canLaunch = false;
-      returnValue.reasons.push(err);
+      if (err.code === 'InvalidLaunchSpecifications') {
+        returnValue.reasons = err.reasons;
+      } else {
+        returnValue.reasons.push(err.toString());
+      }
       return returnValue;
     }
 
-    await Promise.all(worker.regions.map(async r => {
-      if (!this.ec2[r.region]) {
+    await Promise.all(Object.keys(launchSpecs).map(async r => {
+      if (!this.ec2[r]) {
         // this region is not in cfg.app.allowedRegions
         return;
       }
-      await Promise.all(worker.instanceTypes.map(async t => {
-        let launchSpec = launchSpecs[r.region][t.instanceType].launchSpec;
 
-        // Let's make sure that the AMI exists
-        let exists = await amiExists(this.ec2[r.region], launchSpec.ImageId);
-        if (!exists) {
-          returnValue.canLaunch = false;
-          returnValue.reasons.push(new Error(`${launchSpec.ImageId} not found in ${r.region}`));
-        }
+      await Promise.all(Object.keys(launchSpecs[r]).map(async az => {
 
-        // Now, let's do a DryRun on all the launch specs
-        try {
-          await runAWSRequest(this.ec2[r.region], 'requestSpotInstances', {
-            InstanceCount: 1,
-            DryRun: true,
-            Type: 'one-time',
-            LaunchSpecification: launchSpec,
-            SpotPrice: '0.1',
-            ClientToken: slugid.nice(),
-          });
-        } catch (err) {
-          if (err.code !== 'DryRunOperation') {
+        await Promise.all(worker.instanceTypes.map(async t => {
+          let launchSpec = launchSpecs[r][az][t.instanceType].launchSpec;
+
+          // Let's make sure that the AMI exists
+          let exists = await amiExists(this.ec2[r], launchSpec.ImageId);
+          if (!exists) {
             returnValue.canLaunch = false;
-            returnValue.reasons.push(err);
+            returnValue.reasons.push(new Error(`${launchSpec.ImageId} not found in ${r}`));
           }
+
+          // Now, let's do a DryRun on all the launch specs
+          try {
+            await runAWSRequest(this.ec2[r], 'requestSpotInstances', {
+              InstanceCount: 1,
+              DryRun: true,
+              Type: 'one-time',
+              LaunchSpecification: launchSpec,
+              SpotPrice: '0.1',
+              ClientToken: slugid.nice(),
+            });
+          } catch (err) {
+            if (err.code !== 'DryRunOperation') {
+              returnValue.canLaunch = false;
+              returnValue.reasons.push(`${az}/${t.instanceType}: ${err}`);
+            }
+          }
+        }));
+
+        /*
+        // TODO: security groups are per-VPC, so this check will need to incorporate SubnetId if given
+        let launchSpecsRegion = worker.instanceTypes.map(t => launchSpecs[r][az][t.instanceType].launchSpec);
+        let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups)));
+
+        let hasAllRequiredSG = await sgExists(this.ec2[r], allSGForRegion);
+        log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
+        if (!hasAllRequiredSG) {
+          returnValue.canLaunch = false;
+          let err = new Error('Missing one or more security groups');
+          err.requested = allSGForRegion;
+          returnValue.reasons.push(err);
+          log.warn({
+            region: r,
+            neededGroups: allSGForRegion,
+          }, 'missing security groups');
         }
+        */
       }));
-
-      let launchSpecsRegion = worker.instanceTypes.map(t => launchSpecs[r.region][t.instanceType].launchSpec);
-      let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups)));
-
-      let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
-      log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
-      if (!hasAllRequiredSG) {
-        returnValue.canLaunch = false;
-        let err = new Error('Missing one or more security groups');
-        err.requested = allSGForRegion;
-        returnValue.reasons.push(err);
-        log.warn({
-          region: r.region,
-          neededGroups: allSGForRegion,
-        }, 'missing security groups');
-      }
     }));
 
     if (returnValue.canLaunch) {
