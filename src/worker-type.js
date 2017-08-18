@@ -467,17 +467,17 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   let selectedAZ = {};
   let foundAZ = false;
   let availabilityZones = worker.availabilityZones || [];
-  for (let r of availabilityZones) {
-    if (r.availabilityZone === bid.zone) {
+  for (let az of availabilityZones) {
+    if (az.availabilityZone === bid.zone) {
       // We want to make sure that we've not already found this AZ
       if (foundAZ) {
         throw new Error('AZ must be unique');
       }
       foundAZ = true;
-      selectedAZ.launchSpec = r.launchSpec || {};
-      selectedAZ.userData = r.userData || {};
-      selectedAZ.secrets = r.secrets || {};
-      selectedAZ.availabilityZone = r.availabilityZone;
+      selectedAZ.launchSpec = az.launchSpec || {};
+      selectedAZ.userData = az.userData || {};
+      selectedAZ.secrets = az.secrets || {};
+      selectedAZ.availabilityZone = az.availabilityZone;
     }
   }
   assert(availabilityZones.length == 0 || foundAz, bid.zone + ' not found in worker.availabilityZones');
