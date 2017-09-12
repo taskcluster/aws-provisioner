@@ -606,6 +606,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   // These are the additional keys which *might* be specified
   let allowedKeys = mandatoryKeys.concat([
     'SecurityGroups',
+    'SecurityGroupIds',
     'AddressingType',
     'BlockDeviceMappings',
     'EbsOptimized',
