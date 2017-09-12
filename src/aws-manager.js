@@ -374,20 +374,23 @@ class AwsManager {
         }
       }));
 
+      // check security group names
       let launchSpecsRegion = worker.instanceTypes.map(t => launchSpecs[r.region][t.instanceType].launchSpec);
-      let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups)));
+      let allSGForRegion = _.uniq(_.flatten(launchSpecsRegion.map(spec => spec.SecurityGroups).filter(g => g)));
 
-      let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
-      log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
-      if (!hasAllRequiredSG) {
-        returnValue.canLaunch = false;
-        let err = new Error('Missing one or more security groups');
-        err.requested = allSGForRegion;
-        returnValue.reasons.push(err);
-        log.warn({
-          region: r.region,
-          neededGroups: allSGForRegion,
-        }, 'missing security groups');
+      if (allSGForRegion.length !== 0) {
+        let hasAllRequiredSG = await sgExists(this.ec2[r.region], allSGForRegion);
+        log.debug({allSGForRegion, hasAllRequiredSG}, 'security group check outcome');
+        if (!hasAllRequiredSG) {
+          returnValue.canLaunch = false;
+          let err = new Error('Missing one or more security groups');
+          err.requested = allSGForRegion;
+          returnValue.reasons.push(err);
+          log.warn({
+            region: r.region,
+            neededGroups: allSGForRegion,
+          }, 'missing security groups');
+        }
       }
     }));
 
