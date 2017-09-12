@@ -625,6 +625,11 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
     assert(_.includes(allowedKeys, key), 'Your launch spec has invalid key ' + key);
   }
 
+  // Can't use SecurityGroups with a SubnetId (non-default VPC)
+  if (config.launchSpec.SubnetId && config.launchSpec.SecurityGroups) {
+    throw new Error('cannot use SecurityGroup with SubnetId (use SecurityGroupIds');
+  }
+
   // These are keys which we do not allow in the generated launch spec
   let disallowedKeys = [
   ];
@@ -667,7 +672,7 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     for (let t of worker.instanceTypes) {
       let type = t.instanceType;
       let zones = worker.availabilityZones
-        .map(z => z.name)
+        .map(z => z.availabilityZone)
         .filter(n => n.startsWith(region));
       // if no zones are configured, fall back to the 'a' region
       if (zones.length === 0) {
