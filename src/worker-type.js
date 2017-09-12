@@ -552,17 +552,13 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   config.launchSpec.KeyName = keyPairs.createKeyPairName(keyPrefix, pubKey, workerName);
   config.launchSpec.InstanceType = bid.type;
 
-  // Only set the placement if a SubnetId wasn't specified.  Placement only
-  // works for EC2-Classic, so for non-classic VPCs the SubnetId must be
-  // given explicitly
-  if (!config.launchSpec.SubnetId) {
-    if (!config.launchSpec.Placement) {
-      config.launchSpec.Placement = {
-        AvailabilityZone: bid.zone,
-      };
-    } else {
-      config.launchSpec.Placement.AvailabilityZone = bid.zone;
-    }
+  // Set Placement.AvailabilityZone.
+  if (!config.launchSpec.Placement) {
+    config.launchSpec.Placement = {
+      AvailabilityZone: bid.zone,
+    };
+  } else {
+    config.launchSpec.Placement.AvailabilityZone = bid.zone;
   }
 
   // Here are the minimum number of things which must be stored in UserData.
