@@ -669,25 +669,34 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     launchSpecs[region] = {};
     for (let t of worker.instanceTypes) {
       let type = t.instanceType;
-      try {
-        let bid = {
-          price: 1,
-          truePrice: 1,
-          region: region,
-          type: type,
-          zone: 'fakezone1',
-        };
-        let x = WorkerType.createLaunchSpec(
-            bid,
-            worker,
-            keyPrefix,
-            provisionerId,
-            provisionerBaseUrl,
-            pubKey,
-            workerName);
-        launchSpecs[region][type] = x;
-      } catch (e) {
-        errors.push(e.toString());
+      let zones = worker.availabilityZones
+        .map(z => z.name)
+        .filter(n => n.startsWith(region));
+      // if no zones are configured, fall back to the 'a' region
+      if (zones.length === 0) {
+        zones = [region + 'a'];
+      }
+      for (let zone of zones) {
+        try {
+          let bid = {
+            price: 1,
+            truePrice: 1,
+            region: region,
+            type: type,
+            zone,
+          };
+          let x = WorkerType.createLaunchSpec(
+              bid,
+              worker,
+              keyPrefix,
+              provisionerId,
+              provisionerBaseUrl,
+              pubKey,
+              workerName);
+          launchSpecs[region][type] = x;
+        } catch (e) {
+          errors.push(e.toString());
+        }
       }
     }
   }
