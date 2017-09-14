@@ -480,7 +480,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
       selectedAZ.availabilityZone = az.availabilityZone;
     }
   }
-  assert(availabilityZones.length == 0 || foundAz, bid.zone + ' not found in worker.availabilityZones');
+  assert(availabilityZones.length == 0 || foundAZ, bid.zone + ' not found in worker.availabilityZones');
 
   // Find the instanceType overwrites object, assert if type is not found
   let selectedInstanceType = {};
@@ -552,17 +552,13 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   config.launchSpec.KeyName = keyPairs.createKeyPairName(keyPrefix, pubKey, workerName);
   config.launchSpec.InstanceType = bid.type;
 
-  // Only set the placement if a SubnetId wasn't specified.  Placement only
-  // works for EC2-Classic, so for non-classic VPCs the SubnetId must be
-  // given explicitly
-  if (!config.launchSpec.SubnetId) {
-    if (!config.launchSpec.Placement) {
-      config.launchSpec.Placement = {
-        AvailabilityZone: bid.zone,
-      };
-    } else {
-      config.launchSpec.Placement.AvailabilityZone = bid.zone;
-    }
+  // Set Placement.AvailabilityZone.
+  if (!config.launchSpec.Placement) {
+    config.launchSpec.Placement = {
+      AvailabilityZone: bid.zone,
+    };
+  } else {
+    config.launchSpec.Placement.AvailabilityZone = bid.zone;
   }
 
   // Here are the minimum number of things which must be stored in UserData.
@@ -610,6 +606,7 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   // These are the additional keys which *might* be specified
   let allowedKeys = mandatoryKeys.concat([
     'SecurityGroups',
+    'SecurityGroupIds',
     'AddressingType',
     'BlockDeviceMappings',
     'EbsOptimized',
@@ -626,6 +623,11 @@ WorkerType.createLaunchSpec = function(bid, worker, keyPrefix, provisionerId, pr
   // Now check that there are no unknown keys
   for (let key of Object.keys(config.launchSpec)) {
     assert(_.includes(allowedKeys, key), 'Your launch spec has invalid key ' + key);
+  }
+
+  // Can't use SecurityGroups with a SubnetId (non-default VPC)
+  if (config.launchSpec.SubnetId && config.launchSpec.SecurityGroups) {
+    throw new Error('cannot use SecurityGroup with SubnetId (use SecurityGroupIds');
   }
 
   // These are keys which we do not allow in the generated launch spec
@@ -669,25 +671,34 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     launchSpecs[region] = {};
     for (let t of worker.instanceTypes) {
       let type = t.instanceType;
-      try {
-        let bid = {
-          price: 1,
-          truePrice: 1,
-          region: region,
-          type: type,
-          zone: 'fakezone1',
-        };
-        let x = WorkerType.createLaunchSpec(
-            bid,
-            worker,
-            keyPrefix,
-            provisionerId,
-            provisionerBaseUrl,
-            pubKey,
-            workerName);
-        launchSpecs[region][type] = x;
-      } catch (e) {
-        errors.push(e);
+      let zones = worker.availabilityZones
+        .map(z => z.availabilityZone)
+        .filter(n => n.startsWith(region));
+      // if no zones are configured, fall back to the 'a' region
+      if (zones.length === 0) {
+        zones = [region + 'a'];
+      }
+      for (let zone of zones) {
+        try {
+          let bid = {
+            price: 1,
+            truePrice: 1,
+            region: region,
+            type: type,
+            zone,
+          };
+          let x = WorkerType.createLaunchSpec(
+              bid,
+              worker,
+              keyPrefix,
+              provisionerId,
+              provisionerBaseUrl,
+              pubKey,
+              workerName);
+          launchSpecs[region][type] = x;
+        } catch (e) {
+          errors.push(e.toString());
+        }
       }
     }
   }
