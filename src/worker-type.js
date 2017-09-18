@@ -672,8 +672,8 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     for (let t of worker.instanceTypes) {
       let type = t.instanceType;
       let zones = worker.availabilityZones
-        .map(z => z.availabilityZone)
-        .filter(n => n.startsWith(region));
+        .filter(z => z.region === region)
+        .map(z => z.availabilityZone);
       // if no zones are configured, fall back to the 'a' region
       if (zones.length === 0) {
         zones = [region + 'a'];
