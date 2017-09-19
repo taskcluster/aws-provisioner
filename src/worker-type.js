@@ -672,8 +672,8 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
     for (let t of worker.instanceTypes) {
       let type = t.instanceType;
       let zones = worker.availabilityZones
-        .map(z => z.availabilityZone)
-        .filter(n => n.startsWith(region));
+        .filter(z => z.region === region)
+        .map(z => z.availabilityZone);
       // if no zones are configured, fall back to the 'a' region
       if (zones.length === 0) {
         zones = [region + 'a'];
@@ -824,14 +824,31 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
         .filter(r => _.includes(managedRegions, r.region))
         .map(r => r.region);
 
+    let configuredAzs = {};
+    this.availabilityZones.forEach(az => {
+      if (az.region in configuredAzs) {
+        configuredAzs[az.region].push(az.availabilityZone);
+      } else {
+        configuredAzs[az.region] = [az.availabilityZone];
+      }
+    });
+
     let priceTrace = [];
 
     for (let region of regions) {
       for (let type of types) {
         let zones = [];
+
         if (pricingData[region] && pricingData[region][type]) {
           zones = Object.keys(pricingData[region][type]);
         }
+
+        // if we have AZ configuration, consider only the configured AZs
+        if (region in configuredAzs) {
+          const configured = configuredAzs[region];
+          zones = zones.filter(z => configured.includes(z));
+        }
+
         for (let zone of zones) {
           try {
             let potentialBid = pricingData[region][type][zone];

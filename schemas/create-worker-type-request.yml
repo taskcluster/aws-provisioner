@@ -190,6 +190,10 @@ properties:
           type: string
           description: |
             The AWS availability zone being configured.  Example: eu-central-1b
+        region:
+          type: string
+          description: |
+            The AWS region containing this availability zone.  Example: eu-central-1
         launchSpec:
           type: object
           description: |
@@ -206,6 +210,7 @@ properties:
           default: {}
       additionalProperties: false
       required:
+        - region
         - availabilityZone
         - launchSpec
 additionalProperties: false
