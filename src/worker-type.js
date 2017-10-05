@@ -913,6 +913,10 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     }
 
     if (!cheapestBid) {
+      log.error({
+        workerType: this.workerType,
+        priceTrace: priceTrace,
+      }, 'could not create any bid');
       throw new Error('Could not create any bid for ' + this.workerType);
     }
 
