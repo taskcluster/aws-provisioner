@@ -843,6 +843,14 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
           zones = Object.keys(pricingData[region][type]);
         }
 
+        if (this.workerType === 'gecko-t-linux-large') {
+          log.error({
+            workerType: this.workerType,
+            pricingData: pricingData[region][type],
+            region, type, zones
+          })
+        }
+
         // if we have AZ configuration, consider only the configured AZs
         if (region in configuredAzs) {
           const configured = configuredAzs[region];
