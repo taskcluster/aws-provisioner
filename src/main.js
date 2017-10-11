@@ -61,7 +61,7 @@ let load = loader({
         credentials: cfg.taskcluster.credentials,
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
-          provisionerId: cfg.app.id,
+          provisionerId: cfg.app.provisionerId,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
           pubKey: cfg.app.awsInstancePubkey,
         },
@@ -175,7 +175,7 @@ let load = loader({
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
           pubKey: cfg.app.awsInstancePubkey,
-          provisionerId: cfg.app.id,
+          provisionerId: cfg.app.provisionerId,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
           credentials: cfg.taskcluster.credentials,
           dmsApiKey: cfg.deadmanssnitch.api.key,
@@ -242,7 +242,7 @@ let load = loader({
     setup: ({cfg, ec2, monitor, ec2manager}) => {
       return new AwsManager(
         ec2,
-        cfg.app.id,
+        cfg.app.provisionerId,
         monitor.prefix('awsManager'),
         ec2manager,
         cfg.app.awsKeyPrefix,
@@ -276,7 +276,7 @@ let load = loader({
         WorkerType: WorkerType,
         Secret: Secret,
         queue: queue,
-        provisionerId: cfg.app.id,
+        provisionerId: cfg.app.provisionerId,
         taskcluster: cfg.taskcluster,
         awsManager: awsManager,
         ec2manager: ec2manager,
