@@ -46,7 +46,7 @@
     "sinon": "^2.1.0",
     "slugid": "^1.1.0",
     "source-map-support": "^0.4.14",
-    "taskcluster-client": "^2.3.0",
+    "taskcluster-client": "^2.5.4",
     "taskcluster-lib-api": "^3.2.2",
     "taskcluster-lib-app": "^1.0.0",
     "taskcluster-lib-docs": "^3.3.1",
