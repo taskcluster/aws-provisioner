@@ -8,6 +8,9 @@ defaults:
     describeSpotRequestDelay: !env:number DESCRIBE_SPOT_REQUEST_DELAY
     maxInstanceLife: '- 96 hours'
     provisionerId: !env PROVISIONER_ID
+    description: 'No description'
+    stability: 'experimental'
+    declareQueueMetadata: false
     workerTypeTableName: DevWorkerTypes2
     secretTableName: DevWorkerSecrets2
     workerStateTableName: DevWorkerState2
@@ -74,6 +77,11 @@ defaults:
 production:
   app:
     provisionerId: aws-provisioner-v1
+    description: |
+      The provisioner managing all EC2 instances for Taskcluster, for both Gecko-related
+      workerTypes and non-Gecko-related workertypes.
+    stability: 'stable'
+    declareQueueMetadata: true
     workerTypeTableName: WorkerTypes
     secretTableName: Secrets
     workerStateTableName: WorkerState
@@ -96,6 +104,10 @@ production:
 staging:
   app:
     provisionerId: staging-aws
+    description: |
+      Staging instance for the AWS provisioner. Not for production use.
+    stability: 'expiermental'
+    declareQueueMetadata: true
     workerTypeTableName: StagingWorkerTypes
     secretTableName: StagingSecrets
     workerStateTableName: StagingWorkerState

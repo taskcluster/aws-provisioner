@@ -5,6 +5,7 @@ let lodash = require('lodash');
 let util = require('util');
 let slugid = require('slugid');
 let keyPairs = require('./key-pairs');
+let taskcluster = require('taskcluster-client');
 let _ = require('lodash');
 
 const KEY_CONST = 'worker-type';
@@ -282,7 +283,7 @@ WorkerType = WorkerType.configure({
     item.availabilityZones = [];
     return item;
   },
-  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey', 'queue'],
 });
 
 /**
@@ -777,6 +778,18 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   // fits with the scalingRatio, to keep pending tasks around as a percentage
   // of the running capacity.
   return capacityChange;
+};
+
+WorkerType.prototype.declareWorkerType = function() {
+  // keep the worker around well over 24 hours, as we will likely re-declare
+  // at least that often
+  const expires = taskcluster.fromNow('36 hours');
+
+  return this.queue.declareWorkerType(this.provisionerId, this.workerType, {
+    stability: 'stable',
+    expires,
+    description: `${this.description}\n\nOwner: ${this.owner}`,
+  });
 };
 
 /**
