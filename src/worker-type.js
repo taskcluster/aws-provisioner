@@ -847,8 +847,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
           log.error({
             workerType: this.workerType,
             pricingData: pricingData[region][type],
-            region, type, zones
-          })
+            region, type, zones,
+          });
         }
 
         // if we have AZ configuration, consider only the configured AZs
