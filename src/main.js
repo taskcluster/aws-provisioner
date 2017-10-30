@@ -284,8 +284,8 @@ let load = loader({
       });
 
       let i = new Iterate({
-        maxIterationTime: 1000 * 60 * 15, // 15 minutes
-        watchDog: 1000 * 60 * 15, // 15 minutes
+        maxIterationTime: 60 * 15, // 15 minutes
+        watchDog: 60 * 15, // 15 minutes
         maxFailures: 10,
         waitTime: cfg.app.iterationInterval,
         dmsConfig: {
