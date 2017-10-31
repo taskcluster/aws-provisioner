@@ -243,7 +243,7 @@ api.declare({
     workerType: workerType,
   });
 
-  await workerType.declareWorkerType();
+  await wType.declareWorkerType();
 
   // There was a typo a while ago and it meant that the results from this
   // function weren't valid per the schema.  This shouldn't really be neeeded
@@ -321,7 +321,7 @@ api.declare({
     workerType: workerType,
   });
 
-  await workerType.declareWorkerType();
+  await wType.declareWorkerType();
 
   return res.reply(wType.json());
 });
