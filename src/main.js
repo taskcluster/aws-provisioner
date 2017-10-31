@@ -395,6 +395,7 @@ let load = loader({
           waitTime: day,
           monitor,
           handler: async (watchdog, state) => {
+            log.info(`declaring provisioner ${provisionerId} to queue`);
             await queue.declareProvisioner(cfg.app.provisionerId, {
               stability: cfg.app.stability,
               expires: taskcluster.fromNow('36 hours'),

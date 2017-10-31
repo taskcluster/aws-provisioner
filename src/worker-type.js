@@ -785,6 +785,7 @@ WorkerType.prototype.declareWorkerType = function() {
   // at least that often
   const expires = taskcluster.fromNow('36 hours');
 
+  log.info(`declaring workerType ${this.workerType} to queue`);
   return this.queue.declareWorkerType(this.provisionerId, this.workerType, {
     stability: 'stable',
     expires,
