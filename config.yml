@@ -106,7 +106,7 @@ staging:
     provisionerId: staging-aws
     description: |
       Staging instance for the AWS provisioner. Not for production use.
-    stability: 'expiermental'
+    stability: 'experimental'
     declareQueueMetadata: true
     workerTypeTableName: StagingWorkerTypes
     secretTableName: StagingSecrets
