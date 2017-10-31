@@ -111,7 +111,7 @@ staging:
     workerTypeTableName: StagingWorkerTypes
     secretTableName: StagingSecrets
     workerStateTableName: StagingWorkerState
-    publishMetaData: false
+    publishMetaData: true
     statsComponent: staging-aws
     awsKeyPrefix: "ec2-manager-staging:"
     describeInstanceDelay: 5000
