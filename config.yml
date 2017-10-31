@@ -2,7 +2,7 @@
 
 defaults:
   app:
-    publishMetaData: !env:bool PUBLISH_METADATA
+    publishQueueMetadata: !env:bool PUBLISH_METADATA
     iterationInterval: !env:number ITERATION_INTERVAL
     describeInstanceDelay: !env:number DESCRIBE_INSTANCE_DELAY
     describeSpotRequestDelay: !env:number DESCRIBE_SPOT_REQUEST_DELAY
@@ -85,7 +85,7 @@ production:
     workerTypeTableName: WorkerTypes
     secretTableName: Secrets
     workerStateTableName: WorkerState
-    publishMetaData: true
+    publishQueueMetadata: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
     allowedRegions: !env:list ALLOWED_REGIONS
@@ -111,7 +111,7 @@ staging:
     workerTypeTableName: StagingWorkerTypes
     secretTableName: StagingSecrets
     workerStateTableName: StagingWorkerState
-    publishMetaData: true
+    publishQueueMetadata: true
     statsComponent: staging-aws
     awsKeyPrefix: "ec2-manager-staging:"
     describeInstanceDelay: 5000
@@ -160,7 +160,7 @@ test:
     workerTypeTableName: TestWorkerTypes
     secretTableName: TestWorkerSecrets
     workerStateTableName: TestWorkerState
-    publishMetaData: false
+    publishQueueMetadata: false
     statsComponent: aws-provisioner-test
     awsKeyPrefix: "aws-provisioner-test-managed:"
     awsInstancePubkey: 'ssh-rsa fake-pubkey'
