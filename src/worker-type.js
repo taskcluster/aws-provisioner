@@ -5,6 +5,7 @@ let lodash = require('lodash');
 let util = require('util');
 let slugid = require('slugid');
 let keyPairs = require('./key-pairs');
+let taskcluster = require('taskcluster-client');
 let _ = require('lodash');
 
 const KEY_CONST = 'worker-type';
@@ -282,7 +283,7 @@ WorkerType = WorkerType.configure({
     item.availabilityZones = [];
     return item;
   },
-  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey'],
+  context: ['provisionerId', 'provisionerBaseUrl', 'keyPrefix', 'pubKey', 'queue'],
 });
 
 /**
@@ -779,6 +780,18 @@ WorkerType.prototype.determineCapacityChange = function(runningCapacity, pending
   return capacityChange;
 };
 
+WorkerType.prototype.declareWorkerType = function() {
+  // keep the worker around well over 24 hours, as we will likely re-declare
+  // at least that often
+  const expires = taskcluster.fromNow('36 hours');
+
+  return this.queue.declareWorkerType(this.provisionerId, this.workerType, {
+    stability: 'stable',
+    expires,
+    description: `${this.description}\n\nOwner: ${this.owner}`,
+  });
+};
+
 /**
  * Select region, instance type and spot bids based on the amount of capacity units needed.
  * The region is picked randomly to distribute load but in future we could do smart things
@@ -847,8 +860,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
           log.error({
             workerType: this.workerType,
             pricingData: pricingData[region][type],
-            region, type, zones
-          })
+            region, type, zones,
+          });
         }
 
         // if we have AZ configuration, consider only the configured AZs

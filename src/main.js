@@ -51,8 +51,8 @@ let load = loader({
   },
 
   WorkerType: {
-    requires: ['cfg'],
-    setup: async ({cfg}) => {
+    requires: ['cfg', 'queue'],
+    setup: async ({cfg, queue}) => {
       let WorkerType = workerType.setup({
         account: cfg.azure.account,
         table: cfg.app.workerTypeTableName,
@@ -61,9 +61,10 @@ let load = loader({
         credentials: cfg.taskcluster.credentials,
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
-          provisionerId: cfg.app.id,
+          provisionerId: cfg.app.provisionerId,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
           pubKey: cfg.app.awsInstancePubkey,
+          queue,
         },
       });
       return WorkerType;
@@ -117,6 +118,11 @@ let load = loader({
         ],
       });
     },
+  },
+
+  queue: {
+    requires: ['cfg'],
+    setup: async ({cfg}) => new taskcluster.Queue({credentials: cfg.taskcluster.credentials}),
   },
 
   publisher: {
@@ -175,7 +181,7 @@ let load = loader({
           publisher: publisher,
           keyPrefix: cfg.app.awsKeyPrefix,
           pubKey: cfg.app.awsInstancePubkey,
-          provisionerId: cfg.app.id,
+          provisionerId: cfg.app.provisionerId,
           provisionerBaseUrl: cfg.server.publicUrl + '/v1',
           credentials: cfg.taskcluster.credentials,
           dmsApiKey: cfg.deadmanssnitch.api.key,
@@ -242,7 +248,7 @@ let load = loader({
     setup: ({cfg, ec2, monitor, ec2manager}) => {
       return new AwsManager(
         ec2,
-        cfg.app.id,
+        cfg.app.provisionerId,
         monitor.prefix('awsManager'),
         ec2manager,
         cfg.app.awsKeyPrefix,
@@ -260,6 +266,7 @@ let load = loader({
       'Secret',
       'ec2',
       'monitor',
+      'queue',
     ],
     setup: async ({
       cfg,
@@ -269,14 +276,13 @@ let load = loader({
       Secret,
       ec2,
       monitor,
+      queue,
     }) => {
-      let queue = new taskcluster.Queue({credentials: cfg.taskcluster.credentials});
-
       let provisioner = new provision.Provisioner({
         WorkerType: WorkerType,
         Secret: Secret,
         queue: queue,
-        provisionerId: cfg.app.id,
+        provisionerId: cfg.app.provisionerId,
         taskcluster: cfg.taskcluster,
         awsManager: awsManager,
         ec2manager: ec2manager,
@@ -378,9 +384,37 @@ let load = loader({
     },
   },
 
+  declare: {
+    requires: ['cfg', 'provisioner', 'server', 'queue', 'WorkerType', 'monitor'],
+    setup: async ({cfg, provisioner, server, queue, WorkerType, monitor}) => {
+      if (cfg.app.publishQueueMetadata) {
+        const day = 24 * 60 * 60;
+        let i = new Iterate({
+          maxIterationTime: day,
+          watchDog: day,
+          waitTime: day,
+          monitor,
+          handler: async (watchdog, state) => {
+            await queue.declareProvisioner(cfg.app.provisionerId, {
+              stability: cfg.app.stability,
+              expires: taskcluster.fromNow('36 hours'),
+              description: cfg.app.description,
+            });
+
+            await WorkerType.scan({}, {
+              handler: wt => wt.declareWorkerType(),
+            });
+          },
+        });
+
+        i.start();
+      }
+    },
+  },
+
   all: {
-    requires: ['provisioner', 'server'],
-    setup: async ({provisioner, server}) => {
+    requires: ['provisioner', 'server', 'declare'],
+    setup: async ({provisioner, server, declare}) => {
       await Promise.race([provisioner, server]);
     },
   },

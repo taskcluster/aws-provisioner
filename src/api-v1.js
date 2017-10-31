@@ -243,6 +243,8 @@ api.declare({
     workerType: workerType,
   });
 
+  await workerType.declareWorkerType();
+
   // There was a typo a while ago and it meant that the results from this
   // function weren't valid per the schema.  This shouldn't really be neeeded
   // anymore, but left in because it's harmless and there might still be an
@@ -318,6 +320,8 @@ api.declare({
   await this.publisher.workerTypeUpdated({
     workerType: workerType,
   });
+
+  await workerType.declareWorkerType();
 
   return res.reply(wType.json());
 });
