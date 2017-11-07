@@ -400,6 +400,13 @@ let load = loader({
               stability: cfg.app.stability,
               expires: taskcluster.fromNow('36 hours'),
               description: cfg.app.description,
+              actions: [{
+                name: 'kill',
+                title: 'Kill',
+                context: 'worker',
+                url: 'https://aws-provisioner.taskcluster.net/v1/killWorker',
+                description: 'Terminate an EC2 instance.',
+              }],
             });
 
             await WorkerType.scan({}, {
