@@ -414,6 +414,45 @@ api.declare({
 });
 
 api.declare({
+  method:     'delete',
+  route:      '/killWorker',
+  // actions with context=worker will a query of the form ?provisionerId=...&workerType=...&workerGroup=...&workerId=...
+  // https://docs.taskcluster.net/reference/platform/taskcluster-queue/docs/actions#context
+  query: {
+    provisionerId: /./,
+    workerType: /./,
+    workerGroup: /./,
+    workerId: /./,
+  },
+  name:       'killWorker',
+  scopes: [['aws-provisioner:kill-worker:<provisionerId>/<workerType>/<workerGroup>/<workerId>']],
+  input:      undefined,
+  output:     undefined,
+  title:      'Kill a Worker',
+  stability:  API.stability.experimental,
+  description: [
+    'Kill an AWS worker by supplying a query with its region (workerGroup) and instanceId (workerId).',
+  ].join('\n'),
+}, async function(req, res) {
+  const {workerGroup, workerId} = req.query;
+
+  if (!workerGroup || !workerId) {
+    res.status(400).end();
+  }
+
+  try {
+    await this.ec2manager.terminateInstance(workerGroup, workerId);
+    res.status(204).end();
+  } catch (err) {
+    if (err.code === 'ResourceNotFound') {
+      res.status(204).end();
+    } else {
+      throw err;
+    }
+  }
+});
+
+api.declare({
   method: 'delete',
   route: '/worker-type/:workerType',
   name: 'removeWorkerType',
