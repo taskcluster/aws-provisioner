@@ -404,7 +404,7 @@ let load = loader({
                 name: 'kill',
                 title: 'Kill',
                 context: 'worker',
-                url: 'https://aws-provisioner.taskcluster.net/v1/killWorker',
+                url: 'https://ec2-manager.taskcluster.net/v1/region/:workerGroup/instance/:workerId',
                 description: 'Terminate an EC2 instance.',
               }],
             });
