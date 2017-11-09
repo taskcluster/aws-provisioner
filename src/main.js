@@ -400,6 +400,14 @@ let load = loader({
               stability: cfg.app.stability,
               expires: taskcluster.fromNow('36 hours'),
               description: cfg.app.description,
+              actions: [{
+                name: 'kill',
+                title: 'Kill',
+                context: 'worker',
+                url: `${cfg.ec2manager.baseUrl}/region/<workerGroup>/instance/<workerId>`,
+                method: 'DELETE',
+                description: 'Terminate an EC2 instance.',
+              }],
             });
 
             await WorkerType.scan({}, {
