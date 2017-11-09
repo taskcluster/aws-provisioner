@@ -405,6 +405,7 @@ let load = loader({
                 title: 'Kill',
                 context: 'worker',
                 url: `${cfg.ec2manager.baseUrl}/region/<workerGroup>/instance/<workerId>`,
+                method: 'DELETE',
                 description: 'Terminate an EC2 instance.',
               }],
             });
