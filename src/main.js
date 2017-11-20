@@ -402,7 +402,7 @@ let load = loader({
               description: cfg.app.description,
               actions: [{
                 name: 'kill',
-                title: 'Kill',
+                title: 'Terminate',
                 context: 'worker',
                 url: `${cfg.ec2manager.baseUrl}/region/<workerGroup>/instance/<workerId>`,
                 method: 'DELETE',
