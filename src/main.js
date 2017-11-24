@@ -97,26 +97,29 @@ let load = loader({
 
   docs: {
     requires: ['cfg', 'validator'],
-    setup: ({cfg, validator}) => {
-      let reference = exchanges.reference({
-        exchangePrefix:   cfg.app.exchangePrefix,
-        credentials:      cfg.pulse,
-      });
-      return docs.documenter({
-        credentials: cfg.taskcluster.credentials,
-        tier: 'integrations',
-        schemas: validator.schemas,
-        project: 'aws-provisioner',
-        references: [
-          {
-            name: 'api',
-            reference: v1.reference({baseUrl: cfg.server.publicUrl + '/v1'}),
-          }, {
-            name: 'events',
-            reference: reference,
-          },
-        ],
-      });
+    setup: async ({cfg, validator}) => {
+      if (cfg.app.publishMetaData) {
+        let reference = exchanges.reference({
+          exchangePrefix:   cfg.app.exchangePrefix,
+          credentials:      cfg.pulse,
+        });
+        return docs.documenter({
+          credentials: cfg.taskcluster.credentials,
+          tier: 'integrations',
+          schemas: validator.schemas,
+          project: 'aws-provisioner',
+          references: [
+            {
+              name: 'api',
+              reference: v1.reference({baseUrl: cfg.server.publicUrl + '/v1'}),
+            }, {
+              name: 'events',
+              reference: reference,
+            },
+          ],
+        });
+      }
+      return Promise.resolve();
     },
   },
 

@@ -86,6 +86,7 @@ production:
     secretTableName: Secrets
     workerStateTableName: WorkerState
     publishQueueMetadata: true
+    publishMetaData: true
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
     allowedRegions: !env:list ALLOWED_REGIONS
