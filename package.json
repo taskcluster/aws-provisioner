@@ -23,7 +23,6 @@
   "dependencies": {
     "assume": "^1.5.0",
     "aws-sdk": "^2.41.0",
-    "azure-blob-storage-temp-fork": "^1.0.4",
     "azure-entities": "^2.0.0",
     "azure-storage": "^2.1.0",
     "babel-compile": "^2.0.0",
