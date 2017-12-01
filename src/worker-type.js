@@ -900,7 +900,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     }
 
     // pick a random zone to bid into
-    let {cheapestPrice, cheapestRegion, cheapestType, cheapestZone, cheapeastBid} = _.sample(bidOptions);
+    let {cheapestPrice, cheapestRegion, cheapestType, cheapestZone, cheapestBid} = _.sample(bidOptions);
 
     if (cheapestPrice < this.minPrice) {
       let oldCheapestBid = cheapestBid;
