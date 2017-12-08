@@ -142,7 +142,15 @@ class Provisioner {
     let workerTypes;
     workerTypes = await this.WorkerType.loadAll();
     log.info('loaded worker types');
-    await this.awsManager.update();
+    let instanceTypes = [];
+    for (let w of workerTypes) {
+      for (let t of w.instanceTypes) {
+        if (!instanceTypes.includes(t.instanceType)) {
+          instanceTypes.push(t.instanceType);
+        }
+      }
+    }
+    await this.awsManager.update(instanceTypes);
     log.info('updated aws state');
 
     let workerNames = workerTypes.map(w => w.workerType);

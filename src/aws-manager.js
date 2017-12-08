@@ -211,10 +211,10 @@ class AwsManager {
   /**
    * Update the state from the AWS API
    */
-  async update() {
+  async update(instanceTypes) {
     // We want to fetch the last 30 minutes of pricing data
     let pricingStartDate = new Date();
-    pricingStartDate.setMinutes(pricingStartDate.getMinutes() - 30);
+    pricingStartDate.setHours(pricingStartDate.getHours() - 4);
 
     let availableAZ = {};
     let allPricingHistory = {};
@@ -232,19 +232,59 @@ class AwsManager {
         ],
       });
       availableAZ[region] = rawAZData.AvailabilityZones.map(x => x.ZoneName);
+      let availAZ = availableAZ[region];
 
-      // Raw pricing data
-      let rawPricingData = await runAWSRequest(ec2, 'describeSpotPriceHistory', {
-        StartTime: pricingStartDate,
-        Filters: [
-          {
-            Name: 'product-description',
-            Values: ['Linux/UNIX'],
-          },
-        ],
-      });
+      // We need to accumulate the maximum prices for this region
+      let maxPrices = {}
 
-      allPricingHistory[region] = this._findMaxPrices(rawPricingData, availableAZ[region]);
+      let res;
+
+      // We're going to request and process all the prices we need.  Remember
+      // that there's a continuation token involved here
+      do {
+        // Raw pricing data
+        let params = {
+          StartTime: pricingStartDate,
+          Filters: [
+            {
+              Name: 'product-description',
+              Values: ['Linux/UNIX'],
+            },
+          ],
+        };
+
+        if (res && res.NextToken) {
+          params.NextToken = res.NextToken;
+        }
+        
+        if (instanceTypes) {
+          params.InstanceTypes = instanceTypes
+        }
+
+        console.log("Fetching pricing history:")
+        console.dir(params)
+
+        res = await runAWSRequest(ec2, 'describeSpotPriceHistory', params);
+
+        for (let pricePoint of res.SpotPriceHistory) {
+          let type = pricePoint.InstanceType;
+          let price = parseFloat(pricePoint.SpotPrice, 10);
+          let zone = pricePoint.AvailabilityZone;
+
+          // Remember that we only want to consider available zones
+          if (_.includes(availAZ, zone)) {
+            if (!maxPrices[type]) {
+              maxPrices[type] = {};
+            }
+            if (!maxPrices[type][zone] || maxPrices[type][zone] < price) {
+              maxPrices[type][zone] = price;
+              console.log(`Found max price for ${region}/${type}/${zone} of ${price}`);
+            }
+          }
+        }
+      } while (res.NextToken)
+
+      allPricingHistory[region] = maxPrices;
     }));
     log.info('finished pricing update for all regions');
 
@@ -268,34 +308,6 @@ class AwsManager {
    */
   availableAZ() {
     return this.__availableAZ;
-  }
-
-  /**
-   * Find the maximum price for each instance type in each availabilty zone.
-   * We find the maximum, not average price intentionally as the average is a
-   * poor metric in this case from experience
-   */
-  _findMaxPrices(res, zones) {
-    // type -> zone
-    let pricing = {};
-
-    for (let pricePoint of res.SpotPriceHistory) {
-      let type = pricePoint.InstanceType;
-      let price = parseFloat(pricePoint.SpotPrice, 10);
-      let zone = pricePoint.AvailabilityZone;
-
-      // Remember that we only want to consider available zones
-      if (_.includes(zones, zone)) {
-        if (!pricing[type]) {
-          pricing[type] = {};
-        }
-        if (!pricing[type][zone] || pricing[type][zone] < price) {
-          pricing[type][zone] = price;
-        }
-      }
-    }
-
-    return pricing;
   }
 
   /**
