@@ -815,12 +815,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
   /* eslint-disable no-loop-func */
   while (change > 0) {
-    let cheapestType;
-    let cheapestRegion;
-    let cheapestZone;
-    let cheapestPrice;
-    let cheapestBid;
-
     // Utility Factors, by instance type
     let uf = {};
 
@@ -906,12 +900,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     }
 
     // pick a random zone to bid into
-    let cheapest = _.sample(bidOptions);
-    cheapestPrice = cheapest.cheapestPrice;
-    cheapestRegion = cheapest.cheapestRegion;
-    cheapestType = cheapest.cheapestType;
-    cheapestZone = cheapest.cheapestZone;
-    cheapestBid = cheapest.cheapestBid;
+    let {cheapestPrice, cheapestRegion, cheapestType, cheapestZone, cheapestBid} = _.sample(bidOptions);
 
     if (cheapestPrice < this.minPrice) {
       let oldCheapestBid = cheapestBid;
