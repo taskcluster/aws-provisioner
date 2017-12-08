@@ -849,7 +849,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
 
     let priceTrace = [];
 
-    let bidOptions = [];
     for (let region of regions) {
       for (let type of types) {
         let zones = [];
@@ -878,13 +877,51 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             let potentialPrice = potentialBid / uf[type];
             assert(typeof potentialBid === 'number');
             assert(typeof potentialPrice === 'number');
-            bidOptions.push({
-              cheapestPrice: potentialPrice,
-              cheapestRegion: region,
-              cheapestType: type,
-              cheapestZone: zone,
-              cheapestBid: Math.ceil(potentialBid * 2 * 1000000) / 1000000,
-            });
+            if (!cheapestPrice) {
+              // If we don't already have a cheapest price, that means we
+              // should just take the first one we see
+              priceTrace.push({
+                outcome: 'first-possibility',
+                action: 'selected',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+              });
+              cheapestPrice = potentialPrice;
+              cheapestRegion = region;
+              cheapestType = type;
+              cheapestZone = zone;
+              cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+            } else if (potentialPrice < cheapestPrice) {
+              // If we find that we have a cheaper option, let's switch to it
+              priceTrace.push({
+                outcome: 'cheaper',
+                action: 'selected',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+              });
+              cheapestPrice = potentialPrice;
+              cheapestRegion = region;
+              cheapestType = type;
+              cheapestZone = zone;
+              cheapestBid = Math.ceil(potentialBid * 2 * 1000000) / 1000000;
+            } else {
+              // If we're cheaper here, we'll ignore this option.
+              priceTrace.push({
+                outcome: 'more-expensive',
+                action: 'ignored',
+                region,
+                zone,
+                type,
+                price: potentialPrice,
+                bid: potentialBid,
+              });
+            }
           } catch (err) {
             console.log(err);
             console.dir(pricingData);
@@ -897,21 +934,13 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
       }
     }
 
-    if (!bidOptions.length) {
+    if (!cheapestBid) {
       log.error({
         workerType: this.workerType,
         priceTrace: priceTrace,
       }, 'could not create any bid');
       throw new Error('Could not create any bid for ' + this.workerType);
     }
-
-    // pick a random zone to bid into
-    let cheapest = _.sample(bidOptions);
-    cheapestPrice = cheapest.cheapestPrice;
-    cheapestRegion = cheapest.cheapestRegion;
-    cheapestType = cheapest.cheapestType;
-    cheapestZone = cheapest.cheapestZone;
-    cheapestBid = cheapest.cheapestBid;
 
     if (cheapestPrice < this.minPrice) {
       let oldCheapestBid = cheapestBid;
