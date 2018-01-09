@@ -303,11 +303,12 @@ class Provisioner {
     let clientToken = slugid.nice();
     
     try {
-      let spotRequest = await this.ec2manager.requestSpotInstance(workerType.workerType, {
+      let spotRequest = await this.ec2manager.runInstance(workerType.workerType, {
         ClientToken: clientToken,
         Region: bid.region,
+        RequestType: 'spot',
         SpotPrice: bid.price,
-        LaunchSpecification: launchInfo.launchSpec,
+        LaunchInfo: launchInfo.launchSpec,
       });
       spawnLog.info('submitted spot request'); 
     } catch (err) {

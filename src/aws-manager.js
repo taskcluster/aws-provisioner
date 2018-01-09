@@ -357,6 +357,8 @@ class AwsManager {
         }
 
         // Now, let's do a DryRun on all the launch specs
+        /* DISABLED TEMPORARILY!
+         * We're getting a lot of throttling on this api, so let's avoid touching it where possible.
         try {
           await runAWSRequest(this.ec2[r.region], 'requestSpotInstances', {
             InstanceCount: 1,
@@ -372,6 +374,7 @@ class AwsManager {
             returnValue.reasons.push(err);
           }
         }
+        */
       }));
 
       // check security group names
