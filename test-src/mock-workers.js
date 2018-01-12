@@ -1,4 +1,5 @@
 var _ = require('lodash');
+var wt = require('../lib/worker-type');
 
 var baseWorkerType = {
   launchSpec: {
@@ -52,6 +53,11 @@ var baseWorkerType = {
   ],
   availabilityZones: [],
 };
+
+// Copy WorkerType methods to our mock object
+_.forEach(wt.prototype, (fn, fname) => {
+  baseWorkerType[fname] = fn;
+});
 
 function makeRegion(overwrites) {
   return _.defaults(overwrites || {}, {
