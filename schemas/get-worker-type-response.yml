@@ -154,6 +154,7 @@ properties:
             The Amazon AWS Region being configured.  Example: us-west-1
         launchSpec:
           type: object
+          additionalProperties: true
           description: |
             LaunchSpecification entries unique to this Region
           properties:
