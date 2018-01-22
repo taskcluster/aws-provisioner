@@ -149,6 +149,7 @@ properties:
             - eu-central-1
         launchSpec:
           type: object
+          additionalProperties: true
           description: |
             LaunchSpecification entries unique to this Region
           properties:
