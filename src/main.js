@@ -175,7 +175,7 @@ let load = loader({
     requires: ['cfg', 'awsManager', 'WorkerType', 'Secret', 'ec2', 'validator', 'ec2manager',
       'publisher', 'monitor'],
     setup: async ({cfg, awsManager, WorkerType, Secret, ec2, validator, ec2manager,
-                   publisher, monitor}) => {
+      publisher, monitor}) => {
 
       let router = await v1.setup({
         context: {

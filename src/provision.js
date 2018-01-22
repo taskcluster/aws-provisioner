@@ -182,9 +182,9 @@ class Provisioner {
 
         if (change > 0) {
           let bids = worker.determineSpotBids(
-              _.keys(this.awsManager.ec2),
-              this.awsManager.__pricing,
-              change);
+            _.keys(this.awsManager.ec2),
+            this.awsManager.__pricing,
+            change);
           for (let bid of bids) {
             forSpawning.push({workerType: worker, bid: bid});
           }
@@ -231,7 +231,7 @@ class Provisioner {
     log.info('starting to submit spot requests');
     log.trace({byRegion}, 'byRegion');
 
-    await Promise.all(_.map(byRegion, async(toSpawn, region) => {
+    await Promise.all(_.map(byRegion, async (toSpawn, region) => {
       let rLog = log.child({region});
       rLog.info('starting to submit spot requests in region');
       let beforeOrderingLength = byRegion[region].length;

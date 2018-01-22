@@ -321,12 +321,12 @@ class AwsManager {
       // method rather than the non-existing instance method
       if (WorkerType) {
         launchSpecs = WorkerType.testLaunchSpecs(
-            worker,
-            this.keyPrefix,
-            this.provisionerId,
-            'http://taskcluster.net/fake-provisioner-base-url',
-            this.pubKey,
-            worker.workerType
+          worker,
+          this.keyPrefix,
+          this.provisionerId,
+          'http://taskcluster.net/fake-provisioner-base-url',
+          this.pubKey,
+          worker.workerType
         );
       } else {
         launchSpecs = worker.testLaunchSpecs();

@@ -407,7 +407,7 @@ WorkerType.prototype.capacityOfType = function(instanceType) {
 WorkerType.prototype.createLaunchSpec = function(bid) {
   assert(bid);
   return WorkerType.createLaunchSpec(bid,
-      this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl, this.pubKey, this.workerType);
+    this, this.keyPrefix, this.provisionerId, this.provisionerBaseUrl, this.pubKey, this.workerType);
 };
 
 /**
@@ -417,12 +417,12 @@ WorkerType.prototype.createLaunchSpec = function(bid) {
  */
 WorkerType.prototype.testLaunchSpecs = function() {
   return WorkerType.testLaunchSpecs(
-      this,
-      this.keyPrefix,
-      this.provisionerId,
-      this.provisionerBaseUrl,
-      this.pubKey,
-      this.workerType);
+    this,
+    this.keyPrefix,
+    this.provisionerId,
+    this.provisionerBaseUrl,
+    this.pubKey,
+    this.workerType);
 };
 
 /**
@@ -689,13 +689,13 @@ WorkerType.testLaunchSpecs = function(worker, keyPrefix, provisionerId, provisio
             zone,
           };
           let x = WorkerType.createLaunchSpec(
-              bid,
-              worker,
-              keyPrefix,
-              provisionerId,
-              provisionerBaseUrl,
-              pubKey,
-              workerName);
+            bid,
+            worker,
+            keyPrefix,
+            provisionerId,
+            provisionerBaseUrl,
+            pubKey,
+            workerName);
           launchSpecs[region][type] = x;
         } catch (e) {
           errors.push(e.toString());
@@ -835,8 +835,8 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
     // which this worker type is configured for and that the
     // provisioner is configured for
     let regions = this.regions
-        .filter(r => _.includes(managedRegions, r.region))
-        .map(r => r.region);
+      .filter(r => _.includes(managedRegions, r.region))
+      .map(r => r.region);
 
     let configuredAzs = {};
     this.availabilityZones.forEach(az => {
