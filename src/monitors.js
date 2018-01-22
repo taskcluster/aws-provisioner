@@ -2,7 +2,7 @@
 module.exports = {};
 
 module.exports.lag = (monitor, provisionerId, region, az,
-                      instanceType, workerType, id, didShow, lag) => {
+  instanceType, workerType, id, didShow, lag) => {
   monitor.measure(`${region}.lag`, lag);
   monitor.measure(`${region}.${az}.${instanceType}.lag`, lag);
   if (didShow) {
@@ -15,7 +15,7 @@ module.exports.lag = (monitor, provisionerId, region, az,
 };
 
 module.exports.spotRequestSubmitted = (monitor, provisionerId,
-                                       region, az, instanceType, workerType, id, bid) => {
+  region, az, instanceType, workerType, id, bid) => {
   monitor.count('overall.spot.submitted.count', 1);
   monitor.count(`worker.${workerType}.spot.submitted.count`, 1);
   monitor.measure('overall.price-per-capacity-unit', bid.truePrice);
@@ -26,7 +26,7 @@ module.exports.spotRequestSubmitted = (monitor, provisionerId,
 };
 
 module.exports.spotRequestFulfilled = (monitor, provisionerId, region, az,
-                                       instanceType, workerType, id, instanceId, time) => {
+  instanceType, workerType, id, instanceId, time) => {
   monitor.count('overall.spot.filled.count', 1);
   monitor.count(`worker.${workerType}.spot.filled.count`, 1);
   monitor.measure('overall.spot.filled.time', time);
@@ -37,8 +37,8 @@ module.exports.spotRequestFulfilled = (monitor, provisionerId, region, az,
 };
 
 module.exports.spotRequestDied = (monitor, provisionerId, region, az,
-                                  instanceType, workerType, id, time, bid, state,
-                                  statusCode, statusMsg) => {
+  instanceType, workerType, id, time, bid, state,
+  statusCode, statusMsg) => {
   monitor.count('overall.spot.died.count', 1);
   monitor.count(`worker.${workerType}.spot.died.count`, 1);
   monitor.count(`${region}.${az}.${instanceType}.overall.spot.died`, 1);
@@ -46,9 +46,9 @@ module.exports.spotRequestDied = (monitor, provisionerId, region, az,
 };
 
 module.exports.instanceTerminated = (monitor, provisionerId, region, az,
-                                     instanceType, workerType, id, spotRequestId, time,
-                                     launchTime, stateCode, stateMsg, stateChangeCode,
-                                     stateChangeMsg) => {
+  instanceType, workerType, id, spotRequestId, time,
+  launchTime, stateCode, stateMsg, stateChangeCode,
+  stateChangeMsg) => {
   monitor.count('overall.instance.terminated', 1);
   monitor.count(`worker.${workerType}.instance.terminated`, 1);
   monitor.count(`${region}.${az}.${instanceType}.overall.instance.terminated`, 1);

@@ -725,7 +725,6 @@ api.declare({
   ]);
 
   let instances = [];
-  let requests = [];
 
   if (workerState) {
     for (let instance of workerState.instances) {
@@ -740,27 +739,12 @@ api.declare({
         launch: instance.launched,
       });
     }
-
-    for (let request of workerState.requests) {
-      requests.push({
-        id: request.id,
-        ami: request.imageid,
-        type: request.instancetype,
-        region: request.region,
-        zone: request.az,
-        time: request.created,
-        visibleToEC2Api: true,
-        status: request.status,
-        state: request.state,
-      });
-    }
   }
 
   res.reply({
     workerType: workerType.workerType,
     instances: instances,
-    requests: requests,
-    // here for compatibility with the UI
+    requests: [],
     internalTrackedRequests: [],
     summary: workerTypeSummary(workerType, workerStats),
   });
