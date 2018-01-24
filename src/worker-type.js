@@ -907,7 +907,7 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             assert(typeof potentialBid === 'number');
             assert(typeof potentialPrice === 'number');
             
-            if (isAllowedCombo(bid.zone, bid.type, region)) {
+            if (isAllowedCombo(zone, type, region)) {
               bidOptions.push({
                 cheapestPrice: potentialPrice,
                 cheapestRegion: region,
