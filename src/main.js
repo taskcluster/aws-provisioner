@@ -238,8 +238,8 @@ let load = loader({
   },
 
   server: {
-    requires: ['cfg', 'api', 'docs', 'declare'],
-    setup: ({cfg, api, docs, declare}) => {
+    requires: ['cfg', 'api', 'docs'],
+    setup: ({cfg, api, docs}) => {
       let app = libApp(cfg.server);
       app.use('/v1', api);
       return app.createServer();
@@ -424,10 +424,10 @@ let load = loader({
     },
   },
 
-  all: {
-    requires: ['provisioner', 'server'],
-    setup: async ({provisioner, server}) => {
-      await Promise.race([provisioner, server]);
+  startserver: {
+    requires: ['server'],
+    setup: async ({server}) => {
+      await server;
     },
   },
 
