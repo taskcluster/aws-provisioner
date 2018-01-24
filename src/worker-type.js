@@ -917,7 +917,6 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
               });
             } else {
               log.debug({
-                bid,
                 workerType: this.workerType,
               }, 'skipping this bid because the combo does not work');
             }
