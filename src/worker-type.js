@@ -10,6 +10,33 @@ let _ = require('lodash');
 
 const KEY_CONST = 'worker-type';
 
+// When switching to the new spot model, we discovered that certain instance
+// types in certain regions weren't allowed even though we'd never seen this
+// behaviour previously
+function isAllowedCombo(zone, type, region) {
+  assert(typeof zone === 'string', 'zone is not a string');
+  assert(typeof type === 'string', 'type is not a string');
+  assert(typeof region === 'string', 'region is not a string');
+
+  let [family, size] = type.split('.');
+
+  switch (family) {
+    case "m3":
+    case "c3":
+      if (zone === 'us-east-1b' || zone === 'us-east-1f') {
+        return false;
+      }
+      break;
+    case "c5":
+      if (zone === 'us-east-1e') {
+        return false;
+      }
+      break;
+  }
+
+  return true;
+}
+
 // We do this three times, lets just stick it into a function
 function fixUserData(x) {
   let ud = {};
@@ -878,13 +905,22 @@ WorkerType.prototype.determineSpotBids = function(managedRegions, pricing, chang
             let potentialPrice = potentialBid / uf[type];
             assert(typeof potentialBid === 'number');
             assert(typeof potentialPrice === 'number');
-            bidOptions.push({
-              cheapestPrice: potentialPrice,
-              cheapestRegion: region,
-              cheapestType: type,
-              cheapestZone: zone,
-              cheapestBid: Math.ceil(potentialBid * 2 * 1000000) / 1000000,
-            });
+            
+            if (isAllowedCombo(bid.zone, bid.type, region)) {
+              bidOptions.push({
+                cheapestPrice: potentialPrice,
+                cheapestRegion: region,
+                cheapestType: type,
+                cheapestZone: zone,
+                cheapestBid: Math.ceil(potentialBid * 2 * 1000000) / 1000000,
+              });
+            } else {
+              log.debug({
+                bid,
+                workerType: this.workerType,
+              }, 'skipping this bid because the combo does not work');
+            }
+            
           } catch (err) {
             console.log(err);
             console.dir(pricingData);
