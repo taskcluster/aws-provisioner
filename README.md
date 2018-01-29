@@ -1,5 +1,4 @@
-Taskcluster AWS Provisioner
-===========================
+# Taskcluster AWS Provisioner
 
 [![Build Status](https://travis-ci.org/taskcluster/aws-provisioner.svg?branch=master)](https://travis-ci.org/taskcluster/taskcluster-aws-provisioner)
 *NOTE* Travis being green does not mean that we're good to deploy to production!
@@ -8,8 +7,7 @@ The AWS Provisioner is responsible for starting Amazon EC2 instances to perform
 tasks in the Taskcluster queue.  It monitors queue lengths and uses spot
 bidding to maximize the cost-effectiveness of its resources.
 
-Hacking AWS Provisioner
------------------------
+## Hacking AWS Provisioner
 
 You will need Node 4 to run the AWS provisioner.  With this in place, a simple
 `npm install` should fetch the prerequisites.
@@ -31,8 +29,9 @@ are working.
 ### Running Locally
 
 To run the provisioner locally, you will need a similar set of configuration.
-Then run
+Then run:
 
+```
 npm run compile && NODE_ENV=development DEBUG=* node lib/main.js server # just web server
 npm run compile && NODE_ENV=development DEBUG=* node lib/main.js all    # web + provisioner
 ```
@@ -41,14 +40,20 @@ Note that this is not usually the best way to test the provisioner.  Be careful
 that you manually destroy any resources the provisioner creates while it is
 running (EC2 instances, spot bids, and SSH keypairs).
 
-Deploying AWS Provisioner
--------------------------
+## Deploying AWS Provisioner
 
 This app is part of the 'provisioner' pipeline.
 
+### Environments
 
-Post Deployment Verification
----------------------------
+| Environment             | Staging                                               | Production                                    |
+| :---------------------- | :---------------------------------------------------- | :-------------------------------------------- |
+| `provisionerId`         | `staging-aws`                                         | `aws-provisioner-v1`                          |
+| Web Administration      | https://tools.taskcluster.net/aws-provisioner-staging | https://tools.taskcluster.net/aws-provisioner |
+| Base URL (API requests) | https://provisioner-staging.herokuapp.com/v1          | https://auth.taskcluster.net/v1               |
+| Deployment Method       | Automatic from master branch                          | Manual                                        |
+
+### Post Deployment Verification
 
 The provisioner is deployed on heroku as a worker process and a web process.  A
 deployment of the provisioner is made by pushing a commit to the master branch,
@@ -66,7 +71,6 @@ EC2 api's eventual consistency as well as it taking sometimes more than 20
 minutes to launch an instance mean that integration tests for the EC2
 interactions are not very feasible.
 
-Service Owner
--------------
+## Service Owner
 
 Service Owner: jhford@mozilla.com
