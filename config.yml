@@ -122,7 +122,7 @@ staging:
     project: 'staging-aws'
     mock: false
   server:
-    publicUrl: https://staging-aws-provisioner.herokuapp.com
+    publicUrl: https://provisioner-staging.herokuapp.com
     port: !env:number PORT
     env: development
     forceSSL: true
