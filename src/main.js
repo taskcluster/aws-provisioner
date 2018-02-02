@@ -59,7 +59,7 @@ let load = loader({
         signingKey: cfg.app.tableSigningKey,
         cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
-        monitor: monitor.prefix('data.workertypes'),
+        monitor: monitor.prefix('table.workertypes'),
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
           provisionerId: cfg.app.provisionerId,
@@ -81,7 +81,7 @@ let load = loader({
         signingKey: cfg.app.tableSigningKey,
         cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
-        monitor: monitor.prefix('data.secrets'),
+        monitor: monitor.prefix('table.secrets'),
       });
       return Secret;
     },
