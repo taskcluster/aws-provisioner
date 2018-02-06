@@ -6,6 +6,7 @@ let shuffle = require('knuth-shuffle');
 let rp = require('request-promise');
 let _ = require('lodash');
 let slugid = require('slugid');
+let keyPairs = require('./key-pairs');
 
 /**
  *
@@ -74,6 +75,12 @@ class Provisioner {
     assert(typeof cfg === 'object');
     assert(cfg.awsManager); //  eslint-disable-line no-alert, quotes, semi
     this.awsManager = cfg.awsManager;
+
+    assert(typeof cfg.keyPrefix === 'string');
+    this.keyPrefix = cfg.keyPrefix;
+
+    assert(typeof cfg.instancePubKey === 'string');
+    this.instancePubKey = cfg.instancePubKey;
 
     assert(cfg.ec2manager);
     this.ec2manager = cfg.ec2manager;
@@ -152,7 +159,6 @@ class Provisioner {
       let extantWorkerTypes = await this.ec2manager.listWorkerTypes();
       let rogues = extantWorkerTypes.filter(x => !workerNames.includes(x));
       await Promise.all(rogues.map(x => this.ec2manager.terminateWorkerType(x)));
-      await Promise.all(rogues.map(x => this.ec2manager.removeKeyPair(x)));
       log.info({rogues}, 'killed rogue worker types');
     } catch (err) {
       log.error({err}, 'Rogue killer error');
@@ -173,8 +179,12 @@ class Provisioner {
     // that's the case, then we'll assume that other failures are related to
     // worker type configuration and give up on them
     let hadSuccess = false;
+
+    // Let's have a single KeyPair for all provisioned instances
+    let keyName = keyPairs.createKeyPairName(this.keyPrefix, this.instancePubKey);
+    await this.ec2manager.ensureKeyPair(keyName, {value: this.instancePubKey});
+
     for (let worker of workerTypes) {
-      await this.ec2manager.ensureKeyPair(worker.workerType);
       let wtLog = log.child({workerType: worker.workerType});
       try {
         let change = await this.changeForType(worker);

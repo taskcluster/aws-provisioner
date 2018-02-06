@@ -20,7 +20,7 @@ module.exports.createPubKeyHash = function(pubKey) {
 /**
  * Create a KeyPair name
  */
-module.exports.createKeyPairName = function(prefix, pubKey, workerName) {
+module.exports.createKeyPairName = function(prefix, pubKey) {
   assert(prefix);
   // We want to support the case where we're still using a config setting
   // that ends in : as it used to
@@ -29,29 +29,6 @@ module.exports.createKeyPairName = function(prefix, pubKey, workerName) {
   }
   assert(prefix.indexOf(':') === -1, 'only up to one trailing colon allowed');
   assert(pubKey);
-  assert(workerName);
-  return prefix + ':' + workerName + ':' + module.exports.createPubKeyHash(pubKey);
+  return prefix + ':' + module.exports.createPubKeyHash(pubKey);
 };
 
-/**
- * Parse a KeyPair name into an object with a prefix, workerType and
- * keyHash properties on the returned object
- */
-module.exports.parseKeyPairName = function(name) {
-  assert(name);
-  let parts = name.split(':');
-  let rv = {
-    prefix: parts[0],
-    workerType: parts[1],
-  };
-
-  if (parts.length == 2) {
-    rv.keyHash = '';
-  } else if (parts.length === 3) {
-    rv.keyHash = parts[2];
-  } else {
-    throw new Error('KeyPair name is not parseable: ' + name);
-
-  }
-  return rv;
-};

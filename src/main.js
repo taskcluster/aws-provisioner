@@ -281,6 +281,7 @@ let load = loader({
       monitor,
       queue,
     }) => {
+      console.log('SSH-Key: ' + cfg.app.awsInstancePubkey);
       let provisioner = new provision.Provisioner({
         WorkerType: WorkerType,
         Secret: Secret,
@@ -290,6 +291,8 @@ let load = loader({
         awsManager: awsManager,
         ec2manager: ec2manager,
         monitor: monitor,
+        keyPrefix: cfg.app.awsKeyPrefix,
+        instancePubKey: cfg.app.awsInstancePubkey,
       });
 
       let i = new Iterate({

@@ -413,27 +413,6 @@ class AwsManager {
   }
 
   /**
-   * wrapper for brevity
-   */
-  createPubKeyHash() {
-    return keyPairs.createPubKeyHash(this.pubKey);
-  }
-
-  /**
-   * wrapper for brevity
-   */
-  createKeyPairName(workerName) {
-    return keyPairs.createKeyPairName(this.keyPrefix, this.pubKey, workerName);
-  }
-
-  /**
-   * wrapper for brevity
-   */
-  parseKeyPairName(name) {
-    return keyPairs.parseKeyPairName(name);
-  }
-
-  /**
    * Kill spot requests to change negatively by a capacity unit change.  We use
    * this function to do things like canceling spot requests that exceed the
    * number we require.
