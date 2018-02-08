@@ -182,7 +182,7 @@ class Provisioner {
 
     // Let's have a single KeyPair for all provisioned instances
     let keyName = keyPairs.createKeyPairName(this.keyPrefix, this.instancePubKey);
-    await this.ec2manager.ensureKeyPair(keyName, {value: this.instancePubKey});
+    await this.ec2manager.ensureKeyPair(keyName, {pubkey: this.instancePubKey});
 
     for (let worker of workerTypes) {
       let wtLog = log.child({workerType: worker.workerType});
