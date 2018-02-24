@@ -212,13 +212,10 @@ class AwsManager {
    * Update the state from the AWS API
    */
   async update() {
-    // We want to fetch the last 30 minutes of pricing data
-    let pricingStartDate = new Date();
-    pricingStartDate.setMinutes(pricingStartDate.getMinutes() - 30);
-
     let availableAZ = {};
     let allPricingHistory = {};
 
+    let prices = (await this.ec2manager.getPrices()).filter(p => p.type === 'spot');
     await Promise.all(_.map(this.ec2, async (ec2, region) => {
       let rLog = log.child({region});
       
@@ -233,18 +230,16 @@ class AwsManager {
       });
       availableAZ[region] = rawAZData.AvailabilityZones.map(x => x.ZoneName);
 
-      // Raw pricing data
-      let rawPricingData = await runAWSRequest(ec2, 'describeSpotPriceHistory', {
-        StartTime: pricingStartDate,
-        Filters: [
+      for (let price of prices.filter(p => p.region === region)) {
+        allPricingHistory[price.region] = Object.assign(
+          allPricingHistory[price.region] || {},
           {
-            Name: 'product-description',
-            Values: ['Linux/UNIX'],
-          },
-        ],
-      });
-
-      allPricingHistory[region] = this._findMaxPrices(rawPricingData, availableAZ[region]);
+            [price.instanceType]: {
+              [price.zone]: price.price,
+            },
+          }
+        );
+      }
     }));
     log.info('finished pricing update for all regions');
 
@@ -268,34 +263,6 @@ class AwsManager {
    */
   availableAZ() {
     return this.__availableAZ;
-  }
-
-  /**
-   * Find the maximum price for each instance type in each availabilty zone.
-   * We find the maximum, not average price intentionally as the average is a
-   * poor metric in this case from experience
-   */
-  _findMaxPrices(res, zones) {
-    // type -> zone
-    let pricing = {};
-
-    for (let pricePoint of res.SpotPriceHistory) {
-      let type = pricePoint.InstanceType;
-      let price = parseFloat(pricePoint.SpotPrice, 10);
-      let zone = pricePoint.AvailabilityZone;
-
-      // Remember that we only want to consider available zones
-      if (_.includes(zones, zone)) {
-        if (!pricing[type]) {
-          pricing[type] = {};
-        }
-        if (!pricing[type][zone] || pricing[type][zone] < price) {
-          pricing[type][zone] = price;
-        }
-      }
-    }
-
-    return pricing;
   }
 
   /**
