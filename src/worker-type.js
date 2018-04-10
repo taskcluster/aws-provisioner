@@ -21,18 +21,20 @@ function isAllowedCombo(zone, type, region) {
   let [family, size] = type.split('.');
 
   switch (family) {
-    case "r3":
-    case "m3":
-    case "c3":
+    case 'r3':
+    case 'm3':
+    case 'c3':
       if (zone === 'us-east-1b' || zone === 'us-east-1f') {
         return false;
       }
       break;
-    case "c5":
+    case 'c5':
       if (zone === 'us-east-1e') {
         return false;
       }
       break;
+    default:
+      return true;
   }
 
   return true;
