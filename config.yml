@@ -40,16 +40,16 @@ defaults:
       clientId: !env TASKCLUSTER_CLIENT_ID
       accessToken: !env TASKCLUSTER_ACCESS_TOKEN
 
+  monitoring:
+    project: !env MONITORING_PROJECT
+    enable: !env:bool MONITORING_ENABLE
+
   server:
     port: 5557
     publicUrl: localhost:5557
     env: development
     forceSSL: false
     trustProxy: false
-
-  monitor:
-    project: 'aws-provisioner-dev'
-    mock: true
 
   azure:
     account: !env AZURE_ACCOUNT_NAME
@@ -90,9 +90,6 @@ production:
     statsComponent: aws-provisioner-v1
     awsKeyPrefix: "aws-provisioner-v1-managed:"
     allowedRegions: !env:list ALLOWED_REGIONS
-  monitor:
-    project: 'aws-provisioner'
-    mock: false
   server:
     publicUrl: https://aws-provisioner.taskcluster.net
     port: !env:number PORT
@@ -118,9 +115,6 @@ staging:
     describeInstanceDelay: 5000
     describeSpotRequestDelay: 5000
     allowedRegions: !env:list ALLOWED_REGIONS
-  monitor:
-    project: 'staging-aws'
-    mock: false
   server:
     publicUrl: https://provisioner-staging.herokuapp.com
     port: !env:number PORT
@@ -137,6 +131,8 @@ development:
     iterationSnitch: 'http://httpbin.org/status/200'
   azure:
     account: jungle
+  monitoring:
+    enable: false
   app:
     provisionerId: aws-provisioner-dev
     iterationInterval: 10
@@ -171,6 +167,8 @@ test:
     tableCryptoKey:           AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
+  monitoring:
+    enable: false
   server:
     publicUrl: http://localhost:60407
     port: 60407
