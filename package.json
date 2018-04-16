@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "heroku-prebuild": "echo $SOURCE_VERSION > .git-revision",
     "install": "yarn run compile",
     "compile": "DEBUG= babel-compile -p taskcluster src:lib test-src:test",
     "fastcompile": "DEBUG= babel-compile --no-clean -p taskcluster src:lib test-src:test",
@@ -52,7 +53,7 @@
     "taskcluster-lib-iterate": "^1.0.2",
     "taskcluster-lib-loader": "^1.1.0",
     "taskcluster-lib-log": "^1.0.3",
-    "taskcluster-lib-monitor": "^4.6.2",
+    "taskcluster-lib-monitor": "^5.4.0",
     "taskcluster-lib-stats": "^0.8.8",
     "taskcluster-lib-testing": "^1.0.4",
     "taskcluster-lib-validate": "^2.1.0",

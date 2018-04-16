@@ -43,9 +43,10 @@ let load = loader({
   monitor: {
     requires: ['process', 'profile', 'cfg'],
     setup: ({process, profile, cfg}) => libMonitor({
-      project: cfg.monitor.project,
+      project: cfg.monitoring.project,
+      enable: cfg.monitoring.enable,
       credentials: cfg.taskcluster.credentials,
-      mock: cfg.monitor.mock,
+      mock: cfg.monitoring.mock,
       process,
     }),
   },
