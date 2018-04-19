@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "heroku-prebuild": "echo $SOURCE_VERSION > .git-revision",
+    "heroku-prebuild": "echo $SOURCE_VERSION > .git-version",
     "install": "yarn run compile",
     "compile": "DEBUG= babel-compile -p taskcluster src:lib test-src:test",
     "fastcompile": "DEBUG= babel-compile --no-clean -p taskcluster src:lib test-src:test",
