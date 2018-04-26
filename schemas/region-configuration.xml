@@ -1,0 +1,39 @@
+$schema: http://json-schema.org/draft-06/schema#
+title: Region Configuration
+type: object
+description: Region configuration
+properties:
+  region:
+    type: string
+    description: |
+      The Amazon AWS Region being configured.  Example: us-west-1
+    enum:
+      - us-west-2
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - eu-central-1
+  launchSpec: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/region-launch-spec.json#"}
+  secrets:
+    type: object
+    description: |
+      Static Secrets unique to this Region
+  userData:
+    type: object
+    description: |
+      UserData entries unique to this Region
+  scopes:
+    type: array
+    items:
+      type: string
+      pattern: "^[\x20-\x7e]*$"
+    description: |
+      Scopes which should be included for this Region.  Scopes must be
+      composed of printable ASCII characters and spaces.
+additionalProperties: false
+required:
+  - region
+  - launchSpec
+  - secrets
+  - userData
+  - scopes

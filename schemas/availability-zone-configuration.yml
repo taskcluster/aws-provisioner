@@ -1,0 +1,32 @@
+$schema: http://json-schema.org/draft-06/schema#
+title: Availability Zone Configuration
+type: object
+description: Availability zone configuration
+properties:
+  availabilityZone:
+    type: string
+    description: |
+      The AWS availability zone being configured.  Example: eu-central-1b
+  region:
+    type: string
+    description: |
+      The AWS region containing this availability zone.  Example: eu-central-1
+  launchSpec:
+    type: object
+    description: |
+      LaunchSpecification entries unique to this AZ
+  secrets:
+    type: object
+    description: |
+      Static Secrets unique to this AZ
+    default: {}
+  userData:
+    type: object
+    description: |
+      UserData entries unique to this AZ
+    default: {}
+additionalProperties: false
+required:
+  - region
+  - availabilityZone
+  - launchSpec

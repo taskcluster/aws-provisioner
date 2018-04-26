@@ -1,0 +1,12 @@
+$schema: http://json-schema.org/draft-06/schema#
+title: "Region Launch Spec"
+type: object
+additionalProperties: true
+description: |
+  LaunchSpecification entries unique to this Region
+properties:
+  ImageId:
+    type: string
+    description: Per-region AMI ImageId
+required:
+  - ImageId
