@@ -1,16 +1,15 @@
----
-  $schema: http://json-schema.org/draft-04/schema#
-  title: Worker Type Message
-  description: Message reporting that an action occured to a worker type
-  type: object
-  properties:
-    workerType:
-      description: |
-        Name of the worker type which was created
-      type: string
-    version:
-      type: number
-  additionalProperties: false
-  required:
-    - workerType
-    - version
+$schema: http://json-schema.org/draft-06/schema#
+title: Worker Type Message
+description: Message reporting that an action occured to a worker type
+type: object
+properties:
+  workerType:
+    description: |
+      Name of the worker type which was created
+    type: string
+  version:
+    type: number
+additionalProperties: false
+required:
+  - workerType
+  - version
