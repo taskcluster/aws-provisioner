@@ -1,7 +1,7 @@
-$schema:  http://json-schema.org/draft-04/schema#
-title:                      "Get Worker Type Response"
+$schema: http://json-schema.org/draft-06/schema#
+title: "Worker Type Last Modified"
 description: |
-  Get the last modified date of a workerType
+  The last modified date of a workerType
 type:                       object
 properties:
   workerType:
