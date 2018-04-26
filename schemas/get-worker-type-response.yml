@@ -1,5 +1,5 @@
-$schema:  http://json-schema.org/draft-04/schema#
-title:                      "Get Worker Type Response"
+$schema: http://json-schema.org/draft-06/schema#
+title: "Worker Type Response"
 description: |
   A worker launchSpecification and required metadata
 type:                       object
@@ -92,133 +92,13 @@ properties:
       when this worker type definition was last altered (inclusive of creation)
   instanceTypes:
     type: array
-    items:
-      type: object
-      description: Instance Type configuration
-      properties:
-        instanceType:
-          description: |
-            InstanceType name for Amazon.
-          type: string
-        capacity:
-          description: |
-            This number represents the number of tasks that this instance type
-            is capable of running concurrently.  This is used by the provisioner
-            to know how many pending tasks to offset a pending instance of this
-            type by
-          type: number
-        utility:
-          description: |
-            This number is a relative measure of performance between two instance
-            types.  It is multiplied by the spot price from Amazon to figure out
-            which instance type is the cheapest one
-          type: number
-        launchSpec:
-          type: object
-          description: |
-            LaunchSpecification entries unique to this InstanceType
-        secrets:
-          type: object
-          description: |
-            Static Secrets unique to this InstanceType
-        userData:
-          type: object
-          description: |
-            UserData entries unique to this InstanceType
-        scopes:
-          type: array
-          items:
-            type: string
-            pattern: "^[\x20-\x7e]*$"
-          description: |
-            Scopes which should be included for this InstanceType.  Scopes must
-            be composed of printable ASCII characters and spaces.
-      required:
-        - instanceType
-        - capacity
-        - utility
-        - launchSpec
-        - secrets
-        - userData
-        - scopes
-      additionalProperties: false
+    items: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/instance-type-configuration.json#"}
   regions:
     type: array
-    items:
-      type: object
-      description: Region configuration
-      properties:
-        region:
-          type: string
-          description: |
-            The Amazon AWS Region being configured.  Example: us-west-1
-        launchSpec:
-          type: object
-          additionalProperties: true
-          description: |
-            LaunchSpecification entries unique to this Region
-          properties:
-            ImageId:
-              type: string
-              description: Per-region AMI ImageId
-          required:
-            - ImageId
-        secrets:
-          type: object
-          description: |
-            Static Secrets unique to this Region
-        userData:
-          type: object
-          description: |
-            UserData entries unique to this Region
-        scopes:
-          type: array
-          items:
-            type: string
-            pattern: "^[\x20-\x7e]*$"
-          description: |
-            Scopes which should be included for this Region.  Scopes must be
-            composed of printable ASCII characters and spaces.
-      additionalProperties: false
-      required:
-        - region
-        - launchSpec
-        - secrets
-        - userData
-        - scopes
+    items: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/region-configuration.json#"}
   availabilityZones:
     type: array
-    items:
-      type: object
-      description: Availability zone configuration
-      properties:
-        availabilityZone:
-          type: string
-          description: |
-            The AWS availability zone being configured.  Example: eu-central-1b
-        region:
-          type: string
-          description: |
-            The AWS region containing this availability zone.  Example: eu-central-1
-        launchSpec:
-          type: object
-          description: |
-            LaunchSpecification entries unique to this AZ
-        secrets:
-          type: object
-          description: |
-            Static Secrets unique to this AZ
-          default: {}
-        userData:
-          type: object
-          description: |
-            UserData entries unique to this AZ
-          default: {}
-      additionalProperties: false
-      required:
-        - availabilityZone
-        - region
-        - launchSpec
+    items: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/availability-zone-configuration.json#"}
 additionalProperties: false
 required:
   - workerType

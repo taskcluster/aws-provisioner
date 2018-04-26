@@ -1,0 +1,50 @@
+$schema: http://json-schema.org/draft-06/schema#
+type: object
+description: Instance Type configuration
+properties:
+  instanceType:
+    description: |
+      InstanceType name for Amazon.
+    type: string
+  capacity:
+    description: |
+      This number represents the number of tasks that this instance type
+      is capable of running concurrently.  This is used by the provisioner
+      to know how many pending tasks to offset a pending instance of this
+      type by
+    type: number
+  utility:
+    description: |
+      This number is a relative measure of performance between two instance
+      types.  It is multiplied by the spot price from Amazon to figure out
+      which instance type is the cheapest one
+    type: number
+  launchSpec:
+    type: object
+    description: |
+      LaunchSpecification entries unique to this InstanceType
+  secrets:
+    type: object
+    description: |
+      Static Secrets unique to this InstanceType
+  userData:
+    type: object
+    description: |
+      UserData entries unique to this InstanceType
+  scopes:
+    type: array
+    items:
+      type: string
+      pattern: "^[\x20-\x7e]*$"
+    description: |
+      Scopes which should be included for this InstanceType.  Scopes must
+      be composed of printable ASCII characters and spaces.
+required:
+  - instanceType
+  - capacity
+  - utility
+  - launchSpec
+  - secrets
+  - userData
+  - scopes
+additionalProperties: false

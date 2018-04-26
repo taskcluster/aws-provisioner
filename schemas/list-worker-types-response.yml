@@ -1,6 +1,6 @@
----
-  title: "List Worker Types"
-  type: "array"
-  items: 
-    type: "string"
-  uniqueItems: true
+$schema: http://json-schema.org/draft-06/schema#
+title: "List Worker Types"
+type: "array"
+items: 
+  type: "string"
+uniqueItems: true
