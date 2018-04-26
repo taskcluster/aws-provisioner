@@ -22,6 +22,7 @@ let EC2_INSTANCE_ID_PATTERN = /^i-[a-fA-F0-9]{8}$/;
  */
 let api = new API({
   title: 'AWS Provisioner API Documentation',
+  name: 'awsprovisioner',
   description: [
     'The AWS Provisioner is responsible for provisioning instances on EC2 for use in',
     'Taskcluster.  The provisioner maintains a set of worker configurations which',
@@ -139,7 +140,7 @@ api.declare({
   route: '/worker-type/:workerType',
   name: 'createWorkerType',
   deferAuth: true,
-  scopes: [['aws-provisioner:manage-worker-type:<workerType>']],
+  scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Create new Worker Type',
@@ -261,7 +262,7 @@ api.declare({
   route: '/worker-type/:workerType/update',
   name: 'updateWorkerType',
   deferAuth: true,
-  scopes: [['aws-provisioner:manage-worker-type:<workerType>']],
+  scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
   title: 'Update Worker Type',
@@ -370,10 +371,10 @@ api.declare({
   route: '/worker-type/:workerType',
   name: 'workerType',
   deferAuth: true,
-  scopes: [
-    ['aws-provisioner:view-worker-type:<workerType>'],
-    ['aws-provisioner:manage-worker-type:<workerType>'],
-  ],
+  scopes: {AnyOf: [
+    'aws-provisioner:view-worker-type:<workerType>',
+    'aws-provisioner:manage-worker-type:<workerType>',
+  ]},
   input: undefined,  // No input
   output: 'get-worker-type-response.json#',
   title: 'Get Worker Type',
@@ -418,7 +419,7 @@ api.declare({
   route: '/worker-type/:workerType',
   name: 'removeWorkerType',
   deferAuth: true,
-  scopes: [['aws-provisioner:manage-worker-type:<workerType>']],
+  scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: undefined,  // No input
   output: undefined,  // No output
   title: 'Delete Worker Type',
@@ -480,7 +481,7 @@ api.declare({
   method: 'put',
   route: '/secret/:token',
   name: 'createSecret',
-  scopes: [['aws-provisioner:create-secret:<workerType>']],
+  scopes: 'aws-provisioner:create-secret:<workerType>',
   input: 'create-secret-request.json#',
   title: 'Create new Secret',
   stability:  API.stability.stable,
@@ -654,10 +655,10 @@ api.declare({
   route: '/worker-type/:workerType/launch-specifications',
   name: 'getLaunchSpecs',
   deferAuth: true,
-  scopes: [
-    ['aws-provisioner:view-worker-type:<workerType>'],
-    ['aws-provisioner:manage-worker-type:<workerType>'],
-  ],
+  scopes: {AnyOf: [
+    'aws-provisioner:view-worker-type:<workerType>',
+    'aws-provisioner:manage-worker-type:<workerType>',
+  ]},
   input: undefined,  // No input
   output: 'get-launch-specs-response.json#',
   title: 'Get All Launch Specifications for WorkerType',
