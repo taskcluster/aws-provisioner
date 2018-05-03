@@ -132,6 +132,7 @@ development:
   azure:
     account: jungle
   monitoring:
+    project: DISABLED
     enable: false
   app:
     provisionerId: aws-provisioner-dev
@@ -168,6 +169,7 @@ test:
     describeInstanceDelay: 1000
     describeSpotRequestDelay: 1000
   monitoring:
+    project: DISABLED
     enable: false
   server:
     publicUrl: http://localhost:60407
