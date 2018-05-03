@@ -4,14 +4,9 @@
   "private": true,
   "scripts": {
     "heroku-prebuild": "echo $SOURCE_VERSION > .git-version",
-    "install": "yarn run compile",
-    "compile": "DEBUG= babel-compile -p taskcluster src:lib test-src:test",
-    "fastcompile": "DEBUG= babel-compile --no-clean -p taskcluster src:lib test-src:test",
-    "clean": "rm -rf lib test",
-    "pretest": "yarn run compile",
-    "lint": "eslint src/*.js test-src/*.js",
-    "lintfix": "eslint --fix src/*.js test-src/*.js",
-    "unittest": "NODE_ENV=test mocha test/*_test.js",
+    "lint": "eslint lib/*.js test/*.js",
+    "lint": "eslint lib/*.js test/*.js --fix",
+    "unittest": "NODE_ENV=test node --stack-trace-limit=30 ./node_modules/mocha/bin/_mocha test/*_test.js",
     "test": "yarn run lint && yarn run unittest"
   },
   "bin": {
@@ -26,10 +21,7 @@
     "aws-sdk": "^2.41.0",
     "azure-entities": "^2.0.0",
     "azure-storage": "^2.1.0",
-    "babel-compile": "^2.0.0",
     "babel-eslint": "^7.2.2",
-    "babel-preset-taskcluster": "^3.0.0",
-    "babel-runtime": "^6.6.1",
     "commander": "^2.6.0",
     "debug": "^2.6.3",
     "eslint": "^3.19.0",
@@ -61,6 +53,6 @@
     "uuid": "^3.0.1"
   },
   "engines": {
-    "node": "8.9.0"
+    "node": "8.10.0"
   }
 }
