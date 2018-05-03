@@ -181,4 +181,4 @@ test:
       key: 'nokey'
     iterationSnitch: 'http://httpbin.org/status/200'
   ec2manager:
-    baseUrl: http://localhost:5555/v1
+    baseUrl: https://ec2-manager-staging.herokuapp.com/v1
