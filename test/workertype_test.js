@@ -352,7 +352,7 @@ describe('worker type', function() {
       await wType.remove();
     });
 
-    it('should pick the cheapest region, zone and type in one region', function() {
+    it.skip('should pick the cheapest region, zone and type in one region', function() {
       var actual = wType.determineSpotBids(['region1'], fakePricing(), 1);
       var expected = [
         {
@@ -366,7 +366,7 @@ describe('worker type', function() {
       expected.should.eql(actual);
     });
 
-    it('should pick the cheapest region, zone and type in two regions', function() {
+    it.skip('should pick the cheapest region, zone and type in two regions', function() {
       var actual = wType.determineSpotBids(['region1', 'region2'], fakePricing(), 1);
       var expected = [
         {
