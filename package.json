@@ -5,7 +5,7 @@
   "scripts": {
     "heroku-prebuild": "echo $SOURCE_VERSION > .git-version",
     "lint": "eslint lib/*.js test/*.js --fix",
-    "unittest": "NODE_ENV=test node --stack-trace-limit=30 ./node_modules/mocha/bin/_mocha test/*_test.js",
+    "unittest": "NODE_ENV=test node --stack-trace-limit=50 ./node_modules/mocha/bin/_mocha test/*_test.js",
     "test": "yarn run lint && yarn run unittest"
   },
   "bin": {
@@ -42,12 +42,12 @@
     "taskcluster-lib-app": "^1.0.0",
     "taskcluster-lib-docs": "^3.3.1",
     "taskcluster-lib-iterate": "^1.0.2",
-    "taskcluster-lib-loader": "^1.1.0",
+    "taskcluster-lib-loader": "^2.0.0",
     "taskcluster-lib-log": "^1.0.3",
     "taskcluster-lib-monitor": "^5.4.0",
     "taskcluster-lib-stats": "^0.8.8",
     "taskcluster-lib-testing": "^1.0.4",
-    "taskcluster-lib-validate": "^2.1.0",
+    "taskcluster-lib-validate": "^3.1.0",
     "typed-env-config": "^1.1.1",
     "uuid": "^3.0.1"
   },

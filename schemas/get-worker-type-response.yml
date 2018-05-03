@@ -92,10 +92,10 @@ properties:
       when this worker type definition was last altered (inclusive of creation)
   instanceTypes:
     type: array
-    items: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/instance-type-configuration.json#"}
+    items: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/instance-type-configuration.json#"}
   regions:
     type: array
-    items: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/region-configuration.json#"}
+    items: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/region-configuration.json#"}
   availabilityZones:
     type: array
     items: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/availability-zone-configuration.json#"}

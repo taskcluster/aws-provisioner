@@ -13,7 +13,7 @@ properties:
       - us-east-2
       - us-west-1
       - eu-central-1
-  launchSpec: {$ref: "https://schemas.taskcluster.net/aws-provisioner/v1/region-launch-spec.json#"}
+  launchSpec: {$ref: "http://schemas.taskcluster.net/aws-provisioner/v1/region-launch-spec.json#"}
   secrets:
     type: object
     description: |
