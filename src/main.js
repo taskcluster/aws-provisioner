@@ -52,14 +52,15 @@ let load = loader({
   },
 
   WorkerType: {
-    requires: ['cfg', 'queue'],
-    setup: async ({cfg, queue}) => {
+    requires: ['cfg', 'queue', 'monitor'],
+    setup: async ({cfg, queue, monitor}) => {
       let WorkerType = workerType.setup({
         account: cfg.azure.account,
         table: cfg.app.workerTypeTableName,
         signingKey: cfg.app.tableSigningKey,
         cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
+        monitor: monitor.prefix('table.workertypes'),
         context: {
           keyPrefix: cfg.app.awsKeyPrefix,
           provisionerId: cfg.app.provisionerId,
@@ -73,14 +74,15 @@ let load = loader({
   },
 
   Secret: {
-    requires: ['cfg'],
-    setup: async ({cfg}) => {
+    requires: ['cfg', 'monitor'],
+    setup: async ({cfg, monitor}) => {
       let Secret = secret.setup({
         account: cfg.azure.account,
         table: cfg.app.secretTableName,
         signingKey: cfg.app.tableSigningKey,
         cryptoKey: cfg.app.tableCryptoKey,
         credentials: cfg.taskcluster.credentials,
+        monitor: monitor.prefix('table.secrets'),
       });
       return Secret;
     },
