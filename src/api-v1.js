@@ -139,7 +139,6 @@ api.declare({
   method: 'put',
   route: '/worker-type/:workerType',
   name: 'createWorkerType',
-  deferAuth: true,
   scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
@@ -181,9 +180,7 @@ api.declare({
   input.lastModified = new Date();
 
   // Authenticate request with parameterized scope
-  if (!req.satisfies({workerType: workerType})) {
-    return;
-  }
+  await req.authorize({workerType: workerType});
 
   let workerForValidation = _.defaults({}, {workerType: workerType}, input);
 
@@ -261,7 +258,6 @@ api.declare({
   method: 'post',
   route: '/worker-type/:workerType/update',
   name: 'updateWorkerType',
-  deferAuth: true,
   scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: 'create-worker-type-request.json#',
   output: 'get-worker-type-response.json#',
@@ -292,7 +288,7 @@ api.declare({
 
   input.lastModified = modDate;
 
-  if (!req.satisfies({workerType: workerType})) { return undefined; }
+  await req.authorize({workerType: workerType});
 
   let workerForValidation = _.defaults({}, {workerType: workerType}, input);
 
@@ -370,7 +366,6 @@ api.declare({
   method: 'get',
   route: '/worker-type/:workerType',
   name: 'workerType',
-  deferAuth: true,
   scopes: {AnyOf: [
     'aws-provisioner:view-worker-type:<workerType>',
     'aws-provisioner:manage-worker-type:<workerType>',
@@ -389,7 +384,7 @@ api.declare({
 }, async function(req, res) {
   let workerType = req.params.workerType;
 
-  if (!req.satisfies({workerType: workerType})) { return undefined; }
+  await req.authorize({workerType: workerType});
 
   let worker;
   try {
@@ -418,7 +413,6 @@ api.declare({
   method: 'delete',
   route: '/worker-type/:workerType',
   name: 'removeWorkerType',
-  deferAuth: true,
   scopes: 'aws-provisioner:manage-worker-type:<workerType>',
   input: undefined,  // No input
   output: undefined,  // No output
@@ -440,7 +434,7 @@ api.declare({
   let that = this;
   let workerType = req.params.workerType;
 
-  if (!req.satisfies({workerType: workerType})) { return undefined; }
+  await req.authorize({workerType: workerType});
 
   try {
     await this.WorkerType.remove({workerType: workerType}, true);
@@ -497,7 +491,7 @@ api.declare({
   let input = req.body;
   let token = req.params.token;
 
-  if (!req.satisfies({workerType: input.workerType})) { return undefined; }
+  await req.authorize({workerType: workerType});
 
   let secret;
   try {
@@ -654,7 +648,6 @@ api.declare({
   method: 'get',
   route: '/worker-type/:workerType/launch-specifications',
   name: 'getLaunchSpecs',
-  deferAuth: true,
   scopes: {AnyOf: [
     'aws-provisioner:view-worker-type:<workerType>',
     'aws-provisioner:manage-worker-type:<workerType>',
@@ -673,7 +666,7 @@ api.declare({
 }, async function(req, res) {
   let workerType = req.params.workerType;
 
-  if (!req.satisfies({workerType: workerType})) { return undefined; }
+  await req.authorize({workerType: workerType});
 
   let worker = await this.WorkerType.load({workerType: workerType});
   let outcome;
@@ -697,7 +690,6 @@ api.declare({
   route: '/state/:workerType',
   name: 'state',
   title: 'Get AWS State for a worker type',
-  deferAuth: true,
   stability:  API.stability.stable,
   description: [
     'Return the state of a given workertype as stored by the provisioner. ',
