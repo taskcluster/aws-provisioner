@@ -5,7 +5,7 @@
   "scripts": {
     "heroku-prebuild": "echo $SOURCE_VERSION > .git-version",
     "lint": "eslint lib/*.js test/*.js --fix",
-    "unittest": "NODE_ENV=test node --stack-trace-limit=50 ./node_modules/mocha/bin/_mocha test/*_test.js",
+    "unittest": "NODE_ENV=test node --stack-trace-limit=50 ./node_modules/mocha/bin/_mocha --exit test/*_test.js",
     "test": "yarn run lint && yarn run unittest"
   },
   "bin": {
@@ -28,7 +28,7 @@
     "eslint-plugin-taskcluster": "^1.0.0",
     "knuth-shuffle": "^1.0.8",
     "lodash": "^4.17.10",
-    "mocha": "<4",
+    "mocha": "^5.1.1",
     "mz": "^2.7.0",
     "pulse-publisher": "^3.0.3",
     "request": "^2.85.0",
