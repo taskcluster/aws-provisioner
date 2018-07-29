@@ -50,6 +50,7 @@ defaults:
     env: development
     forceSSL: false
     trustProxy: false
+    rootDocsLink: false
 
   azure:
     account: !env AZURE_ACCOUNT_NAME
