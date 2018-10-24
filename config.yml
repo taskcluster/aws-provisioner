@@ -52,7 +52,7 @@ defaults:
     trustProxy: false
 
   azure:
-    account: !env AZURE_ACCOUNT_NAME
+    accountId: !env AZURE_ACCOUNT_ID
   azureBlob:
     accountName: !env AZURE_BLOB_ACCOUNT_NAME
     accountKey: !env AZURE_BLOB_ACCOUNT_KEY
@@ -130,7 +130,7 @@ development:
       key: 'nokey'
     iterationSnitch: 'http://httpbin.org/status/200'
   azure:
-    account: jungle
+    accountId: jungle
   monitoring:
     project: DISABLED
     enable: false
@@ -175,7 +175,7 @@ test:
     publicUrl: http://localhost:60407
     port: 60407
   azure:
-    account: jungle
+    accountId: jungle
   deadmanssnitch:
     api:
       key: 'nokey'

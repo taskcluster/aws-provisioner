@@ -18,8 +18,7 @@
   "dependencies": {
     "assume": "^2.0.1",
     "aws-sdk": "^2.232.1",
-    "azure-entities": "^3.3.0",
-    "azure-storage": "^2.8.2",
+    "azure-entities": "^5.1.0",
     "babel-eslint": "^8.2.3",
     "commander": "^2.15.1",
     "debug": "^3.1.0",
@@ -40,6 +39,7 @@
     "taskcluster-client": "^4.1.0",
     "taskcluster-lib-api": "8.4.0",
     "taskcluster-lib-app": "^1.0.0",
+    "taskcluster-lib-azure": "^10.0.0",
     "taskcluster-lib-docs": "^3.3.1",
     "taskcluster-lib-iterate": "^1.0.4",
     "taskcluster-lib-loader": "^2.0.0",
