@@ -6,7 +6,10 @@
     "workerType": {
       "title": "Worker Type",
       "description": "Worker type name\n",
-      "type": "string"
+      "type": "string",
+      "minLength":    {"$const": "identifier-min-length"},
+      "maxLength":    {"$const": "identifier-max-length"},
+      "pattern":      {"$const": "identifier-pattern"}
     },
     "instances": {
       "title": "Instances",

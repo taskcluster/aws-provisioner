@@ -7,6 +7,9 @@ properties:
   workerType:
     title: Worker type name
     type: string
+    minLength:    {$const: identifier-min-length}
+    maxLength:    {$const: identifier-max-length}
+    pattern:      {$const: identifier-pattern}
   minCapacity:
     title: Minimum capacity of the workerType
     type: integer

@@ -47,7 +47,7 @@ suite('Bad WorkerType definitions', () => {
 
   test('Should cause failure when creating', async () => {
     try {
-      await client.createWorkerType('createBadInput', {
+      await client.createWorkerType('sample-workerType-name-extended-extended', {
         bad: 'input',
       });
       throw new Error('Expected and error');

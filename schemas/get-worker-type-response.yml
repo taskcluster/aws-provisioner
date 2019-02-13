@@ -8,7 +8,9 @@ properties:
     type: string
     description: |
       The ID of the workerType
-    pattern: ^[A-Za-z0-9+/=_-]{1,22}$
+    minLength:    {$const: identifier-min-length}
+    maxLength:    {$const: identifier-max-length}
+    pattern:      {$const: identifier-pattern}
   launchSpec:
     type: object
     description: |
@@ -31,7 +33,7 @@ properties:
       UserData entries which are used in all regions and all instance types
   scopes:
     type: array
-    items: 
+    items:
       type: string
       pattern: "^[\x20-\x7e]*$"
     description: |
