@@ -8,7 +8,9 @@ properties:
     type: string
     description: |
       The ID of the workerType
-    pattern: ^[A-Za-z0-9+/=_-]{1,22}$
+    minLength:    {$const: identifier-min-length}
+    maxLength:    {$const: identifier-max-length}
+    pattern:      {$const: identifier-pattern}
   lastModified:
     type: string
     format: date-time

@@ -7,6 +7,9 @@ properties:
     description: |
       Name of the worker type which was created
     type: string
+    minLength:    {$const: identifier-min-length}
+    maxLength:    {$const: identifier-max-length}
+    pattern:      {$const: identifier-pattern}
   version:
     type: number
 additionalProperties: false
