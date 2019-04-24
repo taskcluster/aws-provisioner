@@ -17,8 +17,10 @@ properties:
       LaunchSpecification entries unique to this AZ
   secrets:
     type: object
+    # this object must be empty
+    additionalProperties: false
     description: |
-      Static Secrets unique to this AZ
+      Secrets properties are deprecated, and only an empty object is allowed. Secrets have been migrated to the secrets service, with secret name `worker-type:aws-provisioner-v1/<workerType>`.
     default: {}
   userData:
     type: object
