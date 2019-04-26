@@ -18,8 +18,10 @@ properties:
       A string which identifies the owner of this worker type
   secrets:
     type: object
+    # this object must be empty
+    additionalProperties: false
     description: |
-      Static secrets entries which are used in all regions and all instance types
+      Secrets properties are deprecated, and only an empty object is allowed. Secrets have been migrated to the secrets service, with secret name `worker-type:aws-provisioner-v1/<workerType>`.
   userData:
     type: object
     description: |
