@@ -74,14 +74,37 @@ describe('secrets api', () => {
     throw new Error('should have failed');
   });
 
+  it('should not be able to load a secret twice', async () => {
+    await client.createSecret(token, secretToAdd);
+    await client.getSecret(token);
+
+    try {
+      await client.getSecret(token);
+    } catch (err) {
+      if (err.statusCode !== 404) {
+        throw err;
+      }
+      return;
+    }
+    throw new Error('should have failed');
+  });
+
   it('should be able to remove a secret (idempotent)', async () => {
+    await client.createSecret(token, secretToAdd);
+
+    await client.getSecret(token);
+
     await client.removeSecret(token);
     await client.removeSecret(token);
 
     try {
       await client.getSecret(token);
     } catch (err) {
-      assume(err.statusCode).equals(404);
+      if (err.statusCode !== 404) {
+        throw err;
+      }
+      return;
     }
+    throw new Error('should have failed');
   });
 });
